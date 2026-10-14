@@ -38,13 +38,27 @@
     "core": {
       "label": "Elevator and stair core",
       "meaning": "One core stacked in the same position on every floor. It counts as floor area on every floor; on commercial floors it counts as residential unless switched off for that floor.",
-      "thisBuilding": "16'-0\" x 13'-0\" (208 SF), 64'-0\" from the rear lot line, 6'-0\" from the top lot line, 6'-0\" elevator shaft; counts as commercial on the 2nd floor",
-      "source": "Project decision"
+      "thisBuilding": "16'-0\" x 13'-0\" (208 SF) as drawn, 64'-0\" from the rear lot line, 6'-0\" from the top lot line; 6'-0\" elevator shaft on the street (front) side of the stair; counts as commercial on the 2nd floor. Too small for the scissor stair.",
+      "source": "Project decision",
+      "elevSide": "front"
     },
     "cellar": {
       "label": "Cellar",
       "meaning": "Exempt from zoning floor area.",
       "source": "Project assumption from the original model, confirm with the zoning analysis"
+    },
+    "stair": {
+      "label": "Scissor stair (two interlocking exit stairs in one enclosure)",
+      "widthIn": 44,
+      "sepIn": 8,
+      "maxRiserIn": 7,
+      "treadIn": 11,
+      "landingMaxIn": 48,
+      "maxFlightRiseFt": 12,
+      "formula": "risers = ceil(floor height / max riser); flights = ceil(floor height / 12 ft); treads = risers - flights; length = treads x tread + (flights + 1) x landing; landing = min(stair width, 48 in); enclosure width = 2 x stair width + separation wall",
+      "thisBuilding": "8'-0\" wide; 22'-11\" long for 10 ft floors, 23'-10\" for 11 ft, 25'-8\" for 12 ft, 31'-2\" for the 14 ft 1st floor",
+      "notes": "36 in stairs are allowed if the stair serves only Group R-2, the building is 125 ft or less and the stair serves 30 or fewer occupants per floor (1011.2 exc. 1.2), or 50 or fewer occupants in total (exc. 1.1). In R-2, scissor stairs can count as two exits when enclosed and separated by 2-hour masonry and the exit doors are at least 15 ft apart (1007.1.1 exc. 3).",
+      "source": "NYC Building Code 2022 §1011.2, 1011.5.2, 1011.6, 1011.8, 1007.1.1"
     }
   },
   "siteInputs246South2nd": {

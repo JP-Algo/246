@@ -129,6 +129,16 @@ tfoot td{font-weight:600;border-bottom:0}
 .rules td small{display:block;color:var(--muted);font-size:11.5px;font-weight:400}
 .rules input.in{width:64px;padding:2px 6px}
 .rules tbody tr{cursor:default}
+.dimpop{position:absolute;z-index:5;display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12.5px;box-shadow:0 4px 14px rgba(0,0,0,.18);max-width:calc(100% - 16px)}
+.dimpop[hidden]{display:none}
+.dimpop label{display:flex;align-items:center;gap:5px}
+.dimpop input.in{width:78px;padding:3px 6px}
+.dimpop .seg button{padding:3px 8px;font-size:12px}
+.dimpop .x{border:0;background:transparent;font-size:16px;line-height:1;padding:2px 4px;cursor:pointer;color:var(--muted)}
+.editor.fs{position:fixed;inset:0;z-index:50;background:var(--paper);padding:12px 16px;display:flex;flex-direction:column;overflow:auto}
+.editor.fs .planwrap{flex:1 1 auto;min-height:240px;display:flex}
+.editor.fs #plan{height:auto;flex:1 1 auto}
+.zoom svg{display:block;width:14px;height:14px}
 .dimedit{flex-basis:100%;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px 12px}
 .dimedit label{display:grid;gap:3px;font-size:12px;color:var(--muted)}
 .dimedit input.in{width:100%;color:var(--ink)}
@@ -178,6 +188,7 @@ tfoot td{font-weight:600;border-bottom:0}
   <div class="panel">
     <section>
       <button class="btn show3d" id="show3d">Show 3D view</button>
+      <div class="editor" id="editor">
       <div class="tabbar">
         <div class="tabs" id="tabs" role="tablist" aria-label="Floors"></div>
         <div class="seg" role="group" aria-label="Layers to show">
@@ -206,11 +217,14 @@ tfoot td{font-weight:600;border-bottom:0}
 
       <div class="planwrap">
         <svg id="plan" role="application" aria-label="Floor plan editor"></svg>
+        <div class="dimpop" id="dimpop" hidden></div>
         <div class="zoom">
           <button class="btn" id="zIn" aria-label="Zoom in">+</button>
           <button class="btn" id="zOut" aria-label="Zoom out">−</button>
           <button class="btn" id="zFit">Fit</button>
+          <button class="btn" id="zFull" aria-label="Full screen" title="Full screen (Esc to exit)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg></button>
         </div>
+      </div>
       </div>
       <div class="legend" id="legend">
         <span style="--c:var(--gross)">Gross floor area</span>
@@ -350,8 +364,8 @@ function seed(){
 /* One elevator and stair core shared by every floor, stored once on the model. On commercial floors its
    area counts toward residential floor area unless that floor's coreRes switch is off. */
 function ensureCore(st){
-  if(st.core)return st;
-  st.core={x0:CORE[0][0],y0:CORE[0][1],x1:CORE[2][0],y1:CORE[2][1],elevW:6};
+  if(st.core){if(!st.core.elevSide)st.core.elevSide="front";return st;}
+  st.core={x0:CORE[0][0],y0:CORE[0][1],x1:CORE[2][0],y1:CORE[2][1],elevW:6,elevSide:"front"};
   const onCore=q=>{const c=st.core,e=1e-3;
     return q[0]>c.x0-e&&q[0]<c.x1+e&&q[1]>c.y0-e&&q[1]<c.y1+e&&(Math.abs(q[0]-c.x0)<e||Math.abs(q[0]-c.x1)<e||Math.abs(q[1]-c.y0)<e||Math.abs(q[1]-c.y1)<e);};
   st.floors.forEach(f=>{
@@ -366,8 +380,16 @@ const DEFAULT_RULES={
   sideOffset:{ratio:600,minIn:1,roundIn:1},          // 1 : 600 of building height = 1 in per 50 ft
   amenityCap:{pct:5},                                 // % of residential floor area
   zoneGreen:{pct:5},                                  // % of residential floor area
-  deductions:{parking:100,mechanical:100,corridor100:100,corridor50:50,laundry:100}
+  deductions:{parking:100,mechanical:100,corridor100:100,corridor50:50,laundry:100},
+  // Scissor stair: two interlocking stairs in one enclosure (NYC BC 2022 §1011.2, 1011.5.2, 1011.6, 1011.8, 1007.1.1 exc. 3)
+  stair:{widthIn:44,sepIn:8,maxRiserIn:7,treadIn:11,landingMaxIn:48,maxFlightRiseFt:12}
 };
+function stairReq(h){
+  const r=S.rules.stair,rise=h*12;
+  const risers=Math.max(1,Math.ceil(rise/r.maxRiserIn-1e-9)),flights=Math.max(1,Math.ceil(rise/(r.maxFlightRiseFt*12)-1e-9));
+  const treads=Math.max(0,risers-flights),runIn=treads*r.treadIn,landingIn=Math.min(r.widthIn,r.landingMaxIn);
+  return {risers,riserIn:rise/risers,treads,flights,runFt:runIn/12,landingFt:landingIn/12,lenFt:(runIn+(flights+1)*landingIn)/12,widthFt:(2*r.widthIn+r.sepIn)/12};
+}
 function ensureRules(st){
   if(!st.rules)st.rules=JSON.parse(JSON.stringify(DEFAULT_RULES));
   const r=st.rules;
@@ -397,7 +419,7 @@ function labelOf(k){
 const coreArea=()=>{const c=S.core;return c?(c.x1-c.x0)*(c.y1-c.y0):0;};
 function coreWalls(){
   const c=S.core;if(!c)return [];
-  const ex=c.x0+Math.min(c.elevW,c.x1-c.x0);
+  const ew=Math.min(c.elevW,c.x1-c.x0),ex=c.elevSide==="rear"?c.x0+ew:c.x1-ew;
   return [...ring(rect(c.x0,c.y0,c.x1,c.y1),0.67,"core"),W([ex,c.y0],[ex,c.y1],0.5,"core")];
 }
 /* Hold the building off the side (east and west) lot lines. Moves every point that sits on a side
@@ -637,7 +659,92 @@ function renderTabs(){
   $("#copyBelow").disabled=ui.floor===0;
   $("#removeFloor").disabled=S.floors.length<=2;
 }
-function selectFloor(i){ui.floor=Math.max(0,Math.min(S.floors.length-1,i));ui.sel=null;ui.draft=null;renderAll();}
+function selectFloor(i){ui.floor=Math.max(0,Math.min(S.floors.length-1,i));ui.sel=null;ui.pop=null;ui.draft=null;renderAll();}
+
+/* ---------- click a length to set it ---------- */
+const LOT_E=0.02;
+function onLotLine(q){const o=S.settings.sideOffset||0;return Math.abs(q[0])<LOT_E||Math.abs(q[0]-FRONT)<LOT_E||[o,25-o,30-o].some(v=>Math.abs(q[1]-v)<LOT_E);}
+function popObj(){
+  const P=ui.pop;if(!P)return null;
+  if(P.ref==="wall"){const w=cur().walls.find(x=>x.id===P.id);return w&&ui.layer!=="far"?{w,ends:[w.a,w.b]}:null;}
+  if(P.ref==="core"){const c=S.core;if(!c)return null;const r=rect(c.x0,c.y0,c.x1,c.y1);return {core:c,ends:[r[P.i],r[(P.i+1)%4]]};}
+  const a=cur().areas.find(x=>x.id===P.id);if(!a||a.pts.length<3)return null;
+  return {a,ends:[a.pts[P.i],a.pts[(P.i+1)%a.pts.length]]};
+}
+function endsInfo(ends){
+  const [P,Q]=ends,horiz=Math.abs(Q[0]-P[0])>=Math.abs(Q[1]-P[1]),ax=horiz?0:1;
+  const [mn,mx]=P[ax]<=Q[ax]?[P,Q]:[Q,P];
+  return {horiz,ax,mn,mx,names:horiz?["rear","front"]:["top","bottom"]};
+}
+function openPop(ref){
+  const [kind,id,i]=ref.split(":");
+  if(kind==="wall"){ui.sel={k:"wall",id};ui.pop={ref:"wall",id};}
+  else if(kind==="core"){ui.sel={k:"core",id:"core"};ui.pop={ref:"core",i:+id};}
+  else {ui.sel={k:"area",id};ui.pop={ref:"area",id,i:+i};}
+  const o=popObj();
+  if(o){const e=endsInfo(o.ends),lm=onLotLine(e.mn),lx=onLotLine(e.mx);ui.pop.fixed=lx&&!lm?1:0;ui.pop.focus=true;}
+  renderPlan();renderSel();
+}
+let popKey="";
+function renderPop(){
+  const el=$("#dimpop"),o=popObj();
+  if(!o||ui.mode!=="select"){el.hidden=true;popKey="";return;}
+  const e=endsInfo(o.ends),L=dist(o.ends[0],o.ends[1]),P=ui.pop;
+  const key=JSON.stringify([P.ref,P.id,P.i,P.fixed,L.toFixed(4),o.w?o.w.t:0]);
+  if(key!==popKey&&!el.contains(document.activeElement)){
+    popKey=key;
+    el.innerHTML=`<label>Length <input class="in" id="popLen" value="${attrLen(L)}"></label>
+      <span class="seg" role="group" aria-label="End to keep in place"><button data-fix="0" aria-pressed="${P.fixed===0}">Keep ${e.names[0]} end</button><button data-fix="1" aria-pressed="${P.fixed===1}">Keep ${e.names[1]} end</button></span>
+      ${o.w?`<label>Width <input class="in" id="popW" type="number" min="1" max="36" step="0.5" value="${+(o.w.t*12).toFixed(2)}"> in</label>`:""}
+      <button class="x" id="popX" aria-label="Close">×</button>`;
+  }
+  el.hidden=false;
+  const m=svg.getScreenCTM(),wr=el.parentElement.getBoundingClientRect();
+  if(m){
+    const pt=svg.createSVGPoint();pt.x=(o.ends[0][0]+o.ends[1][0])/2;pt.y=(o.ends[0][1]+o.ends[1][1])/2;
+    const sp=pt.matrixTransform(m);
+    let left=sp.x-wr.left-el.offsetWidth/2,top=sp.y-wr.top+18;
+    if(top+el.offsetHeight>wr.height-6)top=sp.y-wr.top-el.offsetHeight-18;
+    el.style.left=Math.max(6,Math.min(wr.width-el.offsetWidth-6,left))+"px";
+    el.style.top=Math.max(6,Math.min(wr.height-el.offsetHeight-6,top))+"px";
+  }
+  if(P.focus){P.focus=false;const i=$("#popLen");if(i){i.focus();i.select();}}
+}
+function applyPopLen(L){
+  const o=popObj();if(!o)return;
+  const e=endsInfo(o.ends),L0=dist(o.ends[0],o.ends[1]);
+  if(!(L>0)||L0<1e-6){popKey="";renderPop();return;}
+  const fx=ui.pop.fixed===1?e.mx:e.mn,mv=fx===e.mx?e.mn:e.mx;
+  const u=[(mv[0]-fx[0])/L0,(mv[1]-fx[1])/L0],tgt=[fx[0]+u[0]*L,fx[1]+u[1]*L];
+  pushHist();
+  if(o.core){
+    const c=o.core;
+    if(e.horiz){if(mv[0]>fx[0])c.x1=c.x0+L;else c.x0=c.x1-L;}
+    else{if(mv[1]>fx[1])c.y1=c.y0+L;else c.y0=c.y1-L;}
+  }else if(o.w){
+    mv[0]=tgt[0];mv[1]=tgt[1];
+  }else if(Math.abs(u[1-e.ax])<1e-6){
+    // square edge: stretch everything on this floor that sits on the moving line
+    const ax=e.ax,line=mv[ax],nl=tgt[ax],f=cur(),hit=q=>{if(Math.abs(q[ax]-line)<1e-3)q[ax]=nl;};
+    f.areas.forEach(a=>a.pts.forEach(hit));f.walls.forEach(w=>{hit(w.a);hit(w.b);});
+  }else{mv[0]=tgt[0];mv[1]=tgt[1];}
+  popKey="";commit();
+}
+$("#dimpop").addEventListener("click",e=>{
+  const b=e.target.closest("[data-fix]");
+  if(b){ui.pop.fixed=+b.dataset.fix;popKey="";renderPop();return;}
+  if(e.target.closest("#popX")){ui.pop=null;renderPlan();}
+});
+$("#dimpop").addEventListener("keydown",e=>{
+  if(e.key==="Escape"){e.preventDefault();ui.pop=null;document.activeElement.blur();renderPlan();return;}
+  if(e.key==="Enter"&&e.target.id==="popLen"){e.preventDefault();e.target.blur();}
+  if(e.key==="Enter"&&e.target.id==="popW"){e.preventDefault();e.target.blur();}
+});
+$("#dimpop").addEventListener("change",e=>{
+  if(e.target.id==="popLen"){applyPopLen(parseLen(e.target.value));}
+  else if(e.target.id==="popW"){const o=popObj(),v=parseFloat(e.target.value);if(o&&o.w&&v>0){pushHist();o.w.t=v/12;popKey="";commit();}}
+});
+$("#dimpop").addEventListener("pointerdown",e=>e.stopPropagation());
 
 /* ---------- toolbar ---------- */
 const NOTES={
@@ -681,7 +788,9 @@ function renderSel(){
     const f=(lab,key,v)=>`<label>${lab}<input class="in" data-core="${key}" value="${attrLen(v)}"></label>`;
     const use=cur().use==="cellar"?"exempt on the cellar":cur().use==="residential"||cur().coreRes!==false?"counts as residential on this floor":"counts as commercial on this floor";
     el.innerHTML=`<span><span class="k">Elevator and stair core, same on every floor</span> ${fmt(coreArea())} SF, ${use}</span>
-      <div class="dimedit">${f("Length, rear to front","w",o.x1-o.x0)}${f("Width, across the lot","h",o.y1-o.y0)}${f("Starts from rear lot line","x",o.x0)}${f("Starts from top lot line","y",o.y0)}${f("Elevator shaft length","e",o.elevW)}</div>`;
+      <div class="dimedit">${f("Length, rear to front","w",o.x1-o.x0)}${f("Width, across the lot","h",o.y1-o.y0)}${f("Starts from rear lot line","x",o.x0)}${f("Starts from top lot line","y",o.y0)}${f("Elevator shaft length","e",o.elevW)}</div>
+      <span class="seg" role="group" aria-label="Elevator position"><button data-eside="rear" aria-pressed="${o.elevSide==="rear"}">Elevator at rear</button><button data-eside="front" aria-pressed="${o.elevSide!=="rear"}">Elevator at front</button></span>
+      ${coreFitButton()}`;
     el.querySelectorAll("[data-core]").forEach(inp=>inp.addEventListener("change",e=>{
       const v=parseLen(e.target.value),k=e.target.dataset.core;
       if(!isFinite(v)||((k==="w"||k==="h")&&!(v>0))||(k==="e"&&!(v>=0))){renderSel();return;}
@@ -692,12 +801,18 @@ function renderSel(){
       else o.elevW=v;
       commit();
     }));
+    el.querySelectorAll("[data-eside]").forEach(b=>b.addEventListener("click",()=>{if(o.elevSide===b.dataset.eside)return;pushHist();o.elevSide=b.dataset.eside;commit();}));
+    const fb=$("#coreFit");
+    if(fb)fb.addEventListener("click",()=>{
+      const n=longestStair(),c=S.core,ew=Math.min(c.elevW,c.x1-c.x0);
+      pushHist();c.x1=c.x0+n.lenFt+ew;c.y1=c.y0+Math.max(c.y1-c.y0,n.widthFt);commit();
+    });
     return;
   }
   if(ui.sel.k==="wall"){
     el.innerHTML=`<span class="k">Wall</span>
       <label class="check">Length <input class="in" id="wL" value="${attrLen(dist(o.a,o.b))}" aria-label="Wall length, feet and inches"></label>
-      <label class="check">Thickness <input class="in" id="wT" type="number" min="2" max="36" step="0.5" value="${(o.t*12).toFixed(1)}"> in</label>
+      <label class="check">Width <input class="in" id="wT" type="number" min="2" max="36" step="0.5" value="${(o.t*12).toFixed(1)}"> in</label>
       <button class="btn warn" id="delSel">Delete wall</button>`;
     $("#wT").addEventListener("change",e=>{const v=parseFloat(e.target.value);if(v>0){pushHist();o.t=v/12;commit();}});
     $("#wL").addEventListener("change",e=>{
@@ -735,6 +850,15 @@ function applyDimEdit(o,inp){
     pushHist();o.pts[+inp.dataset.v][+inp.dataset.c]=v;
   }
   commit();
+}
+function longestStair(){
+  let best=null;
+  S.floors.forEach(f=>{const q=stairReq(f.height);if(!best||q.lenFt>best.lenFt)best={...q,name:f.name,h:f.height};});
+  return best;
+}
+function coreFitButton(){
+  const n=longestStair();if(!n)return "";
+  return `<button class="btn" id="coreFit" title="Sets the stair part of the core to the longest scissor stair needed on any floor">Fit core to the stair (${fmtLen(n.lenFt)} for the ${n.h} ft ${n.name})</button>`;
 }
 function deleteSel(){
   if(!ui.sel||ui.sel.k==="core")return;
@@ -814,7 +938,8 @@ function renderPlan(){
   lb+=`</g>`;
 
   let dm=`<g pointer-events="none">`;
-  const dimPoly=(pts,outside,force)=>{
+  const dimPoly=(pts,outside,force,meta)=>{
+    const dd=i=>meta&&ui.mode==="select"?` data-dim="${meta}:${i}" pointer-events="all" cursor="pointer"`:"";
     let s=0;for(let i=0;i<pts.length;i++){const j=(i+1)%pts.length;s+=pts[i][0]*pts[j][1]-pts[j][0]*pts[i][1];}
     const sg=s>=0?1:-1;
     pts.forEach((p,i)=>{
@@ -833,24 +958,24 @@ function renderPlan(){
         dm+=`<path d="${ext(p)}${ext(q)}M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}" style="fill:none;stroke:var(--muted);stroke-width:${0.1*k}"/>`;
         dm+=`<path d="${tick(a)}${tick(b)}" style="fill:none;stroke:var(--ink);stroke-width:${0.2*k}"/>`;
         const m=[(a[0]+b[0])/2+nx*fs*0.55,(a[1]+b[1])/2+ny*fs*0.55];
-        dm+=`<text x="${m[0].toFixed(2)}" y="${m[1].toFixed(2)}" transform="rotate(${ang.toFixed(1)} ${m[0].toFixed(2)} ${m[1].toFixed(2)})" text-anchor="middle" dominant-baseline="central" style="fill:var(--ink);font-size:${fs*0.82}px;font-weight:600">${fmtLen(L)}</text>`;
+        dm+=`<text x="${m[0].toFixed(2)}" y="${m[1].toFixed(2)}" transform="rotate(${ang.toFixed(1)} ${m[0].toFixed(2)} ${m[1].toFixed(2)})" text-anchor="middle" dominant-baseline="central"${dd(i)} style="fill:var(--ink);font-size:${fs*0.82}px;font-weight:600">${fmtLen(L)}</text>`;
       }else{
         const m=[(p[0]+q[0])/2-nx*fs*0.7,(p[1]+q[1])/2-ny*fs*0.7];
-        dm+=`<text x="${m[0].toFixed(2)}" y="${m[1].toFixed(2)}" transform="rotate(${ang.toFixed(1)} ${m[0].toFixed(2)} ${m[1].toFixed(2)})" text-anchor="middle" dominant-baseline="central" style="fill:var(--muted);font-size:${fs*0.7}px">${fmtLen(L)}</text>`;
+        dm+=`<text x="${m[0].toFixed(2)}" y="${m[1].toFixed(2)}" transform="rotate(${ang.toFixed(1)} ${m[0].toFixed(2)} ${m[1].toFixed(2)})" text-anchor="middle" dominant-baseline="central"${dd(i)} style="fill:var(--muted);font-size:${fs*0.7}px">${fmtLen(L)}</text>`;
       }
     });
   };
   const selO=findSel();
-  if(ui.dims)areas.forEach(a=>{if(a.pts.length>=3&&(showFar||a.type==="gross"))dimPoly(a.pts,a.type==="gross");});
-  if(S.core&&(ui.dims||(ui.sel&&ui.sel.k==="core"))){const c=S.core;dimPoly(rect(c.x0,c.y0,c.x1,c.y1),false,true);}
-  if(selO&&ui.sel.k==="area"&&selO.pts.length>=3&&(selO.type!=="gross"||!ui.dims))dimPoly(selO.pts,false,true);
+  if(ui.dims)areas.forEach(a=>{if(a.pts.length>=3&&(showFar||a.type==="gross"))dimPoly(a.pts,a.type==="gross",false,"area:"+a.id);});
+  if(S.core&&(ui.dims||(ui.sel&&ui.sel.k==="core"))){const c=S.core;dimPoly(rect(c.x0,c.y0,c.x1,c.y1),false,true,"core");}
+  if(selO&&ui.sel.k==="area"&&selO.pts.length>=3&&(selO.type!=="gross"||!ui.dims))dimPoly(selO.pts,false,true,"area:"+selO.id);
   if(selO&&ui.sel.k==="wall"){
     const L=dist(selO.a,selO.b);
     if(L>0.05){
       const ux=(selO.b[0]-selO.a[0])/L,uy=(selO.b[1]-selO.a[1])/L,off=selO.t/2+fs*0.7;
       let ang=Math.atan2(uy,ux)*180/Math.PI;if(ang>90)ang-=180;if(ang<=-90)ang+=180;
       const m=[(selO.a[0]+selO.b[0])/2+uy*off,(selO.a[1]+selO.b[1])/2-ux*off];
-      dm+=`<text x="${m[0]}" y="${m[1]}" transform="rotate(${ang} ${m[0]} ${m[1]})" text-anchor="middle" dominant-baseline="central" style="fill:var(--sel);font-size:${fs*0.9}px;font-weight:600">${fmtLen(L)}</text>`;
+      dm+=`<text x="${m[0]}" y="${m[1]}" transform="rotate(${ang} ${m[0]} ${m[1]})" text-anchor="middle" dominant-baseline="central" data-dim="wall:${selO.id}:0" pointer-events="all" cursor="pointer" style="fill:var(--sel);font-size:${fs*0.9}px;font-weight:600">${fmtLen(L)}</text>`;
     }
   }
   const off=S.settings.sideOffset||0;
@@ -866,20 +991,32 @@ function renderPlan(){
 
   let wl="";
   if(S.core){
-    const c=S.core,cw=c.x1-c.x0,ch=c.y1-c.y0,ex=c.x0+Math.min(c.elevW,cw),csel=ui.sel&&ui.sel.k==="core";
+    const c=S.core,cw=c.x1-c.x0,ch=c.y1-c.y0,ew=Math.min(c.elevW,cw),front=c.elevSide!=="rear",csel=ui.sel&&ui.sel.k==="core";
+    const eA=front?c.x1-ew:c.x0,eB=front?c.x1:c.x0+ew,sA=front?c.x0:c.x0+ew,sB=front?c.x1-ew:c.x1;
     wl+=`<rect data-k="core" data-id="core" x="${c.x0}" y="${c.y0}" width="${cw}" height="${ch}" style="fill:var(--core);fill-opacity:.2;stroke:${csel?"var(--sel)":"none"};stroke-width:${0.5*k}"/>`;
     let sym=`<g pointer-events="none" style="stroke:var(--core);stroke-width:${0.12*k};fill:none">`;
-    if(ex>c.x0+0.1)sym+=`<path d="M${c.x0} ${c.y0}L${ex} ${c.y1}M${ex} ${c.y0}L${c.x0} ${c.y1}"/>`;
-    const midY=(c.y0+c.y1)/2;
-    sym+=`<path d="M${ex} ${midY}L${c.x1} ${midY}"/>`;
-    for(let x=ex+1;x<c.x1-0.2;x+=1)sym+=`<path d="M${x} ${c.y0}L${x} ${c.y1}"/>`;
+    if(ew>0.1)sym+=`<path d="M${eA} ${c.y0}L${eB} ${c.y1}M${eB} ${c.y0}L${eA} ${c.y1}"/>`;
+    // scissor stair: two flights side by side, running in opposite directions
+    const sr=S.rules.stair,sq=stairReq(f.height),fw=sr.widthIn/12,sep=sr.sepIn/12,land=sq.landingFt;
+    const yA0=c.y0,yA1=Math.min(c.y1,c.y0+fw),yB0=Math.min(c.y1,yA1+sep),yB1=Math.min(c.y1,yB0+fw);
+    const r0=Math.min(sB,sA+land),r1=Math.min(sB,r0+sq.runFt),tr=sr.treadIn/12;
+    const fits=sq.lenFt<=sB-sA+1e-6&&sq.widthFt<=ch+1e-6;
+    for(let x=r0;x<=r1+1e-6;x+=tr)sym+=`<path d="M${x} ${yA0}L${x} ${yA1}M${x} ${yB0}L${x} ${yB1}"/>`;
+    const arrow=(x0,x1,y)=>{const d=x1>x0?1:-1,h=Math.min(0.9,fw/4);return `<path d="M${x0} ${y}L${x1} ${y}M${x1-d*h} ${y-h*0.7}L${x1} ${y}L${x1-d*h} ${y+h*0.7}" style="stroke:var(--ink);stroke-width:${0.14*k}"/>`;};
+    if(r1>r0+1){sym+=arrow(r0+0.3,r1-0.3,(yA0+yA1)/2)+arrow(r1-0.3,r0+0.3,(yB0+yB1)/2);}
     sym+=`</g>`;
-    if(showInt)wl+=sym;
+    if(showInt){
+      wl+=sym;
+      if(yB0>yA1)wl+=`<line x1="${sA}" y1="${(yA1+yB0)/2}" x2="${sB}" y2="${(yA1+yB0)/2}" pointer-events="none" style="stroke:var(--ink);stroke-width:${yB0-yA1}"/>`;
+      // stair length dimension under the core
+      const dy=c.y1+fs*1.1,dx1=sA+sq.lenFt,col=fits?"var(--ink)":"var(--over)";
+      wl+=`<g pointer-events="none"><path d="M${sA} ${c.y1+fs*0.3}L${sA} ${dy+fs*0.3}M${dx1} ${c.y1+fs*0.3}L${dx1} ${dy+fs*0.3}M${sA} ${dy}L${dx1} ${dy}" style="fill:none;stroke:${col};stroke-width:${0.1*k}"/>`;
+      wl+=`<text x="${(sA+dx1)/2}" y="${dy+fs*0.75}" text-anchor="middle" dominant-baseline="central" style="fill:${col};font-size:${fs*0.72}px;font-weight:600">Scissor stair ${fmtLen(sq.lenFt)} × ${fmtLen(sq.widthFt)}, ${sq.risers} risers at ${sq.riserIn.toFixed(2)}"${fits?"":", does not fit the core"}</text></g>`;
+    }
     if(showInt)coreWalls().forEach(w=>{wl+=`<line x1="${w.a[0]}" y1="${w.a[1]}" x2="${w.b[0]}" y2="${w.b[1]}" pointer-events="none" style="stroke:${csel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:square"/>`;});
     const lab=(x,t)=>`<text x="${x}" y="${c.y0+ch/2}" text-anchor="middle" dominant-baseline="central" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.75}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.25}px">${t}</text>`;
     if(showInt){
-      if(ex-c.x0>3)wl+=lab((c.x0+ex)/2,"Elev.");
-      if(c.x1-ex>4)wl+=lab((ex+c.x1)/2,"Stair");
+      if(ew>3)wl+=lab((eA+eB)/2,"Elev.");
     }else{
       const res=f.use==="residential"||(f.use==="commercial"&&f.coreRes!==false);
       wl+=`<text x="${c.x0+cw/2}" y="${c.y0+ch/2-fs*0.5}" text-anchor="middle" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.85}px;font-weight:600">Core</text>`;
@@ -917,6 +1054,7 @@ function renderPlan(){
     if(pts.length>=3)dr+=`<text x="${centroid(pts)[0]}" y="${centroid(pts)[1]}" text-anchor="middle" pointer-events="none" style="fill:var(--sel);font-size:${fs}px;font-weight:600">${fmt(polyArea(pts))} SF</text>`;
   }
   svg.innerHTML=g+ar+wl+lb+dm+hd+dr;
+  renderPop();
 }
 
 let drag=null;
@@ -932,8 +1070,11 @@ svg.addEventListener("pointerdown",e=>{
     if(drag&&drag.hist)commit();
     drag=null;return;
   }
+  if(e.button===1){e.preventDefault();drag={k:"pan",sx:e.clientX,sy:e.clientY,cx:ui.view.cx,cy:ui.view.cy};return;}
   shiftHeld=e.shiftKey;
   const p=toPlan(e),f=cur();
+  const dimT=ui.mode==="select"&&e.target.closest&&e.target.closest("[data-dim]");
+  if(dimT){openPop(dimT.dataset.dim);return;}
   if(ui.mode==="wall"){
     const q=snapPt(p);
     if(!ui.draft)ui.draft={kind:"wall",a:q,cur:null};
@@ -959,16 +1100,19 @@ svg.addEventListener("pointerdown",e=>{
     else if(k==="vert")drag={k,id,i:+t.dataset.i,hist:false};
     else{
       ui.sel={k,id};
+      ui.pop=k==="wall"?{ref:"wall",id,fixed:0}:null;
       const o=findSel();
       drag={k:"move",start:p,orig:clone(o),hist:false};
     }
     renderPlan();renderSel();return;
   }
-  ui.sel=null;
+  ui.sel=null;ui.pop=null;
   drag={k:"pan",sx:e.clientX,sy:e.clientY,cx:ui.view.cx,cy:ui.view.cy};
   renderPlan();renderSel();
 });
 
+svg.addEventListener("mousedown",e=>{if(e.button===1)e.preventDefault();});
+svg.addEventListener("auxclick",e=>{if(e.button===1)e.preventDefault();});
 svg.addEventListener("pointermove",e=>{
   if(pointers.has(e.pointerId))pointers.set(e.pointerId,[e.clientX,e.clientY]);
   if(pinch&&pointers.size===2){
@@ -1167,6 +1311,10 @@ function renderRules(){
     ...["parking","mechanical","corridor100","corridor50","laundry"].map(k=>[`${AREA_TYPES[k].base} deduction`,`${inp("deductions."+k,R.deductions[k],5)}% of its area`,`${fmt(dedSum(k))} SF on all floors`,"Project assumption, confirm"]),
     ["Elevator and stair core","Counts as floor area on every floor. On commercial floors it counts as residential unless switched off for that floor",
      co?`${fmtLen(co.x1-co.x0)} × ${fmtLen(co.y1-co.y0)}, ${fmt(coreArea())} SF per floor${commOff?`; commercial on the ${commOff}`:""}`:"No core","Project decision"],
+    ["Scissor stair<small>Two stairs in one enclosure, drawn in the core</small>",
+     `Each stair ${inp("stair.widthIn",R.stair.widthIn,1)} in wide, ${inp("stair.sepIn",R.stair.sepIn,1)} in rated wall between, risers at most ${inp("stair.maxRiserIn",R.stair.maxRiserIn,0.25)} in, treads ${inp("stair.treadIn",R.stair.treadIn,0.25)} in, landings as deep as the stair (48 in max), 12 ft max rise per flight`,
+     (()=>{const hs=[...new Set(S.floors.map(f=>f.height))].sort((a,b)=>a-b);const q0=stairReq(hs[0]);return `${fmtLen(q0.widthFt)} wide. Length: `+hs.map(h=>`${h} ft floor ${fmtLen(stairReq(h).lenFt)}`).join(", ");})(),
+     "NYC Building Code 2022 §1011.2, 1011.5.2, 1011.6, 1011.8, 1007.1.1"],
     ["Cellar","Exempt from zoning floor area","",""+"Project assumption, confirm"]
   ];
   body.innerHTML=rows.map(r=>`<tr>${r.map(x=>`<td>${x}</td>`).join("")}</tr>`).join("");
@@ -1185,7 +1333,7 @@ document.querySelectorAll("[data-layer]").forEach(b=>b.addEventListener("click",
   ui.layer=b.dataset.layer;
   if((ui.layer==="far"&&ui.mode==="wall")||(ui.layer==="int"&&ui.mode==="area"))ui.mode="select";
   if(ui.sel&&((ui.layer==="far"&&ui.sel.k==="wall")||(ui.layer==="int"&&ui.sel.k==="area")))ui.sel=null;
-  ui.draft=null;savePrefs();renderAll();
+  ui.draft=null;ui.pop=null;savePrefs();renderAll();
 }));
 document.querySelectorAll("[data-mode]").forEach(b=>b.addEventListener("click",()=>{ui.mode=b.dataset.mode;ui.draft=null;renderToolbar();renderPlan();}));
 $("#closeShape").addEventListener("click",finishArea);
@@ -1218,6 +1366,13 @@ function placeTyped(){
 }
 $("#zIn").addEventListener("click",()=>{ui.view.w=Math.max(12,ui.view.w*0.75);renderPlan();});
 $("#zOut").addEventListener("click",()=>{ui.view.w=Math.min(260,ui.view.w/0.75);renderPlan();});
+function setFull(on){
+  ui.fs=on;$("#editor").classList.toggle("fs",on);
+  $("#zFull").setAttribute("aria-label",on?"Exit full screen":"Full screen");
+  $("#zFull").innerHTML=on?'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v4H2M14 6h-4V2M10 14v-4h4M2 10h4v4"/></svg>':'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg>';
+  requestAnimationFrame(renderPlan);
+}
+$("#zFull").addEventListener("click",()=>setFull(!ui.fs));
 $("#zFit").addEventListener("click",()=>{ui.view={cx:60,cy:15,w:142};renderPlan();});
 $("#tabs").addEventListener("click",e=>{const b=e.target.closest("[data-floor]");if(b)selectFloor(+b.dataset.floor);});
 $("#tbody").addEventListener("click",e=>{const r=e.target.closest("[data-floor]");if(r)selectFloor(+r.dataset.floor);});
@@ -1280,7 +1435,10 @@ document.addEventListener("keydown",e=>{
     if(e.key==="Backspace"&&ui.typed){e.preventDefault();ui.typed=ui.typed.slice(0,-1);renderTyped();return;}
     if(e.key==="Enter"&&ui.typed){e.preventDefault();placeTyped();return;}
   }
-  if(e.key==="Escape"){ui.draft=null;renderToolbar();renderPlan();}
+  if(e.key==="Escape"){
+    if(ui.fs&&!ui.draft&&!ui.pop){setFull(false);return;}
+    ui.draft=null;ui.pop=null;renderToolbar();renderPlan();
+  }
   else if((e.key==="Delete"||e.key==="Backspace")&&ui.sel){e.preventDefault();deleteSel();}
   else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="z"){e.preventDefault();undo();}
   else if(e.key==="Enter"&&ui.draft&&ui.draft.kind==="area"){finishArea();}
