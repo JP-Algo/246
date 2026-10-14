@@ -73,6 +73,12 @@ h2{margin:0 0 10px;font-size:15px;font-weight:600}
 .btn.warn{border-color:var(--over);color:var(--over)}
 select.in,input.in{border:1px solid var(--line);background:var(--panel);border-radius:7px;padding:5px 8px;font-size:13px}
 input.in{width:84px}
+.tabbar{display:flex;gap:10px;align-items:flex-start}
+.tabbar .tabs{flex:1 1 auto;min-width:0}
+.seg{flex:0 0 auto;display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;background:transparent;padding:5px 12px;font-size:13px;cursor:pointer;line-height:1.3}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
 .tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
 .tab{flex:0 0 auto;border:1px solid var(--line);background:transparent;border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer;white-space:nowrap}
 .tab[aria-current="true"]{background:var(--gross);border-color:var(--gross);color:#fff}
@@ -172,7 +178,14 @@ tfoot td{font-weight:600;border-bottom:0}
   <div class="panel">
     <section>
       <button class="btn show3d" id="show3d">Show 3D view</button>
-      <div class="tabs" id="tabs" role="tablist" aria-label="Floors"></div>
+      <div class="tabbar">
+        <div class="tabs" id="tabs" role="tablist" aria-label="Floors"></div>
+        <div class="seg" role="group" aria-label="Layers to show">
+          <button data-layer="far" title="Show the floor area layers used for the FAR calculation">FAR</button>
+          <button data-layer="int" title="Show walls, the elevator and the stair">Interiors</button>
+          <button data-layer="both" title="Show everything">Both</button>
+        </div>
+      </div>
       <div class="floorhead" id="floorhead"></div>
 
       <div class="row" style="margin-bottom:8px">
@@ -199,7 +212,7 @@ tfoot td{font-weight:600;border-bottom:0}
           <button class="btn" id="zFit">Fit</button>
         </div>
       </div>
-      <div class="legend">
+      <div class="legend" id="legend">
         <span style="--c:var(--gross)">Gross floor area</span>
         <span style="--c:var(--deduct)">Deduction</span>
         <span style="--c:var(--amenity)">Amenity (5% cap)</span>
@@ -477,10 +490,10 @@ window.addEventListener("pagehide",()=>{if(saveTimer)flush();});
 const LOCAL=load();
 let S=syncDerived(ensureRules(ensureCore(LOCAL||seed())));
 const ui={floor:Math.min(5,S.floors.length-1),mode:"select",areaType:"gross",sel:null,snap:true,ortho:true,
-  explode:false,above:true,view:{cx:60,cy:15,w:142},draft:null,dims:true,typed:""};
+  explode:false,above:true,view:{cx:60,cy:15,w:142},draft:null,dims:true,typed:"",layer:"both"};
 const PREF_KEY="s2nd-prefs-v1";
-try{const pr=JSON.parse(localStorage.getItem(PREF_KEY))||{};ui.snap=pr.snap!==false;ui.ortho=pr.ortho!==false;ui.dims=pr.dims!==false;}catch(e){}
-function savePrefs(){try{localStorage.setItem(PREF_KEY,JSON.stringify({snap:ui.snap,ortho:ui.ortho,dims:ui.dims}));}catch(e){}}
+try{const pr=JSON.parse(localStorage.getItem(PREF_KEY))||{};ui.snap=pr.snap!==false;ui.ortho=pr.ortho!==false;ui.dims=pr.dims!==false;if(["far","int","both"].includes(pr.layer))ui.layer=pr.layer;}catch(e){}
+function savePrefs(){try{localStorage.setItem(PREF_KEY,JSON.stringify({snap:ui.snap,ortho:ui.ortho,dims:ui.dims,layer:ui.layer}));}catch(e){}}
 let shiftHeld=false;
 const orthoOn=()=>ui.ortho!==shiftHeld;
 let hist=[];
@@ -645,6 +658,10 @@ function renderToolbar(){
   $("#tOrtho").setAttribute("aria-pressed",String(ui.ortho));
   $("#tSnap").setAttribute("aria-pressed",String(ui.snap));
   $("#tDims").setAttribute("aria-pressed",String(ui.dims));
+  document.querySelectorAll("[data-layer]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.layer===ui.layer)));
+  $("[data-mode='wall']").disabled=ui.layer==="far";
+  $("[data-mode='area']").disabled=ui.layer==="int";
+  $("#legend").style.display=ui.layer==="int"?"none":"";
   if(!ui.draft)ui.typed="";
   renderTyped();
   $("#plan").classList.toggle("select",ui.mode==="select");
@@ -761,6 +778,7 @@ function renderPlan(){
   const v=vb();
   svg.setAttribute("viewBox",`${v.x.toFixed(2)} ${v.y.toFixed(2)} ${v.w.toFixed(2)} ${v.h.toFixed(2)}`);
   const f=cur(),k=v.w/130,hr=Math.max(v.w/40,22/Math.max(v.pxPerFt,0.01)),vr=v.w/115,fs=v.w/60;
+  const showFar=ui.layer!=="int",showInt=ui.layer!=="far";
   let g=`<g pointer-events="none">`;
   const x0=Math.floor(v.x/5)*5,y0=Math.floor(v.y/5)*5;
   for(let x=x0;x<=v.x+v.w;x+=5)g+=`<line x1="${x}" y1="${v.y}" x2="${x}" y2="${v.y+v.h}" style="stroke:var(--grid);stroke-width:${(x%25===0?0.2:0.08)*k}"/>`;
@@ -779,7 +797,7 @@ function renderPlan(){
   const areas=[...f.areas].sort((a,b)=>ORDER.indexOf(a.type)-ORDER.indexOf(b.type));
   let ar="",lb=`<g pointer-events="none">`;
   areas.forEach(a=>{
-    if(a.pts.length<3)return;
+    if(a.pts.length<3||!showFar)return;
     const T=AREA_TYPES[a.type]||AREA_TYPES.gross,c=`var(${T.color})`,sel=ui.sel&&ui.sel.id===a.id;
     const dash=a.type==="terrace"?`stroke-dasharray:${0.8*k} ${0.5*k};`:"";
     ar+=`<path data-k="area" data-id="${a.id}" d="${pathOf(a.pts)}" style="fill:${c};fill-opacity:${a.type==="gross"?0.09:0.26};stroke:${sel?"var(--sel)":c};stroke-width:${(sel?0.5:0.22)*k};${dash}"/>`;
@@ -823,7 +841,7 @@ function renderPlan(){
     });
   };
   const selO=findSel();
-  if(ui.dims)areas.forEach(a=>{if(a.pts.length>=3)dimPoly(a.pts,a.type==="gross");});
+  if(ui.dims)areas.forEach(a=>{if(a.pts.length>=3&&(showFar||a.type==="gross"))dimPoly(a.pts,a.type==="gross");});
   if(S.core&&(ui.dims||(ui.sel&&ui.sel.k==="core"))){const c=S.core;dimPoly(rect(c.x0,c.y0,c.x1,c.y1),false,true);}
   if(selO&&ui.sel.k==="area"&&selO.pts.length>=3&&(selO.type!=="gross"||!ui.dims))dimPoly(selO.pts,false,true);
   if(selO&&ui.sel.k==="wall"){
@@ -856,13 +874,19 @@ function renderPlan(){
     sym+=`<path d="M${ex} ${midY}L${c.x1} ${midY}"/>`;
     for(let x=ex+1;x<c.x1-0.2;x+=1)sym+=`<path d="M${x} ${c.y0}L${x} ${c.y1}"/>`;
     sym+=`</g>`;
-    wl+=sym;
-    coreWalls().forEach(w=>{wl+=`<line x1="${w.a[0]}" y1="${w.a[1]}" x2="${w.b[0]}" y2="${w.b[1]}" pointer-events="none" style="stroke:${csel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:square"/>`;});
+    if(showInt)wl+=sym;
+    if(showInt)coreWalls().forEach(w=>{wl+=`<line x1="${w.a[0]}" y1="${w.a[1]}" x2="${w.b[0]}" y2="${w.b[1]}" pointer-events="none" style="stroke:${csel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:square"/>`;});
     const lab=(x,t)=>`<text x="${x}" y="${c.y0+ch/2}" text-anchor="middle" dominant-baseline="central" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.75}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.25}px">${t}</text>`;
-    if(ex-c.x0>3)wl+=lab((c.x0+ex)/2,"Elev.");
-    if(c.x1-ex>4)wl+=lab((ex+c.x1)/2,"Stair");
+    if(showInt){
+      if(ex-c.x0>3)wl+=lab((c.x0+ex)/2,"Elev.");
+      if(c.x1-ex>4)wl+=lab((ex+c.x1)/2,"Stair");
+    }else{
+      const res=f.use==="residential"||(f.use==="commercial"&&f.coreRes!==false);
+      wl+=`<text x="${c.x0+cw/2}" y="${c.y0+ch/2-fs*0.5}" text-anchor="middle" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.85}px;font-weight:600">Core</text>`;
+      wl+=`<text x="${c.x0+cw/2}" y="${c.y0+ch/2+fs*0.6}" text-anchor="middle" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.75}px">${fmt(coreArea())} SF${f.use==="cellar"?"":res?", residential":", commercial"}</text>`;
+    }
   }
-  f.walls.forEach(w=>{
+  if(showInt)f.walls.forEach(w=>{
     const sel=ui.sel&&ui.sel.id===w.id;
     wl+=`<line x1="${w.a[0]}" y1="${w.a[1]}" x2="${w.b[0]}" y2="${w.b[1]}" pointer-events="none" style="stroke:${sel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:square"/>`;
     wl+=`<line data-k="wall" data-id="${w.id}" x1="${w.a[0]}" y1="${w.a[1]}" x2="${w.b[0]}" y2="${w.b[1]}" pointer-events="stroke" style="stroke:transparent;stroke-width:${Math.max(w.t,hr*0.8)}"/>`;
@@ -1082,6 +1106,7 @@ function build3D(){
     f.areas.forEach(a=>{
       if(a.pts.length<3)return;
       const T=AREA_TYPES[a.type]||AREA_TYPES.gross;
+      if(T.kind!=="gross"&&ui.layer==="int")return;
       if(T.kind==="gross"){
         const geo=new THREE.ExtrudeGeometry(toShape(a.pts),{depth:0.8,bevelEnabled:false});
         geo.rotateX(-Math.PI/2);
@@ -1102,7 +1127,7 @@ function build3D(){
       const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:C("--core"),transparent:true,opacity:isSel?0.45:0.25,depthWrite:false}));
       m.position.set((c.x0+c.x1)/2-CX,y+0.8+h/2,(c.y0+c.y1)/2-CZ);m.userData.floor=i;root.add(m);
     }
-    [...f.walls,...coreWalls()].forEach(w=>{
+    (ui.layer==="far"?[]:[...f.walls,...coreWalls()]).forEach(w=>{
       const dx=w.b[0]-w.a[0],dz=w.b[1]-w.a[1],L=Math.hypot(dx,dz);
       if(L<0.05)return;
       const geo=new THREE.BoxGeometry(L+w.t,h,w.t);
@@ -1156,6 +1181,12 @@ function syncSettings(){
 
 function fillAreaTypes(){$("#areaType").innerHTML=Object.keys(AREA_TYPES).map(k=>`<option value="${k}">${labelOf(k)}</option>`).join("");$("#areaType").value=ui.areaType;}
 $("#areaType").addEventListener("change",e=>{ui.areaType=e.target.value;});
+document.querySelectorAll("[data-layer]").forEach(b=>b.addEventListener("click",()=>{
+  ui.layer=b.dataset.layer;
+  if((ui.layer==="far"&&ui.mode==="wall")||(ui.layer==="int"&&ui.mode==="area"))ui.mode="select";
+  if(ui.sel&&((ui.layer==="far"&&ui.sel.k==="wall")||(ui.layer==="int"&&ui.sel.k==="area")))ui.sel=null;
+  ui.draft=null;savePrefs();renderAll();
+}));
 document.querySelectorAll("[data-mode]").forEach(b=>b.addEventListener("click",()=>{ui.mode=b.dataset.mode;ui.draft=null;renderToolbar();renderPlan();}));
 $("#closeShape").addEventListener("click",finishArea);
 $("#cancelDraft").addEventListener("click",()=>{ui.draft=null;renderToolbar();renderPlan();});
