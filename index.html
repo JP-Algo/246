@@ -200,9 +200,9 @@ tfoot td{font-weight:600;border-bottom:0}
       <div class="floorhead" id="floorhead"></div>
 
       <div class="row" style="margin-bottom:8px">
-        <button class="btn" data-mode="select">Select and move</button>
-        <button class="btn" data-mode="wall">Draw wall</button>
-        <button class="btn" data-mode="area">Draw area</button>
+        <button class="btn" data-mode="select" title="Select and move (Esc)">Select and move</button>
+        <button class="btn" data-mode="wall" title="Draw wall (W)">Draw wall</button>
+        <button class="btn" data-mode="area" title="Draw area (A)">Draw area</button>
         <select class="in" id="areaType" aria-label="Area type"></select>
         <button class="btn" id="closeShape">Close shape</button>
         <button class="btn" id="cancelDraft">Cancel</button>
@@ -1702,6 +1702,14 @@ document.addEventListener("keydown",e=>{
   if(tag==="input"||tag==="select"||tag==="textarea")return;
   if(e.key==="Shift"){shiftHeld=true;}
   if(e.key==="F8"){e.preventDefault();toggleOrtho();return;}
+  const lk=e.key.length===1?e.key.toLowerCase():"";
+  if((lk==="w"||lk==="a")&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
+    // W draws walls, A draws areas; switch to Both if the current view hides that layer
+    e.preventDefault();
+    const m=lk==="w"?"wall":"area";
+    if((m==="wall"&&ui.layer==="far")||(m==="area"&&ui.layer==="int")){ui.layer="both";savePrefs();}
+    ui.mode=m;ui.draft=null;ui.pop=null;ui.typed="";renderAll();return;
+  }
   if(e.key==="F9"){e.preventDefault();toggleSnap();return;}
   if(draftFrom()&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
     if(/^[0-9.'" -]$/.test(e.key)){e.preventDefault();ui.typed+=e.key;renderTyped();return;}
