@@ -267,7 +267,7 @@ const uid=()=>"i"+Date.now().toString(36)+(uidN++).toString(36);
 const KEY="s2nd-floor-model-v1";
 
 /* ---------- geometry seed (feet). x: rear 0 -> street front, y: across the lot ---------- */
-const FRONT=118.17, CX=59, CZ=15;
+const FRONT=120, CX=60, CZ=15;
 const rect=(x0,y0,x1,y1)=>[[x0,y0],[x1,y0],[x1,y1],[x0,y1]];
 const LOT=[[0,0],[FRONT,0],[FRONT,25],[20,25],[20,30],[0,30]];
 const CORE=rect(64,6,80,19);
@@ -392,7 +392,7 @@ window.addEventListener("pagehide",()=>{if(saveTimer)flush();});
 const LOCAL=load();
 let S=LOCAL||seed();
 const ui={floor:Math.min(5,S.floors.length-1),mode:"select",areaType:"gross",sel:null,snap:true,ortho:true,
-  explode:false,above:true,view:{cx:59,cy:15,w:140},draft:null,dims:true,typed:""};
+  explode:false,above:true,view:{cx:60,cy:15,w:142},draft:null,dims:true,typed:""};
 const PREF_KEY="s2nd-prefs-v1";
 try{const pr=JSON.parse(localStorage.getItem(PREF_KEY))||{};ui.snap=pr.snap!==false;ui.ortho=pr.ortho!==false;ui.dims=pr.dims!==false;}catch(e){}
 function savePrefs(){try{localStorage.setItem(PREF_KEY,JSON.stringify({snap:ui.snap,ortho:ui.ortho,dims:ui.dims}));}catch(e){}}
@@ -1022,7 +1022,7 @@ function placeTyped(){
 }
 $("#zIn").addEventListener("click",()=>{ui.view.w=Math.max(12,ui.view.w*0.75);renderPlan();});
 $("#zOut").addEventListener("click",()=>{ui.view.w=Math.min(260,ui.view.w/0.75);renderPlan();});
-$("#zFit").addEventListener("click",()=>{ui.view={cx:59,cy:15,w:140};renderPlan();});
+$("#zFit").addEventListener("click",()=>{ui.view={cx:60,cy:15,w:142};renderPlan();});
 $("#tabs").addEventListener("click",e=>{const b=e.target.closest("[data-floor]");if(b)selectFloor(+b.dataset.floor);});
 $("#tbody").addEventListener("click",e=>{const r=e.target.closest("[data-floor]");if(r)selectFloor(+r.dataset.floor);});
 $("#fUse").addEventListener("change",e=>{pushHist();cur().use=e.target.value;commit();});
