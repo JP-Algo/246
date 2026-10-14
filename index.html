@@ -793,6 +793,19 @@ function selectFloor(i){ui.floor=Math.max(0,Math.min(S.floors.length-1,i));ui.se
 /* ---------- click a length to set it ---------- */
 const LOT_E=0.02;
 function onLotLine(q){const o=S.settings.sideOffset||0;return Math.abs(q[0])<LOT_E||Math.abs(q[0]-FRONT)<LOT_E||[o,25-o,30-o].some(v=>Math.abs(q[1]-v)<LOT_E);}
+/* Inside the lot, allowing for the side offset (the rear 20 ft is 30 ft wide). */
+/* Is this end of a wall or edge stopped by a lot line that crosses it? (A wall running along a lot line
+   is not stopped by that line.) */
+function endOnLot(q,horiz){
+  const o=S.settings.sideOffset||0,e=LOT_E;
+  if(horiz)return Math.abs(q[0])<e||Math.abs(q[0]-FRONT)<e||(Math.abs(q[0]-20)<e&&q[1]>25-o+e);
+  return [o,25-o,30-o].some(v=>Math.abs(q[1]-v)<e);
+}
+function inLot(q){
+  const o=S.settings.sideOffset||0,e=0.02;
+  if(q[0]<-e||q[0]>FRONT+e)return false;
+  return q[1]>=o-e&&q[1]<=(q[0]<=20+e?30:25)-o+e;
+}
 function popObj(){
   const P=ui.pop;if(!P)return null;
   if(P.ref==="wall"){const w=cur().walls.find(x=>x.id===P.id);return w&&ui.layers.int?{w,ends:[w.a,w.b]}:null;}
@@ -811,7 +824,7 @@ function openPop(ref){
   else if(kind==="core"){ui.sel={k:"core",id:"core"};ui.pop={ref:"core",i:+id};}
   else {ui.sel={k:"area",id};ui.pop={ref:"area",id,i:+i};}
   const o=popObj();
-  if(o){const e=endsInfo(o.ends),lm=onLotLine(e.mn),lx=onLotLine(e.mx);ui.pop.fixed=lx&&!lm?1:0;ui.pop.focus=true;}
+  if(o){const e=endsInfo(o.ends),lm=endOnLot(e.mn,e.horiz),lx=endOnLot(e.mx,e.horiz);ui.pop.fixed=lx&&!lm?1:0;ui.pop.focus=true;}
   renderPlan();renderSel();
 }
 let popKey="";
@@ -819,14 +832,16 @@ function renderPop(){
   const el=$("#dimpop"),o=popObj();
   if(!o||ui.mode!=="select"){el.hidden=true;popKey="";return;}
   const e=endsInfo(o.ends),L=dist(o.ends[0],o.ends[1]),P=ui.pop;
-  const key=JSON.stringify([P.ref,P.id,P.i,P.fixed,P.wfix,L.toFixed(4),o.w?o.w.t:0]);
+  const bothLot=!o.core&&endOnLot(e.mn,e.horiz)&&endOnLot(e.mx,e.horiz);
+  const key=JSON.stringify([P.ref,P.id,P.i,P.fixed,P.wfix,P.msg||"",bothLot,L.toFixed(4),o.w?o.w.t:0]);
   if(key!==popKey&&!el.contains(document.activeElement)){
     popKey=key;
-    el.innerHTML=`<label>Length <input class="in" id="popLen" value="${attrLen(L)}"></label>
-      <span class="seg" role="group" aria-label="End to keep in place"><button data-fix="0" aria-pressed="${P.fixed===0}">Keep ${e.names[0]} end</button><button data-fix="1" aria-pressed="${P.fixed===1}">Keep ${e.names[1]} end</button></span>
+    el.innerHTML=`<label>Length <input class="in" id="popLen" value="${attrLen(L)}" ${bothLot?"readonly":""}></label>
+      ${bothLot?`<span class="note" style="margin:0">Both ends are on lot lines, so the lot sets this length</span>`:`<span class="seg" role="group" aria-label="End to keep in place"><button data-fix="0" aria-pressed="${P.fixed===0}">Keep ${e.names[0]} end</button><button data-fix="1" aria-pressed="${P.fixed===1}">Keep ${e.names[1]} end</button></span>`}
       ${o.w?`<label>Width <input class="in" id="popW" type="number" min="1" max="36" step="0.5" value="${+(o.w.t*12).toFixed(2)}"> in</label>
       <span class="seg" role="group" aria-label="When the width changes"><button data-wfix="min" aria-pressed="${P.wfix==="min"}">Keep ${e.horiz?"top":"rear"} face</button><button data-wfix="center" aria-pressed="${!P.wfix||P.wfix==="center"}">Grow both sides</button><button data-wfix="max" aria-pressed="${P.wfix==="max"}">Keep ${e.horiz?"bottom":"front"} face</button></span>`:""}
-      <button class="x" id="popX" aria-label="Close">×</button>`;
+      <button class="x" id="popX" aria-label="Close">×</button>
+      ${P.msg?`<p class="note" style="flex-basis:100%;margin:0;color:var(--over)">${P.msg}</p>`:""}`;
   }
   el.hidden=false;
   const m=svg.getScreenCTM(),wr=el.parentElement.getBoundingClientRect();
@@ -846,6 +861,12 @@ function applyPopLen(L){
   if(!(L>0)||L0<1e-6){popKey="";renderPop();return;}
   const fx=ui.pop.fixed===1?e.mx:e.mn,mv=fx===e.mx?e.mn:e.mx;
   const u=[(mv[0]-fx[0])/L0,(mv[1]-fx[1])/L0],tgt=[fx[0]+u[0]*L,fx[1]+u[1]*L];
+  if(!o.core&&(endOnLot(e.mn,e.horiz)&&endOnLot(e.mx,e.horiz)||!inLot(tgt))){
+    // never push an end past the lot line
+    ui.pop.msg=`That length would put the ${mv===e.mn?e.names[0]:e.names[1]} end past the lot line, so it was not changed.`;
+    popKey="";renderPop();return;
+  }
+  ui.pop.msg=null;
   pushHist();
   if(o.core){
     const c=o.core;
@@ -1373,6 +1394,7 @@ svg.addEventListener("pointerdown",e=>{
     else{
       ui.sel={k,id};
       ui.pop=k==="wall"?{ref:"wall",id,fixed:0}:null;
+      if(ui.pop){const w=f.walls.find(x=>x.id===id);if(w){const en=endsInfo([w.a,w.b]);if(endOnLot(en.mx,en.horiz)&&!endOnLot(en.mn,en.horiz))ui.pop.fixed=1;}}
       const o=findSel();
       drag={k:"move",start:p,orig:clone(o),hist:false};
     }
