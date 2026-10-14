@@ -194,7 +194,7 @@ tfoot td{font-weight:600;border-bottom:0}
         <div class="seg" role="group" aria-label="Layers to show">
           <button data-layer="far" title="Show the floor area layers used for the FAR calculation">FAR</button>
           <button data-layer="int" title="Show walls, the elevator and the stair">Interiors</button>
-          <button data-layer="both" title="Show everything">Both</button>
+          <button data-layer="sell" title="Show the residential and commercial sellable areas">Sellable</button>
         </div>
       </div>
       <div class="floorhead" id="floorhead"></div>
@@ -620,10 +620,10 @@ window.addEventListener("pagehide",()=>{if(saveTimer)flush();});
 const LOCAL=load();
 let S=ensureLightwell(syncDerived(ensureRules(ensureCore(LOCAL||seed()))));
 const ui={floor:Math.min(5,S.floors.length-1),mode:"select",areaType:"gross",sel:null,snap:true,ortho:true,
-  explode:false,above:true,view:{cx:60,cy:15,w:142},draft:null,dims:true,typed:"",layer:"both",wallT:6,just:"center",snapC:true,snapF:true,snapM:true,hover:null};
+  explode:false,above:true,view:{cx:60,cy:15,w:142},draft:null,dims:true,typed:"",layers:{far:true,int:true,sell:true},wallT:6,just:"center",snapC:true,snapF:true,snapM:true,hover:null};
 const PREF_KEY="s2nd-prefs-v1";
-try{const pr=JSON.parse(localStorage.getItem(PREF_KEY))||{};ui.snap=pr.snap!==false;ui.ortho=pr.ortho!==false;ui.dims=pr.dims!==false;if(["far","int","both"].includes(pr.layer))ui.layer=pr.layer;if(pr.wallT>0)ui.wallT=pr.wallT;if(["left","center","right"].includes(pr.just))ui.just=pr.just;if(typeof pr.snapC==="boolean")ui.snapC=pr.snapC;if(typeof pr.snapF==="boolean")ui.snapF=pr.snapF;if(typeof pr.snapM==="boolean")ui.snapM=pr.snapM;}catch(e){}
-function savePrefs(){try{localStorage.setItem(PREF_KEY,JSON.stringify({snap:ui.snap,ortho:ui.ortho,dims:ui.dims,layer:ui.layer,wallT:ui.wallT,just:ui.just,snapC:ui.snapC,snapF:ui.snapF,snapM:ui.snapM}));}catch(e){}}
+try{const pr=JSON.parse(localStorage.getItem(PREF_KEY))||{};ui.snap=pr.snap!==false;ui.ortho=pr.ortho!==false;ui.dims=pr.dims!==false;if(pr.layers&&typeof pr.layers==="object")ui.layers={far:pr.layers.far!==false,int:pr.layers.int!==false,sell:pr.layers.sell!==false};else if(pr.layer==="far")ui.layers={far:true,int:false,sell:true};else if(pr.layer==="int")ui.layers={far:false,int:true,sell:false};if(pr.wallT>0)ui.wallT=pr.wallT;if(["left","center","right"].includes(pr.just))ui.just=pr.just;if(typeof pr.snapC==="boolean")ui.snapC=pr.snapC;if(typeof pr.snapF==="boolean")ui.snapF=pr.snapF;if(typeof pr.snapM==="boolean")ui.snapM=pr.snapM;}catch(e){}
+function savePrefs(){try{localStorage.setItem(PREF_KEY,JSON.stringify({snap:ui.snap,ortho:ui.ortho,dims:ui.dims,layers:ui.layers,wallT:ui.wallT,just:ui.just,snapC:ui.snapC,snapF:ui.snapF,snapM:ui.snapM}));}catch(e){}}
 let shiftHeld=false;
 const orthoOn=()=>ui.ortho!==shiftHeld;
 let hist=[];
@@ -795,7 +795,7 @@ const LOT_E=0.02;
 function onLotLine(q){const o=S.settings.sideOffset||0;return Math.abs(q[0])<LOT_E||Math.abs(q[0]-FRONT)<LOT_E||[o,25-o,30-o].some(v=>Math.abs(q[1]-v)<LOT_E);}
 function popObj(){
   const P=ui.pop;if(!P)return null;
-  if(P.ref==="wall"){const w=cur().walls.find(x=>x.id===P.id);return w&&ui.layer!=="far"?{w,ends:[w.a,w.b]}:null;}
+  if(P.ref==="wall"){const w=cur().walls.find(x=>x.id===P.id);return w&&ui.layers.int?{w,ends:[w.a,w.b]}:null;}
   if(P.ref==="core"){const c=S.core;if(!c)return null;const r=rect(c.x0,c.y0,c.x1,c.y1);return {core:c,ends:[r[P.i],r[(P.i+1)%4]]};}
   const a=cur().areas.find(x=>x.id===P.id);if(!a||a.pts.length<3)return null;
   return {a,ends:[a.pts[P.i],a.pts[(P.i+1)%a.pts.length]]};
@@ -916,10 +916,10 @@ function renderToolbar(){
   $("#wallOpts").style.display=ui.mode==="wall"?"":"none";
   if(document.activeElement!==$("#wallT"))$("#wallT").value=ui.wallT;
   document.querySelectorAll("[data-just]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.just===ui.just)));
-  document.querySelectorAll("[data-layer]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.layer===ui.layer)));
-  $("[data-mode='wall']").disabled=ui.layer==="far";
-  $("[data-mode='area']").disabled=ui.layer==="int";
-  $("#legend").style.display=ui.layer==="int"?"none":"";
+  document.querySelectorAll("[data-layer]").forEach(b=>b.setAttribute("aria-pressed",String(!!ui.layers[b.dataset.layer])));
+  $("[data-mode='wall']").disabled=!ui.layers.int;
+  $("[data-mode='area']").disabled=!ui.layers.far&&!ui.layers.sell;
+  $("#legend").style.display=ui.layers.far||ui.layers.sell?"":"none";
   if(!ui.draft)ui.typed="";
   renderTyped();
   $("#plan").classList.toggle("select",ui.mode==="select");
@@ -1146,7 +1146,8 @@ function renderPlan(){
   const v=vb();
   svg.setAttribute("viewBox",`${v.x.toFixed(2)} ${v.y.toFixed(2)} ${v.w.toFixed(2)} ${v.h.toFixed(2)}`);
   const f=cur(),k=v.w/130,hr=Math.max(v.w/40,22/Math.max(v.pxPerFt,0.01)),vr=v.w/115,fs=v.w/60;
-  const showFar=ui.layer!=="int",showInt=ui.layer!=="far";
+  const showFar=ui.layers.far,showInt=ui.layers.int,showSell=ui.layers.sell;
+  const areaShown=a=>(AREA_TYPES[a.type]||{}).kind==="sell"?showSell:showFar;
   let g=`<g pointer-events="none">`;
   const x0=Math.floor(v.x/5)*5,y0=Math.floor(v.y/5)*5;
   for(let x=x0;x<=v.x+v.w;x+=5)g+=`<line x1="${x}" y1="${v.y}" x2="${x}" y2="${v.y+v.h}" style="stroke:var(--grid);stroke-width:${(x%25===0?0.2:0.08)*k}"/>`;
@@ -1167,7 +1168,7 @@ function renderPlan(){
   const areas=[...f.areas].sort((a,b)=>ORDER.indexOf(a.type)-ORDER.indexOf(b.type));
   let ar="",lb=`<g pointer-events="none">`;
   areas.forEach(a=>{
-    if(a.pts.length<3||!showFar)return;
+    if(a.pts.length<3||!areaShown(a))return;
     const T=AREA_TYPES[a.type]||AREA_TYPES.gross,c=`var(${T.color})`,sel=ui.sel&&ui.sel.id===a.id;
     const dash=a.type==="terrace"?`stroke-dasharray:${0.8*k} ${0.5*k};`:T.kind==="sell"?`stroke-dasharray:${1.2*k} ${0.4*k} ${0.2*k} ${0.4*k};`:"";
     ar+=`<path data-k="area" data-id="${a.id}" d="${pathOf(a.pts)}" style="fill:${c};fill-opacity:${a.type==="gross"?0.09:T.kind==="sell"?0.05:T.kind==="use"?0.16:0.26};stroke:${sel?"var(--sel)":c};stroke-width:${(sel?0.5:0.22)*k};${dash}"/>`;
@@ -1212,7 +1213,7 @@ function renderPlan(){
     });
   };
   const selO=findSel();
-  if(ui.dims)areas.forEach(a=>{if(a.pts.length>=3&&(showFar||a.type==="gross"))dimPoly(a.pts,a.type==="gross",false,"area:"+a.id);});
+  if(ui.dims)areas.forEach(a=>{if(a.pts.length>=3&&(areaShown(a)||a.type==="gross"))dimPoly(a.pts,a.type==="gross",false,"area:"+a.id);});
   if(S.core&&(ui.dims||(ui.sel&&ui.sel.k==="core"))){const c=coreRectFor(f);dimPoly(rect(c.x0,c.y0,c.x1,c.y1),false,true,S.core.auto?null:"core");}
   if(selO&&ui.sel.k==="area"&&selO.pts.length>=3&&(selO.type!=="gross"||!ui.dims))dimPoly(selO.pts,false,true,"area:"+selO.id);
   if(selO&&ui.sel.k==="wall"){
@@ -1523,7 +1524,7 @@ function build3D(){
     f.areas.forEach(a=>{
       if(a.pts.length<3)return;
       const T=AREA_TYPES[a.type]||AREA_TYPES.gross;
-      if(T.kind!=="gross"&&ui.layer==="int")return;
+      if(T.kind!=="gross"&&!ui.layers.far)return;
       if(T.kind==="sell")return;
       if(T.kind==="gross"){
         const geo=new THREE.ExtrudeGeometry(toShape(a.pts),{depth:0.8,bevelEnabled:false});
@@ -1553,7 +1554,7 @@ function build3D(){
         m.position.set((lw.x0+lw.x1)/2-CX,y+(h+0.8)/2+0.02,(lw.y0+lw.y1)/2-CZ);m.userData.floor=i;root.add(m);
       }
     }
-    (ui.layer==="far"?[]:[...cutWalls(f),...coreWalls(f),...courtWalls(f)]).forEach(w=>{
+    (!ui.layers.int?[]:[...cutWalls(f),...coreWalls(f),...courtWalls(f)]).forEach(w=>{
       const dx=w.b[0]-w.a[0],dz=w.b[1]-w.a[1],L=Math.hypot(dx,dz);
       if(L<0.05)return;
       const geo=new THREE.BoxGeometry(L+w.t,h,w.t);
@@ -1616,12 +1617,21 @@ function syncSettings(){
   $("#zgPct").textContent=S.rules.zoneGreen.pct;
 }
 
-function fillAreaTypes(){$("#areaType").innerHTML=MENU.map(k=>`<option value="${k}">${labelOf(k)}</option>`).join("");$("#areaType").value=ui.areaType;}
+/* The Draw area list shows the area types of the layers that are on. */
+function menuTypes(){return MENU.filter(k=>AREA_TYPES[k].kind==="sell"?ui.layers.sell:ui.layers.far);}
+function fillAreaTypes(){
+  const list=menuTypes();
+  if(list.length&&!list.includes(ui.areaType))ui.areaType=list[0];
+  $("#areaType").innerHTML=list.map(k=>`<option value="${k}">${labelOf(k)}</option>`).join("");$("#areaType").value=ui.areaType;
+}
 $("#areaType").addEventListener("change",e=>{ui.areaType=e.target.value;});
 document.querySelectorAll("[data-layer]").forEach(b=>b.addEventListener("click",()=>{
-  ui.layer=b.dataset.layer;
-  if((ui.layer==="far"&&ui.mode==="wall")||(ui.layer==="int"&&ui.mode==="area"))ui.mode="select";
-  if(ui.sel&&((ui.layer==="far"&&ui.sel.k==="wall")||(ui.layer==="int"&&ui.sel.k==="area")))ui.sel=null;
+  const L=b.dataset.layer;ui.layers[L]=!ui.layers[L];   // each layer button turns on and off
+  if((ui.mode==="wall"&&!ui.layers.int)||(ui.mode==="area"&&!ui.layers.far&&!ui.layers.sell))ui.mode="select";
+  if(ui.sel){
+    const o=findSel(),kind=ui.sel.k==="area"&&o?(AREA_TYPES[o.type]||{}).kind:null;
+    if((ui.sel.k==="wall"&&!ui.layers.int)||(ui.sel.k==="area"&&(kind==="sell"?!ui.layers.sell:!ui.layers.far)))ui.sel=null;
+  }
   ui.draft=null;ui.pop=null;savePrefs();renderAll();
 }));
 document.querySelectorAll("[data-mode]").forEach(b=>b.addEventListener("click",()=>{ui.mode=b.dataset.mode;ui.draft=null;renderToolbar();renderPlan();}));
@@ -1732,7 +1742,8 @@ document.addEventListener("keydown",e=>{
     // W draws walls, A draws areas; switch to Both if the current view hides that layer
     e.preventDefault();
     const m=lk==="w"?"wall":"area";
-    if((m==="wall"&&ui.layer==="far")||(m==="area"&&ui.layer==="int")){ui.layer="both";savePrefs();}
+    if(m==="wall"&&!ui.layers.int){ui.layers.int=true;savePrefs();}
+    if(m==="area"&&!ui.layers.far&&!ui.layers.sell){ui.layers.far=true;savePrefs();}
     ui.mode=m;ui.draft=null;ui.pop=null;ui.typed="";renderAll();return;
   }
   if(e.key==="F9"){e.preventDefault();toggleSnap();return;}
