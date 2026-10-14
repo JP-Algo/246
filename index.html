@@ -511,6 +511,17 @@ function cutWalls(f){
   });
   return out;
 }
+/* Where each wall is drawn: a free end stops exactly at its end point; an end that meets another wall's
+   end at an angle runs on by half that wall's thickness so the corner closes cleanly. */
+function drawEnds(list){
+  const e=0.02,dir=w=>{const L=dist(w.a,w.b)||1;return [(w.b[0]-w.a[0])/L,(w.b[1]-w.a[1])/L];};
+  return list.map((w,i)=>{
+    const u=dir(w);
+    const ext=q=>{let m=0;list.forEach((o,j)=>{if(j===i)return;if(dist(o.a,q)<e||dist(o.b,q)<e){const v=dir(o);if(Math.abs(u[0]*v[1]-u[1]*v[0])>0.1)m=Math.max(m,o.t/2);}});return m;};
+    const ea=ext(w.a),eb=ext(w.b);
+    return {w,a:[w.a[0]-u[0]*ea,w.a[1]-u[1]*ea],b:[w.b[0]+u[0]*eb,w.b[1]+u[1]*eb]};
+  });
+}
 function coreIssues(f){
   const c=coreRectFor(f);if(!c||f.use==="cellar")return [];
   const out=[],e=0.05,gross=f.areas.filter(a=>a.type==="gross"&&a.pts.length>=3);
@@ -1260,6 +1271,8 @@ function renderPlan(){
   dm+=`</g>`;
 
   let wl="";
+  const WL={reg:showInt?cutWalls(f):[],core:showInt?coreWalls(f):[],court:showInt?courtWalls(f):[]};
+  const WE=new Map(drawEnds([...WL.reg,...WL.core,...WL.court]).map(d=>[d.w,d])),we=w=>WE.get(w)||{a:w.a,b:w.b};
   const cw0=courtRectFor(f);
   if(cw0){
     const c=cw0,csel=ui.sel&&ui.sel.k==="court",cwid=c.x1-c.x0,chei=c.y1-c.y0;
@@ -1270,7 +1283,7 @@ function renderPlan(){
     wl+=`<text x="${c.x0+cwid/2}" y="${c.y0+chei/2-fs*0.45}" text-anchor="middle" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.8}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.3}px">Light well</text>`;
     wl+=`<text x="${c.x0+cwid/2}" y="${c.y0+chei/2+fs*0.6}" text-anchor="middle" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.7}px;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.3}px">${fmtLen(c.len)} × ${fmtLen(c.depth)} clear, ${fmt(c.len*c.depth)} SF, not floor area</text>`;
     if(c.issues.length)wl+=`<text x="${c.x0+cwid/2}" y="${(S.lightwell.side==="west"?c.y1+fs*1.2:c.y0-fs*0.8)}" text-anchor="middle" pointer-events="none" style="fill:var(--over);font-size:${fs*0.72}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.25}px">Does not meet the court minimum: ${c.issues.join(", ")}</text>`;
-    if(showInt)courtWalls(f).forEach(w=>{wl+=`<line x1="${w.a[0]}" y1="${w.a[1]}" x2="${w.b[0]}" y2="${w.b[1]}" pointer-events="none" style="stroke:${csel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:square"/>`;});
+    WL.court.forEach(w=>{const d=we(w);wl+=`<line x1="${d.a[0]}" y1="${d.a[1]}" x2="${d.b[0]}" y2="${d.b[1]}" pointer-events="none" style="stroke:${csel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:butt"/>`;});
   }
   if(S.core){
     const c=coreRectFor(f),cw=c.x1-c.x0,ch=c.y1-c.y0,csel=ui.sel&&ui.sel.k==="core";
@@ -1297,7 +1310,7 @@ function renderPlan(){
     }
     const iss=coreIssues(f);
     if(iss.length)wl+=`<text x="${c.x0+cw/2}" y="${c.y0-fs*0.8}" text-anchor="middle" pointer-events="none" style="fill:var(--over);font-size:${fs*0.72}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.25}px">Core ${iss.join(", ")}</text>`;
-    if(showInt)coreWalls(f).forEach(w=>{wl+=`<line x1="${w.a[0]}" y1="${w.a[1]}" x2="${w.b[0]}" y2="${w.b[1]}" pointer-events="none" style="stroke:${csel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:square"/>`;});
+    WL.core.forEach(w=>{const d=we(w);wl+=`<line x1="${d.a[0]}" y1="${d.a[1]}" x2="${d.b[0]}" y2="${d.b[1]}" pointer-events="none" style="stroke:${csel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:butt"/>`;});
     const lab=(x,t)=>`<text x="${x}" y="${c.y0+ch/2}" text-anchor="middle" dominant-baseline="central" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.75}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.25}px">${t}</text>`;
     if(showInt){
       if(ew>3)wl+=lab((eA+eB)/2,"Elev.");
@@ -1307,9 +1320,9 @@ function renderPlan(){
       wl+=`<text x="${c.x0+cw/2}" y="${c.y0+ch/2+fs*0.6}" text-anchor="middle" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.75}px">${fmt(coreArea())} SF${f.use==="cellar"?"":res?", residential":", commercial"}</text>`;
     }
   }
-  if(showInt)cutWalls(f).forEach(w=>{
-    const sel=ui.sel&&ui.sel.id===w.id;
-    wl+=`<line x1="${w.a[0]}" y1="${w.a[1]}" x2="${w.b[0]}" y2="${w.b[1]}" pointer-events="none" style="stroke:${sel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:square"/>`;
+  WL.reg.forEach(w=>{
+    const sel=ui.sel&&ui.sel.id===w.id,d=we(w);
+    wl+=`<line x1="${d.a[0]}" y1="${d.a[1]}" x2="${d.b[0]}" y2="${d.b[1]}" pointer-events="none" style="stroke:${sel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:butt"/>`;
     wl+=`<line data-k="wall" data-id="${w.id}" x1="${w.a[0]}" y1="${w.a[1]}" x2="${w.b[0]}" y2="${w.b[1]}" pointer-events="stroke" style="stroke:transparent;stroke-width:${Math.max(w.t,hr*0.8)}"/>`;
   });
 
@@ -1594,12 +1607,12 @@ function build3D(){
         m.position.set((lw.x0+lw.x1)/2-CX,y+(h+0.8)/2+0.02,(lw.y0+lw.y1)/2-CZ);m.userData.floor=i;root.add(m);
       }
     }
-    (!ui.layers.int?[]:[...cutWalls(f),...coreWalls(f),...courtWalls(f)]).forEach(w=>{
-      const dx=w.b[0]-w.a[0],dz=w.b[1]-w.a[1],L=Math.hypot(dx,dz);
+    (!ui.layers.int?[]:drawEnds([...cutWalls(f),...coreWalls(f),...courtWalls(f)])).forEach(d=>{
+      const w=d.w,dx=d.b[0]-d.a[0],dz=d.b[1]-d.a[1],L=Math.hypot(dx,dz);
       if(L<0.05)return;
-      const geo=new THREE.BoxGeometry(L+w.t,h,w.t);
+      const geo=new THREE.BoxGeometry(L,h,w.t);
       const m=new THREE.Mesh(geo,wmat);
-      m.position.set((w.a[0]+w.b[0])/2-CX,y+0.8+h/2,(w.a[1]+w.b[1])/2-CZ);
+      m.position.set((d.a[0]+d.b[0])/2-CX,y+0.8+h/2,(d.a[1]+d.b[1])/2-CZ);
       m.rotation.y=-Math.atan2(dz,dx);
       m.userData.floor=i;
       m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),lmat));
