@@ -72,8 +72,9 @@
       "wallIn": 8,
       "meaning": "Dimensions are the clear open court, measured to the court walls and the lot line; walls are outside it. Portions at or below 75 ft: at least 200 SF and no dimension under 10 ft. Above 75 ft: 300 SF and 15 ft. A court on a side lot line is an inner court. Not floor area.",
       "sizing": "depth = minimum dimension; length = max(minimum dimension, minimum area / depth)",
-      "thisBuilding": "West lot line (top edge of the plan), 80'-0\" to 100'-0\" from the rear lot line, next to the elevator end of the core, from the 4th floor to the roof: 20'-0\" x 10'-0\" (200 SF) on floors 4-7, 20'-0\" x 15'-0\" (300 SF) on the 8th floor, which is above 75 ft.",
-      "source": "NYC Zoning Resolution 23-352"
+      "thisBuilding": "West lot line (top edge of the plan), from the 4th floor to the roof: 20'-0\" x 10'-0\" (200 SF) on floors 4-7. 8th floor set by the owner to 30'-0\" x 10'-0\" (300 SF), which meets the 300 SF area but not the 15 ft minimum dimension above 75 ft.",
+      "source": "NYC Zoning Resolution 23-352",
+      "overrides": "A floor can override the code-minimum size; the model flags any floor that falls below the minimums."
     },
     "corridorDeduction": {
       "label": "Corridor floor area exclusion",

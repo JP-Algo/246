@@ -461,9 +461,13 @@ function courtRectFor(f){
   if(from<0||i<from||f.use==="cellar")return null;
   const r=S.rules.court,high=floorTop(i)>r.highAboveFt+1e-6;
   const dim=high?r.highMinDimFt:r.lowMinDimFt,area=high?r.highMinAreaSF:r.lowMinAreaSF;
-  const depth=dim,len=Math.max(dim,area/dim);
+  const ov=(L.sizes||{})[f.id];
+  const depth=ov?ov.depth:dim,len=ov?ov.len:Math.max(dim,area/dim);
+  const issues=[];
+  if(Math.min(depth,len)<dim-1e-6)issues.push(`a side is under the ${dim} ft minimum${high?" above "+r.highAboveFt+" ft":""}`);
+  if(depth*len<area-0.5)issues.push(`under the ${fmt(area)} SF minimum`);
   const [y0,y1]=L.side==="west"?[0,depth]:[25-depth,25];
-  return {x0:L.x0,x1:L.x0+len,y0,y1,depth,len,high};
+  return {x0:L.x0,x1:L.x0+len,y0,y1,depth,len,high,custom:!!ov,issues};
 }
 const rectOverlap=(a,b)=>Math.max(0,Math.min(a.x1,b.x1)-Math.max(a.x0,b.x0))*Math.max(0,Math.min(a.y1,b.y1)-Math.max(a.y0,b.y0));
 function courtWalls(f){
@@ -916,11 +920,19 @@ function renderSel(){
     const opts=S.floors.filter(f=>f.use!=="cellar").map(f=>`<option value="${f.id}" ${f.id===L.from?"selected":""}>${f.name}</option>`).join("");
     const per=S.floors.map(f=>{const q=courtRectFor(f);return q?`${f.name} ${fmtLen(q.len)} × ${fmtLen(q.depth)} (${fmt(q.len*q.depth)} SF${q.high?", above 75 ft":""})`:"";}).filter(Boolean).join("; ");
     el.innerHTML=`<span><span class="k">Light well, clear inside the walls, not floor area</span> ${fmtLen(c.len)} × ${fmtLen(c.depth)} = ${fmt(c.len*c.depth)} SF on this floor</span>
-      <div class="dimedit"><label>Starts on<select class="in" id="lwFrom">${opts}</select></label><label>Starts from rear lot line<input class="in" id="lwX" value="${attrLen(L.x0)}"></label></div>
+      <div class="dimedit"><label>Starts on<select class="in" id="lwFrom">${opts}</select></label><label>Starts from rear lot line<input class="in" id="lwX" value="${attrLen(L.x0)}"></label><label>Length on this floor<input class="in" data-lws="len" value="${attrLen(c.len)}"></label><label>Width on this floor<input class="in" data-lws="depth" value="${attrLen(c.depth)}"></label></div>
+      ${c.custom?`<button class="btn" id="lwReset">Use the code minimum on this floor</button>`:""}
+      ${c.issues.length?`<p class="note" style="flex-basis:100%;margin:0;color:var(--over)">Does not meet the court minimum on this floor: ${c.issues.join(", ")}.</p>`:""}
       <span class="seg" role="group" aria-label="Lot line"><button data-lwside="east" aria-pressed="${L.side==="east"}">East lot line</button><button data-lwside="west" aria-pressed="${L.side!=="east"}">West lot line</button></span>
       <button class="btn warn" id="lwDel">Remove light well</button>
       <p class="note" style="flex-basis:100%;margin:0">Sized to the minimum court in the design rules: ${per}.</p>`;
     $("#lwFrom").addEventListener("change",e=>{pushHist();L.from=e.target.value;commit();});
+    el.querySelectorAll("[data-lws]").forEach(inp=>inp.addEventListener("change",e=>{
+      const v=parseLen(e.target.value);if(!(v>0)){renderSel();return;}
+      pushHist();L.sizes=L.sizes||{};const fid=cur().id;
+      L.sizes[fid]={len:c.len,depth:c.depth,...(L.sizes[fid]||{}),[e.target.dataset.lws]:v};commit();
+    }));
+    const rb=$("#lwReset");if(rb)rb.addEventListener("click",()=>{pushHist();delete L.sizes[cur().id];commit();});
     $("#lwX").addEventListener("change",e=>{const v=parseLen(e.target.value);if(!isFinite(v)){renderSel();return;}pushHist();L.x0=v;commit();});
     el.querySelectorAll("[data-lwside]").forEach(b=>b.addEventListener("click",()=>{if(L.side===b.dataset.lwside)return;pushHist();L.side=b.dataset.lwside;commit();}));
     $("#lwDel").addEventListener("click",()=>{pushHist();S.lightwell=null;ui.sel=null;commit();});
@@ -1186,6 +1198,7 @@ function renderPlan(){
     wl+=hatch+`</g>`;
     wl+=`<text x="${c.x0+cwid/2}" y="${c.y0+chei/2-fs*0.45}" text-anchor="middle" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.8}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.3}px">Light well</text>`;
     wl+=`<text x="${c.x0+cwid/2}" y="${c.y0+chei/2+fs*0.6}" text-anchor="middle" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.7}px;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.3}px">${fmtLen(c.len)} × ${fmtLen(c.depth)} clear, ${fmt(c.len*c.depth)} SF, not floor area</text>`;
+    if(c.issues.length)wl+=`<text x="${c.x0+cwid/2}" y="${(S.lightwell.side==="west"?c.y1+fs*1.2:c.y0-fs*0.8)}" text-anchor="middle" pointer-events="none" style="fill:var(--over);font-size:${fs*0.72}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.25}px">Does not meet the court minimum: ${c.issues.join(", ")}</text>`;
     if(showInt)courtWalls(f).forEach(w=>{wl+=`<line x1="${w.a[0]}" y1="${w.a[1]}" x2="${w.b[0]}" y2="${w.b[1]}" pointer-events="none" style="stroke:${csel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:square"/>`;});
   }
   if(S.core){
