@@ -212,7 +212,7 @@ tfoot td{font-weight:600;border-bottom:0}
         <button class="btn" id="tOrtho" aria-pressed="true" title="Keep lines horizontal or vertical. F8 toggles, hold Shift to override for one point">Ortho</button>
         <button class="btn" id="tSnap" aria-pressed="true" title="Snap to a 6 inch grid and to existing corners. F9 toggles">Snap</button>
         <button class="btn" id="tDims" aria-pressed="true" title="Show dimensions on the plan">Dimensions</button>
-        <span class="seg" role="group" aria-label="Snap to walls at" id="snapTo" title="Which parts of walls to snap to"><button data-snapto="c">Wall centers</button><button data-snapto="f">Wall faces</button></span>
+        <span class="seg" role="group" aria-label="Snap to walls at" id="snapTo" title="Which parts of walls to snap to"><button data-snapto="c">Wall centers</button><button data-snapto="f">Wall faces</button><button data-snapto="m" title="Snap to the middle of walls and area edges">Midpoints</button></span>
         <span id="wallOpts" class="row" style="gap:8px">
           <label class="check">Wall thickness <input class="in" id="wallT" type="number" min="1" max="36" step="0.5" style="width:64px"> in</label>
           <span class="seg" role="group" aria-label="Line you draw is the wall's"><button data-just="left" title="The line you draw is the wall's left face, looking along the direction you draw">Left face</button><button data-just="center">Center</button><button data-just="right" title="The line you draw is the wall's right face, looking along the direction you draw">Right face</button></span>
@@ -610,10 +610,10 @@ window.addEventListener("pagehide",()=>{if(saveTimer)flush();});
 const LOCAL=load();
 let S=ensureLightwell(syncDerived(ensureRules(ensureCore(LOCAL||seed()))));
 const ui={floor:Math.min(5,S.floors.length-1),mode:"select",areaType:"gross",sel:null,snap:true,ortho:true,
-  explode:false,above:true,view:{cx:60,cy:15,w:142},draft:null,dims:true,typed:"",layer:"both",wallT:6,just:"center",snapC:true,snapF:true};
+  explode:false,above:true,view:{cx:60,cy:15,w:142},draft:null,dims:true,typed:"",layer:"both",wallT:6,just:"center",snapC:true,snapF:true,snapM:true,hover:null};
 const PREF_KEY="s2nd-prefs-v1";
-try{const pr=JSON.parse(localStorage.getItem(PREF_KEY))||{};ui.snap=pr.snap!==false;ui.ortho=pr.ortho!==false;ui.dims=pr.dims!==false;if(["far","int","both"].includes(pr.layer))ui.layer=pr.layer;if(pr.wallT>0)ui.wallT=pr.wallT;if(["left","center","right"].includes(pr.just))ui.just=pr.just;if(typeof pr.snapC==="boolean")ui.snapC=pr.snapC;if(typeof pr.snapF==="boolean")ui.snapF=pr.snapF;}catch(e){}
-function savePrefs(){try{localStorage.setItem(PREF_KEY,JSON.stringify({snap:ui.snap,ortho:ui.ortho,dims:ui.dims,layer:ui.layer,wallT:ui.wallT,just:ui.just,snapC:ui.snapC,snapF:ui.snapF}));}catch(e){}}
+try{const pr=JSON.parse(localStorage.getItem(PREF_KEY))||{};ui.snap=pr.snap!==false;ui.ortho=pr.ortho!==false;ui.dims=pr.dims!==false;if(["far","int","both"].includes(pr.layer))ui.layer=pr.layer;if(pr.wallT>0)ui.wallT=pr.wallT;if(["left","center","right"].includes(pr.just))ui.just=pr.just;if(typeof pr.snapC==="boolean")ui.snapC=pr.snapC;if(typeof pr.snapF==="boolean")ui.snapF=pr.snapF;if(typeof pr.snapM==="boolean")ui.snapM=pr.snapM;}catch(e){}
+function savePrefs(){try{localStorage.setItem(PREF_KEY,JSON.stringify({snap:ui.snap,ortho:ui.ortho,dims:ui.dims,layer:ui.layer,wallT:ui.wallT,just:ui.just,snapC:ui.snapC,snapF:ui.snapF,snapM:ui.snapM}));}catch(e){}}
 let shiftHeld=false;
 const orthoOn=()=>ui.ortho!==shiftHeld;
 let hist=[];
@@ -890,7 +890,7 @@ function renderToolbar(){
   $("#tOrtho").setAttribute("aria-pressed",String(ui.ortho));
   $("#tSnap").setAttribute("aria-pressed",String(ui.snap));
   $("#tDims").setAttribute("aria-pressed",String(ui.dims));
-  document.querySelectorAll("[data-snapto]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.snapto==="c"?ui.snapC:ui.snapF)));
+  document.querySelectorAll("[data-snapto]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.snapto==="c"?ui.snapC:b.dataset.snapto==="f"?ui.snapF:ui.snapM)));
   $("#snapTo").style.display=ui.snap?"":"none";
   $("#wallOpts").style.display=ui.mode==="wall"?"":"none";
   if(document.activeElement!==$("#wallT"))$("#wallT").value=ui.wallT;
@@ -1070,25 +1070,48 @@ function projSeg(p,a,b){
   const t=Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/L2));
   return [a[0]+dx*t,a[1]+dy*t];
 }
+/* snapInfo describes the last snap: kind is end (wall or face end), corner (area or core corner),
+   mid (midpoint), on (on a wall line), grid or free. */
+let snapInfo={kind:"free",line:null};
 function snapPt(p,exclKey){
-  if(!ui.snap)return [Math.round(p[0]*48)/48,Math.round(p[1]*48)/48];
+  if(!ui.snap){snapInfo={kind:"free",line:null};return [Math.round(p[0]*48)/48,Math.round(p[1]*48)/48];}
   const v=vb(),thr=Math.max(0.6,v.w/55),f=cur(),exclId=exclKey?String(exclKey).split(":")[0]:null;
-  let best=null,bd=thr;
-  const consider=(q,key)=>{if(key===exclKey)return;const d=dist(p,q);if(d<bd){bd=d;best=q;}};
+  let best=null,bd=thr,bk="grid";
+  const consider=(q,key,kind)=>{if(key===exclKey||(exclId&&key&&key.split(":")[0]===exclId&&kind==="mid"))return;const d=dist(p,q);if(d<bd-1e-9||(Math.abs(d-bd)<1e-9&&kind!=="mid")){bd=d;best=q;bk=kind;}};
+  const mid=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
   const lines=[];
-  f.walls.forEach(w=>{
-    if(ui.snapC){consider(w.a,w.id+":a");consider(w.b,w.id+":b");if(w.id!==exclId)lines.push([w.a,w.b]);}
-    if(ui.snapF&&w.id!==exclId)wallFaces(w).forEach((fc,j)=>{consider(fc[0],w.id+":f"+j+"a");consider(fc[1],w.id+":f"+j+"b");lines.push(fc);});
+  cutWalls(f).forEach(w=>{
+    if(ui.snapC){consider(w.a,w.id+":a","end");consider(w.b,w.id+":b","end");if(ui.snapM)consider(mid(w.a,w.b),w.id+":m","mid");if(w.id!==exclId)lines.push([w.a,w.b]);}
+    if(ui.snapF&&w.id!==exclId)wallFaces(w).forEach((fc,j)=>{consider(fc[0],w.id+":f"+j+"a","end");consider(fc[1],w.id+":f"+j+"b","end");if(ui.snapM)consider(mid(fc[0],fc[1]),w.id+":f"+j+"m","mid");lines.push(fc);});
   });
-  f.areas.forEach(a=>a.pts.forEach((q,i)=>consider(q,a.id+":"+i)));
-  if(S.core&&exclKey!=="core"){const c=coreRectFor(f);[[c.x0,c.y0],[c.x1,c.y0],[c.x1,c.y1],[c.x0,c.y1]].forEach(q=>consider(q,"core"));}
-  if(best)return [best[0],best[1]];
-  // no corner close by: slide onto the nearest wall face or centerline
-  let lb=null,ld=thr*0.7;
-  lines.forEach(([a,b])=>{const q=projSeg(p,a,b);if(q){const d=dist(p,q);if(d<ld){ld=d;lb=q;}}});
-  if(lb)return [lb[0],lb[1]];
+  [...coreWalls(f),...courtWalls(f)].forEach(w=>{
+    if(ui.snapC){consider(w.a,"x","end");consider(w.b,"x","end");if(ui.snapM)consider(mid(w.a,w.b),"x","mid");lines.push([w.a,w.b]);}
+    if(ui.snapF)wallFaces(w).forEach(fc=>{consider(fc[0],"x","end");consider(fc[1],"x","end");if(ui.snapM)consider(mid(fc[0],fc[1]),"x","mid");lines.push(fc);});
+  });
+  f.areas.forEach(a=>a.pts.forEach((q,i)=>{consider(q,a.id+":"+i,"corner");if(ui.snapM)consider(mid(q,a.pts[(i+1)%a.pts.length]),a.id+":m"+i,"mid");}));
+  if(S.core&&exclKey!=="core"){const c=coreRectFor(f);[[c.x0,c.y0],[c.x1,c.y0],[c.x1,c.y1],[c.x0,c.y1]].forEach(q=>consider(q,"core","corner"));}
+  if(best){snapInfo={kind:bk,line:null};return [best[0],best[1]];}
+  // no point close by: slide onto the nearest wall face or centerline
+  let lb=null,ld=thr*0.7,ll=null;
+  lines.forEach(([a,b])=>{const q=projSeg(p,a,b);if(q){const d=dist(p,q);if(d<ld){ld=d;lb=q;ll=[a,b];}}});
+  if(lb){snapInfo={kind:"on",line:ll};return [lb[0],lb[1]];}
+  snapInfo={kind:"grid",line:null};
   const g=0.5;
   return [Math.round(p[0]/g)*g,Math.round(p[1]/g)*g];
+}
+/* Next drawing point: an exact snap (end, corner, midpoint) wins over Ortho; on a wall line, Ortho
+   slides along it to stay square to the previous point. */
+function placePt(from,p){
+  const q=snapPt(p);
+  if(!from||["end","corner","mid"].includes(snapInfo.kind))return q;
+  if(snapInfo.kind==="on"&&orthoOn()){
+    const [a,b]=snapInfo.line,hz=Math.abs(q[0]-from[0])>=Math.abs(q[1]-from[1]);
+    if(hz&&Math.abs(b[1]-a[1])>1e-6){const x=a[0]+(from[1]-a[1])*(b[0]-a[0])/(b[1]-a[1]);return [x,from[1]];}
+    if(!hz&&Math.abs(b[0]-a[0])>1e-6){const y=a[1]+(from[0]-a[0])*(b[1]-a[1])/(b[0]-a[0]);return [from[0],y];}
+  }
+  const o=orthoPt(from,q);
+  if(o[0]!==q[0]||o[1]!==q[1])snapInfo={kind:"ortho",line:null};
+  return o;
 }
 function orthoPt(a,b){
   if(!orthoOn())return b;
@@ -1251,6 +1274,15 @@ function renderPlan(){
   }
 
   let dr="";
+  const hv=ui.hover;
+  if(hv&&(ui.mode==="wall"||ui.mode==="area")&&["end","corner","mid","on"].includes(hv.kind)){
+    const [hx,hy]=hv.pt,m=vr*1.9,sw=0.22*k,st=`fill:none;stroke:var(--sel);stroke-width:${sw}`;
+    if(hv.kind==="mid")dr+=`<path d="M${hx} ${hy-m}L${hx+m*0.95} ${hy+m*0.65}L${hx-m*0.95} ${hy+m*0.65}Z" pointer-events="none" style="${st}"/>`;
+    else if(hv.kind==="on")dr+=`<path d="M${hx-m*0.7} ${hy-m*0.7}L${hx+m*0.7} ${hy+m*0.7}M${hx+m*0.7} ${hy-m*0.7}L${hx-m*0.7} ${hy+m*0.7}" pointer-events="none" style="${st}"/>`;
+    else dr+=`<rect x="${hx-m*0.8}" y="${hy-m*0.8}" width="${m*1.6}" height="${m*1.6}" pointer-events="none" style="${st}"/>`;
+    const lab={end:"End",corner:"Corner",mid:"Midpoint",on:"On wall"}[hv.kind];
+    dr+=`<text x="${hx+m*1.3}" y="${hy-m*1.1}" pointer-events="none" style="fill:var(--sel);font-size:${fs*0.65}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.25}px">${lab}</text>`;
+  }
   const d=ui.draft;
   if(d&&d.kind==="wall"){
     dr+=`<circle cx="${d.a[0]}" cy="${d.a[1]}" r="${vr}" pointer-events="none" style="fill:var(--sel)"/>`;
@@ -1290,20 +1322,20 @@ svg.addEventListener("pointerdown",e=>{
   const dimT=ui.mode==="select"&&e.target.closest&&e.target.closest("[data-dim]");
   if(dimT){openPop(dimT.dataset.dim);return;}
   if(ui.mode==="wall"){
-    const q=snapPt(p);
+    const q=placePt(ui.draft?ui.draft.a:null,p);
     if(!ui.draft)ui.draft={kind:"wall",a:q,cur:null};
     else{
-      const b=orthoPt(ui.draft.a,q);
+      const b=q;
       if(dist(ui.draft.a,b)>0.3){pushHist();const w=makeWall(ui.draft.a,b);f.walls.push(w);ui.sel={k:"wall",id:w.id};ui.draft=null;commit();return;}
       ui.draft=null;
     }
     renderPlan();renderToolbar();return;
   }
   if(ui.mode==="area"){
-    const q0=snapPt(p);
+    const q0=placePt(null,p);
     if(!ui.draft)ui.draft={kind:"area",pts:[q0],cur:null};
     else if(ui.draft.pts.length>=3&&dist(q0,ui.draft.pts[0])<Math.max(1,vb().w/45)){finishArea();return;}
-    else ui.draft.pts.push(orthoPt(ui.draft.pts[ui.draft.pts.length-1],q0));
+    else ui.draft.pts.push(placePt(ui.draft.pts[ui.draft.pts.length-1],p));
     ui.typed="";
     renderPlan();renderToolbar();return;
   }
@@ -1338,9 +1370,10 @@ svg.addEventListener("pointermove",e=>{
   shiftHeld=e.shiftKey;
   const p=toPlan(e);
   if(!drag){
-    if(ui.draft){
-      const from=draftFrom();
-      ui.draft.cur=from?orthoPt(from,snapPt(p)):snapPt(p);
+    if(ui.mode==="wall"||ui.mode==="area"){
+      const q=placePt(draftFrom(),p);
+      ui.hover={pt:q,kind:snapInfo.kind};
+      if(ui.draft)ui.draft.cur=q;
       renderPlan();
     }
     return;
@@ -1376,6 +1409,7 @@ function endPointer(e){
   drag=null;
 }
 svg.addEventListener("pointerup",endPointer);
+svg.addEventListener("pointerleave",()=>{if(ui.hover){ui.hover=null;renderPlan();}});
 svg.addEventListener("pointercancel",endPointer);
 svg.addEventListener("wheel",e=>{e.preventDefault();ui.view.w=Math.max(12,Math.min(260,ui.view.w*(e.deltaY>0?1.12:0.89)));renderPlan();},{passive:false});
 
@@ -1572,7 +1606,7 @@ $("#undo").addEventListener("click",undo);
 function undo(){if(!hist.length)return;S=JSON.parse(hist.pop());ui.sel=null;ui.draft=null;ui.floor=Math.min(ui.floor,S.floors.length-1);save();renderAll();}
 function toggleOrtho(){ui.ortho=!ui.ortho;savePrefs();renderToolbar();}
 function toggleSnap(){ui.snap=!ui.snap;savePrefs();renderToolbar();}
-document.querySelectorAll("[data-snapto]").forEach(b=>b.addEventListener("click",()=>{if(b.dataset.snapto==="c")ui.snapC=!ui.snapC;else ui.snapF=!ui.snapF;savePrefs();renderToolbar();}));
+document.querySelectorAll("[data-snapto]").forEach(b=>b.addEventListener("click",()=>{const k=b.dataset.snapto;if(k==="c")ui.snapC=!ui.snapC;else if(k==="f")ui.snapF=!ui.snapF;else ui.snapM=!ui.snapM;savePrefs();renderToolbar();}));
 document.querySelectorAll("[data-just]").forEach(b=>b.addEventListener("click",()=>{ui.just=b.dataset.just;savePrefs();renderToolbar();renderPlan();}));
 $("#wallT").addEventListener("change",e=>{const v=parseFloat(e.target.value);if(v>0&&v<=36){ui.wallT=v;savePrefs();}renderToolbar();renderPlan();});
 $("#tOrtho").addEventListener("click",toggleOrtho);
