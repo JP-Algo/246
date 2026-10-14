@@ -862,9 +862,10 @@ function applyPopLen(L){
 }
 $("#dimpop").addEventListener("click",e=>{
   const b=e.target.closest("[data-fix]");
-  if(b){ui.pop.fixed=+b.dataset.fix;popKey="";renderPop();return;}
+  // update the pressed state in place: the box does not rebuild while a control inside it has focus
+  if(b){ui.pop.fixed=+b.dataset.fix;$("#dimpop").querySelectorAll("[data-fix]").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));return;}
   const wb=e.target.closest("[data-wfix]");
-  if(wb){ui.pop.wfix=wb.dataset.wfix;popKey="";renderPop();return;}
+  if(wb){ui.pop.wfix=wb.dataset.wfix;$("#dimpop").querySelectorAll("[data-wfix]").forEach(x=>x.setAttribute("aria-pressed",String(x===wb)));return;}
   if(e.target.closest("#popX")){ui.pop=null;renderPlan();}
 });
 $("#dimpop").addEventListener("keydown",e=>{
