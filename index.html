@@ -363,7 +363,7 @@ function seed(){
   ];
   const st={settings:{lot:3100,far:4.8,resFar:2.2,commFar:2.0,affordable:700,maxHeight:85,zoneGreen:true,sideOffset:0},floors};
   applySideOffset(st,0.25);
-  ensureCore(st);ensureRules(st);syncDerived(st);
+  ensureCore(st);ensureRules(st);syncDerived(st);ensureLightwell(st);
   return st;
 }
 /* One elevator and stair core shared by every floor, stored once on the model. On commercial floors its
@@ -388,7 +388,9 @@ const DEFAULT_RULES={
   deductions:{parking:100,mechanical:100,corridor100:100,corridor50:50,laundry:100},
   // Scissor stair: two interlocking stairs in one enclosure (NYC BC 2022 §1011.2, 1011.5.2, 1011.6, 1011.8, 1007.1.1 exc. 3)
   stair:{widthIn:44,sepIn:4,maxRiserIn:7,treadIn:11,landingMaxIn:48,maxFlightRiseFt:12},
-  core:{wallIn:6}                                     // core enclosure walls (outside, stair end, elevator divider)
+  core:{wallIn:6},                                    // core enclosure walls (outside, stair end, elevator divider)
+  // Light well = small inner court with no legally required windows (ZR 23-352). Clear dimensions, walls are outside it.
+  court:{lowMinDimFt:10,lowMinAreaSF:200,highMinDimFt:15,highMinAreaSF:300,highAboveFt:75,wallIn:8}
 };
 function stairReq(h){
   const r=S.rules.stair,rise=h*12;
@@ -443,11 +445,64 @@ function coreZones(c){
 }
 const coreArea=f=>{const c=coreRectFor(f||cur());return c?(c.x1-c.x0)*(c.y1-c.y0):0;};
 function pointInPoly(q,pts){let ins=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const a=pts[i],b=pts[j];if((a[1]>q[1])!==(b[1]>q[1])&&q[0]<(b[0]-a[0])*(q[1]-a[1])/(b[1]-a[1])+a[0])ins=!ins;}return ins;}
+/* Light well: a court on the west lot line, from a start floor to the roof. Sized per floor to the minimum
+   court in the rules: the portion at or below 75 ft uses the low minimums, above 75 ft the high ones. */
+function ensureLightwell(st){
+  if(st.lightwell===undefined){
+    const f4=st.floors.find(f=>f.name==="4th floor");
+    st.lightwell=f4?{x0:80,side:"west",from:f4.id}:null;
+  }
+  return st;
+}
+function floorTop(i){let t=0;for(let j=0;j<=i;j++)if(S.floors[j].use!=="cellar")t+=S.floors[j].height;return t;}
+function courtRectFor(f){
+  const L=S.lightwell;if(!L||!f)return null;
+  const i=S.floors.indexOf(f),from=S.floors.findIndex(x=>x.id===L.from);
+  if(from<0||i<from||f.use==="cellar")return null;
+  const r=S.rules.court,high=floorTop(i)>r.highAboveFt+1e-6;
+  const dim=high?r.highMinDimFt:r.lowMinDimFt,area=high?r.highMinAreaSF:r.lowMinAreaSF;
+  const depth=dim,len=Math.max(dim,area/dim);
+  const [y0,y1]=L.side==="east"?[0,depth]:[25-depth,25];
+  return {x0:L.x0,x1:L.x0+len,y0,y1,depth,len,high};
+}
+const rectOverlap=(a,b)=>Math.max(0,Math.min(a.x1,b.x1)-Math.max(a.x0,b.x0))*Math.max(0,Math.min(a.y1,b.y1)-Math.max(a.y0,b.y0));
+function courtWalls(f){
+  const c=courtRectFor(f);if(!c)return [];
+  const t=S.rules.court.wallIn/12,h=t/2,o=S.settings.sideOffset||0;
+  if(S.lightwell.side==="east"){const yi=c.y1+h,ye=o;return [W([c.x0-h,yi],[c.x1+h,yi],t,"court"),W([c.x0-h,ye],[c.x0-h,yi],t,"court"),W([c.x1+h,ye],[c.x1+h,yi],t,"court")];}
+  const yi=c.y0-h,ye=25-o;
+  return [W([c.x0-h,yi],[c.x1+h,yi],t,"court"),W([c.x0-h,yi],[c.x0-h,ye],t,"court"),W([c.x1+h,yi],[c.x1+h,ye],t,"court")];
+}
+/* Walls drawn with the light well cut out of them (the well is open from its inner wall to the lot line). */
+function cutWalls(f){
+  const c=courtRectFor(f);if(!c)return f.walls;
+  const r={x0:c.x0,x1:c.x1,y0:S.lightwell.side==="east"?-1:c.y0,y1:S.lightwell.side==="east"?c.y1:26},e=1e-3,out=[];
+  f.walls.forEach(w=>{
+    const hz=Math.abs(w.a[1]-w.b[1])<e,vt=Math.abs(w.a[0]-w.b[0])<e;
+    if(hz&&w.a[1]>r.y0-e&&w.a[1]<r.y1+e){
+      const lo=Math.min(w.a[0],w.b[0]),hi=Math.max(w.a[0],w.b[0]),y=w.a[1];
+      if(hi<=r.x0+e||lo>=r.x1-e){out.push(w);return;}
+      if(lo<r.x0)out.push({...w,a:[lo,y],b:[r.x0,y]});
+      if(hi>r.x1)out.push({...w,a:[r.x1,y],b:[hi,y]});
+      return;
+    }
+    if(vt&&w.a[0]>r.x0+e&&w.a[0]<r.x1-e){
+      const lo=Math.min(w.a[1],w.b[1]),hi=Math.max(w.a[1],w.b[1]),x=w.a[0];
+      if(hi<=r.y0+e||lo>=r.y1-e){out.push(w);return;}
+      if(lo<r.y0)out.push({...w,a:[x,lo],b:[x,r.y0]});
+      if(hi>r.y1)out.push({...w,a:[x,r.y1],b:[x,hi]});
+      return;
+    }
+    out.push(w);
+  });
+  return out;
+}
 function coreIssues(f){
   const c=coreRectFor(f);if(!c||f.use==="cellar")return [];
   const out=[],e=0.05,gross=f.areas.filter(a=>a.type==="gross"&&a.pts.length>=3);
   const corners=[[c.x0+e,c.y0+e],[c.x1-e,c.y0+e],[c.x1-e,c.y1-e],[c.x0+e,c.y1-e]];
   if(gross.length&&!corners.every(q=>gross.some(a=>pointInPoly(q,a.pts))))out.push("extends outside the floor");
+  const cr=courtRectFor(f);if(cr&&rectOverlap(c,cr)>0.5)out.push(`overlaps the light well by ${fmt(rectOverlap(c,cr))} SF`);
   f.areas.forEach(a=>{
     const T=AREA_TYPES[a.type];if(!T||T.kind==="gross"||T.kind==="terrace")return;
     const r=rectOf(a.pts);if(!r)return;
@@ -532,7 +587,7 @@ async function connectDb(){
     if(!first&&(saveTimer||writing||drag))return;  // this view has newer edits on the way
     let o=null;try{o=JSON.parse(d.state);}catch(e){}
     if(!validState(o))return;
-    ensureCore(o);ensureRules(o);syncDerived(o);
+    ensureCore(o);ensureRules(o);syncDerived(o);ensureLightwell(o);
     first=false;
     S=o;lastSavedJSON=d.state;
     try{localStorage.setItem(KEY,d.state);}catch(e){}
@@ -549,7 +604,7 @@ async function connectDb(){
 window.addEventListener("pagehide",()=>{if(saveTimer)flush();});
 
 const LOCAL=load();
-let S=syncDerived(ensureRules(ensureCore(LOCAL||seed())));
+let S=ensureLightwell(syncDerived(ensureRules(ensureCore(LOCAL||seed()))));
 const ui={floor:Math.min(5,S.floors.length-1),mode:"select",areaType:"gross",sel:null,snap:true,ortho:true,
   explode:false,above:true,view:{cx:60,cy:15,w:142},draft:null,dims:true,typed:"",layer:"both",wallT:6,just:"center",snapC:true,snapF:true};
 const PREF_KEY="s2nd-prefs-v1";
@@ -616,8 +671,18 @@ function compute(){
       if(T.kind==="gross")gross+=ar;else if(T.kind==="deduct")ded+=ar*factorOf(a.type);else if(T.kind==="amenity")amen+=ar;else terr+=ar;
     });
     const below=f.use==="cellar";
+    const cr=courtRectFor(f);let court=0;
+    if(cr){
+      f.areas.forEach(a=>{
+        if(a.pts.length<3)return;
+        const T=AREA_TYPES[a.type]||AREA_TYPES.gross,r=rectOf(a.pts);
+        const ov=r?rectOverlap(r,cr):(T.kind==="gross"?(cr.x1-cr.x0)*(cr.y1-cr.y0):0);
+        if(!ov)return;
+        if(T.kind==="gross"){gross-=ov;court+=ov;}else if(T.kind==="deduct")ded-=ov*factorOf(a.type);else if(T.kind==="amenity")amen-=ov;
+      });
+    }
     const coreRes=!below&&f.use==="commercial"&&f.coreRes!==false?coreArea(f):0;
-    return {i,f,gross,ded,amen,terr,below,coreRes,zfaPre:below?0:Math.max(0,gross-ded)};
+    return {i,f,gross,ded,amen,terr,below,coreRes,court,zfaPre:below?0:Math.max(0,gross-ded)};
   });
   const res=rows.filter(r=>r.f.use==="residential");
   const resPre=res.reduce((s,r)=>s+r.zfaPre,0)+rows.reduce((s,r)=>s+r.coreRes,0);
@@ -664,7 +729,7 @@ function renderTotals(){
 
   const tb=$("#tbody");
   tb.innerHTML=c.rows.slice().reverse().map(r=>{
-    const use=r.f.use==="cellar"?"Cellar, exempt":r.f.use==="commercial"?(r.coreRes?"Commercial, core residential":"Commercial"):"Residential";
+    const use=(r.f.use==="cellar"?"Cellar, exempt":r.f.use==="commercial"?(r.coreRes?"Commercial, core residential":"Commercial"):"Residential")+(r.court?`, light well ${fmt(r.court)} SF`:"");
     return `<tr data-floor="${r.i}" class="${r.i===ui.floor?"on":""}"><td>${r.f.name}<small>${use}</small></td><td>${r.resGross?fmt(r.resGross):"–"}</td><td>${r.commGross?fmt(r.commGross):"–"}</td><td>${fmt(r.gross)}</td><td>${fmt(r.dedTotal)}</td><td>${fmt(r.zfa)}</td><td>${r.terr?fmt(r.terr):"–"}</td></tr>`;
   }).join("");
   const resGross=c.rows.reduce((s,r)=>s+r.resGross,0);
@@ -840,11 +905,27 @@ function findSel(){
   if(!ui.sel)return null;
   const f=cur();
   if(ui.sel.k==="core")return S.core||null;
+  if(ui.sel.k==="court")return courtRectFor(cur())?S.lightwell:null;
   return ui.sel.k==="wall"?f.walls.find(w=>w.id===ui.sel.id):f.areas.find(a=>a.id===ui.sel.id);
 }
 function renderSel(){
   const el=$("#sel"),o=findSel();
   if(!o){el.innerHTML=`<span class="k">Nothing selected</span>`;return;}
+  if(ui.sel.k==="court"){
+    const L=o,c=courtRectFor(cur()),r=S.rules.court;
+    const opts=S.floors.filter(f=>f.use!=="cellar").map(f=>`<option value="${f.id}" ${f.id===L.from?"selected":""}>${f.name}</option>`).join("");
+    const per=S.floors.map(f=>{const q=courtRectFor(f);return q?`${f.name} ${fmtLen(q.len)} × ${fmtLen(q.depth)} (${fmt(q.len*q.depth)} SF${q.high?", above 75 ft":""})`:"";}).filter(Boolean).join("; ");
+    el.innerHTML=`<span><span class="k">Light well, clear inside the walls, not floor area</span> ${fmtLen(c.len)} × ${fmtLen(c.depth)} = ${fmt(c.len*c.depth)} SF on this floor</span>
+      <div class="dimedit"><label>Starts on<select class="in" id="lwFrom">${opts}</select></label><label>Starts from rear lot line<input class="in" id="lwX" value="${attrLen(L.x0)}"></label></div>
+      <span class="seg" role="group" aria-label="Lot line"><button data-lwside="east" aria-pressed="${L.side==="east"}">East lot line</button><button data-lwside="west" aria-pressed="${L.side!=="east"}">West lot line</button></span>
+      <button class="btn warn" id="lwDel">Remove light well</button>
+      <p class="note" style="flex-basis:100%;margin:0">Sized to the minimum court in the design rules: ${per}.</p>`;
+    $("#lwFrom").addEventListener("change",e=>{pushHist();L.from=e.target.value;commit();});
+    $("#lwX").addEventListener("change",e=>{const v=parseLen(e.target.value);if(!isFinite(v)){renderSel();return;}pushHist();L.x0=v;commit();});
+    el.querySelectorAll("[data-lwside]").forEach(b=>b.addEventListener("click",()=>{if(L.side===b.dataset.lwside)return;pushHist();L.side=b.dataset.lwside;commit();}));
+    $("#lwDel").addEventListener("click",()=>{pushHist();S.lightwell=null;ui.sel=null;commit();});
+    return;
+  }
   if(ui.sel.k==="core"){
     const f=(lab,key,v)=>`<label>${lab}<input class="in" data-core="${key}" value="${attrLen(v)}"></label>`;
     const use=cur().use==="cellar"?"exempt on the cellar":cur().use==="residential"||cur().coreRes!==false?"counts as residential on this floor":"counts as commercial on this floor";
@@ -940,6 +1021,7 @@ function coreFitButton(){
 }
 function deleteSel(){
   if(!ui.sel||ui.sel.k==="core")return;
+  if(ui.sel.k==="court"){pushHist();S.lightwell=null;ui.sel=null;commit();return;}
   pushHist();
   const f=cur();
   if(ui.sel.k==="wall")f.walls=f.walls.filter(w=>w.id!==ui.sel.id);else f.areas=f.areas.filter(a=>a.id!==ui.sel.id);
@@ -1093,6 +1175,17 @@ function renderPlan(){
   dm+=`</g>`;
 
   let wl="";
+  const cw0=courtRectFor(f);
+  if(cw0){
+    const c=cw0,csel=ui.sel&&ui.sel.k==="court",cwid=c.x1-c.x0,chei=c.y1-c.y0;
+    wl+=`<rect data-k="court" data-id="court" x="${c.x0}" y="${c.y0}" width="${cwid}" height="${chei}" style="fill:var(--panel);fill-opacity:.95;stroke:${csel?"var(--sel)":"var(--terrace)"};stroke-width:${(csel?0.5:0.25)*k};stroke-dasharray:${0.8*k} ${0.5*k}"/>`;
+    let hatch=`<g pointer-events="none" style="stroke:var(--terrace);stroke-opacity:.45;stroke-width:${0.1*k}">`;
+    for(let d=-chei;d<cwid;d+=1.5){const xa=Math.max(c.x0,c.x0+d),ya=c.y1-(xa-(c.x0+d)),xb=Math.min(c.x1,c.x0+d+chei),yb=c.y1-(xb-(c.x0+d));hatch+=`<path d="M${xa} ${ya}L${xb} ${yb}"/>`;}
+    wl+=hatch+`</g>`;
+    wl+=`<text x="${c.x0+cwid/2}" y="${c.y0+chei/2-fs*0.45}" text-anchor="middle" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.8}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.3}px">Light well</text>`;
+    wl+=`<text x="${c.x0+cwid/2}" y="${c.y0+chei/2+fs*0.6}" text-anchor="middle" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.7}px;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.3}px">${fmtLen(c.len)} × ${fmtLen(c.depth)} clear, ${fmt(c.len*c.depth)} SF, not floor area</text>`;
+    if(showInt)courtWalls(f).forEach(w=>{wl+=`<line x1="${w.a[0]}" y1="${w.a[1]}" x2="${w.b[0]}" y2="${w.b[1]}" pointer-events="none" style="stroke:${csel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:square"/>`;});
+  }
   if(S.core){
     const c=coreRectFor(f),cw=c.x1-c.x0,ch=c.y1-c.y0,csel=ui.sel&&ui.sel.k==="core";
     const z=coreZones(c),eA=z.eA,eB=z.eB,ew=eB-eA,sA=z.sA,sB=z.sB,iy0=z.iy0,iy1=z.iy1;
@@ -1128,7 +1221,7 @@ function renderPlan(){
       wl+=`<text x="${c.x0+cw/2}" y="${c.y0+ch/2+fs*0.6}" text-anchor="middle" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.75}px">${fmt(coreArea())} SF${f.use==="cellar"?"":res?", residential":", commercial"}</text>`;
     }
   }
-  if(showInt)f.walls.forEach(w=>{
+  if(showInt)cutWalls(f).forEach(w=>{
     const sel=ui.sel&&ui.sel.id===w.id;
     wl+=`<line x1="${w.a[0]}" y1="${w.a[1]}" x2="${w.b[0]}" y2="${w.b[1]}" pointer-events="none" style="stroke:${sel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:square"/>`;
     wl+=`<line data-k="wall" data-id="${w.id}" x1="${w.a[0]}" y1="${w.a[1]}" x2="${w.b[0]}" y2="${w.b[1]}" pointer-events="stroke" style="stroke:transparent;stroke-width:${Math.max(w.t,hr*0.8)}"/>`;
@@ -1255,6 +1348,7 @@ svg.addEventListener("pointermove",e=>{
     const g=ui.snap?0.5:0.01;
     const dx=Math.round((p[0]-drag.start[0])/g)*g,dy=Math.round((p[1]-drag.start[1])/g)*g;
     if(ui.sel.k==="wall"){o.a=[drag.orig.a[0]+dx,drag.orig.a[1]+dy];o.b=[drag.orig.b[0]+dx,drag.orig.b[1]+dy];}
+    else if(ui.sel.k==="court"){o.x0=drag.orig.x0+dx;}
     else if(ui.sel.k==="core"){o.x0=drag.orig.x0+dx;o.x1=drag.orig.x1+dx;o.y0=drag.orig.y0+dy;o.y1=drag.orig.y1+dy;}
     else o.pts=drag.orig.pts.map(q=>[q[0]+dx,q[1]+dy]);
   }
@@ -1377,7 +1471,15 @@ function build3D(){
       const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:C("--core"),transparent:true,opacity:isSel?0.45:0.25,depthWrite:false}));
       m.position.set((c.x0+c.x1)/2-CX,y+0.8+h/2,(c.y0+c.y1)/2-CZ);m.userData.floor=i;root.add(m);
     }
-    (ui.layer==="far"?[]:[...f.walls,...coreWalls(f)]).forEach(w=>{
+    {
+      const lw=courtRectFor(f);
+      if(lw){
+        const geo=new THREE.BoxGeometry(lw.x1-lw.x0,h+0.8,lw.y1-lw.y0);
+        const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:C("--terrace"),transparent:true,opacity:isSel?0.35:0.18,depthWrite:false}));
+        m.position.set((lw.x0+lw.x1)/2-CX,y+(h+0.8)/2+0.02,(lw.y0+lw.y1)/2-CZ);m.userData.floor=i;root.add(m);
+      }
+    }
+    (ui.layer==="far"?[]:[...cutWalls(f),...coreWalls(f),...courtWalls(f)]).forEach(w=>{
       const dx=w.b[0]-w.a[0],dz=w.b[1]-w.a[1],L=Math.hypot(dx,dz);
       if(L<0.05)return;
       const geo=new THREE.BoxGeometry(L+w.t,h,w.t);
@@ -1417,6 +1519,13 @@ function renderRules(){
     ...["parking","mechanical","corridor100","corridor50","laundry"].map(k=>[`${AREA_TYPES[k].base} deduction`,`${inp("deductions."+k,R.deductions[k],5)}% of its area`,`${fmt(dedSum(k))} SF on all floors`,"Project assumption, confirm"]),
     ["Elevator and stair core","Counts as floor area on every floor. On commercial floors it counts as residential unless switched off for that floor",
      co?(co.auto?`${fmtLen(coreRectFor(cur()).y1-co.y0)} wide, elevator fixed, stair length follows each floor's height: `+S.floors.map(f=>`${f.name} ${fmt(coreArea(f))} SF`).join(", "):`${fmtLen(co.x1-co.x0)} × ${fmtLen(co.y1-co.y0)}, ${fmt(coreArea())} SF per floor`)+(commOff?`; commercial on the ${commOff}`:""):"No core","Project decision"],
+    ["Light well<small>Small inner court with no legally required windows facing it. Clear inside the walls, not floor area</small>",
+     `At or below ${inp("court.highAboveFt",R.court.highAboveFt,1)} ft: at least ${inp("court.lowMinAreaSF",R.court.lowMinAreaSF,10)} SF, no side under ${inp("court.lowMinDimFt",R.court.lowMinDimFt,0.5)} ft. Above: at least ${inp("court.highMinAreaSF",R.court.highMinAreaSF,10)} SF, no side under ${inp("court.highMinDimFt",R.court.highMinDimFt,0.5)} ft. Walls ${inp("court.wallIn",R.court.wallIn,1)} in`,
+     S.lightwell?S.floors.map(f=>{const q=courtRectFor(f);return q?`${f.name} ${fmtLen(q.len)} × ${fmtLen(q.depth)}`:"";}).filter(Boolean).join(", "):"No light well",
+     "NYC Zoning Resolution 23-352"],
+    ["Corridor deduction<small>Why a corridor can be deducted 100%</small>",
+     "50% when the corridor has at least 20 SF of glazing (in the corridor, an adjacent stair wall with a 16 SF glazed door, or common space along it), plus 50% when it is 100 ft or shorter from the core to the farthest unit door",
+     "Use the Corridor, full type where both apply","NYC Zoning Resolution 23-232"],
     ["Scissor stair<small>Two stairs in one enclosure, drawn in the core</small>",
      `Each stair ${inp("stair.widthIn",R.stair.widthIn,1)} in wide, ${inp("stair.sepIn",R.stair.sepIn,1)} in wall between them, core walls ${inp("core.wallIn",R.core.wallIn,1)} in, risers at most ${inp("stair.maxRiserIn",R.stair.maxRiserIn,0.25)} in, treads ${inp("stair.treadIn",R.stair.treadIn,0.25)} in, landings as deep as the stair (48 in max), 12 ft max rise per flight`,
      (()=>{const hs=[...new Set(S.floors.map(f=>f.height))].sort((a,b)=>a-b);const q0=stairReq(hs[0]);return `Stairs ${fmtLen(q0.widthFt)} wide, core ${fmtLen(q0.widthFt+2*coreWallFt())} wide outside. Stair length: `+hs.map(h=>`${h} ft floor ${fmtLen(stairReq(h).lenFt)}`).join(", ");})(),

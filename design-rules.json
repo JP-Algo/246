@@ -61,6 +61,24 @@
       "thisBuilding": "Stairs 7'-8\" wide inside (44 + 4 + 44 in); 22'-11\" long for 10 ft floors, 23'-10\" for 11 ft, 25'-8\" for 12 ft, 31'-2\" for the 14 ft 1st floor",
       "notes": "36 in stairs are allowed if the stair serves only Group R-2, the building is 125 ft or less and the stair serves 30 or fewer occupants per floor (1011.2 exc. 1.2), or 50 or fewer occupants in total (exc. 1.1). In R-2, scissor stairs can count as two exits when enclosed and separated by 2-hour masonry and the exit doors are at least 15 ft apart (1007.1.1 exc. 3). A 4 in wall between the stairs may not give the 2-hour masonry separation that exception needs; confirm with the architect.",
       "source": "NYC Building Code 2022 §1011.2, 1011.5.2, 1011.6, 1011.8, 1007.1.1"
+    },
+    "court": {
+      "label": "Light well (small inner court with no legally required windows facing it)",
+      "lowMinDimFt": 10,
+      "lowMinAreaSF": 200,
+      "highMinDimFt": 15,
+      "highMinAreaSF": 300,
+      "highAboveFt": 75,
+      "wallIn": 8,
+      "meaning": "Dimensions are the clear open court, measured to the court walls and the lot line; walls are outside it. Portions at or below 75 ft: at least 200 SF and no dimension under 10 ft. Above 75 ft: 300 SF and 15 ft. A court on a side lot line is an inner court. Not floor area.",
+      "sizing": "depth = minimum dimension; length = max(minimum dimension, minimum area / depth)",
+      "thisBuilding": "West lot line, 80'-0\" to 100'-0\" from the rear lot line, from the 4th floor to the roof: 20'-0\" x 10'-0\" (200 SF) on floors 4-7, 20'-0\" x 15'-0\" (300 SF) on the 8th floor, which is above 75 ft.",
+      "source": "NYC Zoning Resolution 23-352"
+    },
+    "corridorDeduction": {
+      "label": "Corridor floor area exclusion",
+      "meaning": "50% when the corridor has at least 20 SF of glazing (directly in the corridor, in an adjacent stair enclosure wall with a door having at least 16 SF of glazing, or in common space along the corridor); plus 50% when the corridor is no more than 100 ft from the vertical circulation core to the farthest dwelling unit door. Together: 100%.",
+      "source": "NYC Zoning Resolution 23-232 (a) and (b)"
     }
   },
   "siteInputs246South2nd": {
