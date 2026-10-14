@@ -639,6 +639,7 @@ function fmtLen(x){
   const half=inch%1?"½":"";
   return (neg?"−":"")+ft+"'-"+Math.floor(inch)+half+'"';
 }
+const escH=t=>String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const attrLen=x=>fmtLen(x).replace(/"/g,"&quot;");
 function parseLen(t){
   t=String(t).trim().replace(/[−–]/g,"-").replace(/½/g,".5").replace(/[’′]/g,"'").replace(/[”″]/g,'"');
@@ -1014,11 +1015,14 @@ function renderSel(){
   }else{
     const T=AREA_TYPES[o.type],ar=polyArea(o.pts);
     const counted=T.kind==="deduct"?`, deducts ${fmt(ar*factorOf(o.type))} SF`:T.kind==="amenity"?`, deducted within the ${S.rules.amenityCap.pct}% cap`:T.kind==="use"?`, counts as ${T.use} floor area`:T.kind==="sell"?", sellable, not part of the floor area math":"";
-    el.innerHTML=`<label class="check">Area <select class="in" id="aT">${MENU.map(k=>`<option value="${k}" ${k===o.type?"selected":""}>${labelOf(k)}</option>`).join("")}</select></label>
+    el.innerHTML=`<label class="check">Name <input class="in" id="aName" style="width:170px" maxlength="60" value="${escH(o.name||"")}" placeholder="${escH(T.short)}"></label>
+      <label class="check">Type <select class="in" id="aT">${MENU.map(k=>`<option value="${k}" ${k===o.type?"selected":""}>${labelOf(k)}</option>`).join("")}</select></label>
       <span>${fmt(ar)} SF${counted}</span>
       <button class="btn warn" id="delSel">Delete area</button>${dimEditor(o)}`;
     el.querySelectorAll("[data-r],[data-v]").forEach(inp=>inp.addEventListener("change",e=>applyDimEdit(o,e.target)));
     $("#aT").addEventListener("change",e=>{pushHist();o.type=e.target.value;commit();});
+    $("#aName").addEventListener("change",e=>{const v=e.target.value.trim();if((o.name||"")===v)return;pushHist();if(v)o.name=v;else delete o.name;commit();});
+    $("#aName").addEventListener("keydown",e=>{if(e.key==="Enter"||e.key==="Escape"){e.preventDefault();if(e.key==="Escape")e.target.value=o.name||"";e.target.blur();}});
   }
   $("#delSel").addEventListener("click",deleteSel);
 }
@@ -1170,10 +1174,10 @@ function renderPlan(){
     const A_=polyArea(a.pts);
     if(a.type==="gross"){
       const mx=Math.min(...a.pts.map(p=>p[0])),my=Math.min(...a.pts.map(p=>p[1]));
-      lb+=`<text x="${mx+0.8*k}" y="${my+fs*1.3}" style="fill:var(--gross);font-size:${fs}px;font-weight:600">Gross ${fmt(A_)} SF</text>`;
+      lb+=`<text x="${mx+0.8*k}" y="${my+fs*1.3}" style="fill:var(--gross);font-size:${fs}px;font-weight:600">${escH(a.name||"Gross")} ${fmt(A_)} SF</text>`;
     }else{
       const cc=centroid(a.pts);
-      lb+=`<text x="${cc[0]}" y="${cc[1]}" text-anchor="middle" style="fill:var(--ink);font-size:${fs*0.92}px;font-weight:600">${T.short}</text>`;
+      lb+=`<text x="${cc[0]}" y="${cc[1]}" text-anchor="middle" style="fill:var(--ink);font-size:${fs*0.92}px;font-weight:600">${escH(a.name||T.short)}</text>`;
       lb+=`<text x="${cc[0]}" y="${cc[1]+fs*1.1}" text-anchor="middle" style="fill:var(--ink);font-size:${fs*0.88}px">${fmt(A_)} SF</text>`;
     }
   });
@@ -1739,8 +1743,11 @@ document.addEventListener("keydown",e=>{
   }
   if(e.key==="Escape"){
     // Escape cancels what is in progress and returns to Select and move; once there, it leaves full screen
-    if(ui.fs&&ui.mode==="select"&&!ui.draft&&!ui.pop){setFull(false);return;}
-    ui.draft=null;ui.pop=null;ui.hover=null;ui.typed="";ui.mode="select";renderToolbar();renderPlan();
+    // 1st Escape: stop drawing and return to Select and move. 2nd: deselect. 3rd: leave full screen.
+    if(ui.draft||ui.mode!=="select"){ui.draft=null;ui.hover=null;ui.typed="";ui.mode="select";renderToolbar();renderPlan();return;}
+    if(ui.sel||ui.pop){ui.sel=null;ui.pop=null;renderPlan();renderSel();return;}
+    if(ui.fs)setFull(false);
+    return;
   }
   else if((e.key==="Delete"||e.key==="Backspace")&&ui.sel){e.preventDefault();deleteSel();}
   else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="z"){e.preventDefault();undo();}
