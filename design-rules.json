@@ -37,10 +37,11 @@
     },
     "core": {
       "label": "Elevator and stair core",
-      "meaning": "One core stacked in the same position on every floor. It counts as floor area on every floor; on commercial floors it counts as residential unless switched off for that floor.",
-      "thisBuilding": "16'-0\" x 13'-0\" (208 SF) as drawn, 64'-0\" from the rear lot line, 6'-0\" from the top lot line; 6'-0\" elevator shaft on the street (front) side of the stair; counts as commercial on the 2nd floor. Too small for the scissor stair.",
+      "meaning": "One core stacked on every floor. Its long walls and the elevator stay in the same place; the scissor stair runs from the elevator for the length each floor's height needs (see stair rule), so only taller floors get a longer core. It counts as floor area on every floor; on commercial floors it counts as residential unless switched off for that floor.",
+      "thisBuilding": "13'-0\" wide, 6'-0\" elevator on the street side with its front wall 80'-0\" from the rear lot line; core 28'-11\" long on 10 ft floors, 37'-2\" on the 14 ft 1st floor. Counts as commercial on the 2nd floor.",
       "source": "Project decision",
-      "elevSide": "front"
+      "elevSide": "front",
+      "auto": true
     },
     "cellar": {
       "label": "Cellar",
