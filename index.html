@@ -462,21 +462,21 @@ function courtRectFor(f){
   const r=S.rules.court,high=floorTop(i)>r.highAboveFt+1e-6;
   const dim=high?r.highMinDimFt:r.lowMinDimFt,area=high?r.highMinAreaSF:r.lowMinAreaSF;
   const depth=dim,len=Math.max(dim,area/dim);
-  const [y0,y1]=L.side==="east"?[0,depth]:[25-depth,25];
+  const [y0,y1]=L.side==="west"?[0,depth]:[25-depth,25];
   return {x0:L.x0,x1:L.x0+len,y0,y1,depth,len,high};
 }
 const rectOverlap=(a,b)=>Math.max(0,Math.min(a.x1,b.x1)-Math.max(a.x0,b.x0))*Math.max(0,Math.min(a.y1,b.y1)-Math.max(a.y0,b.y0));
 function courtWalls(f){
   const c=courtRectFor(f);if(!c)return [];
   const t=S.rules.court.wallIn/12,h=t/2,o=S.settings.sideOffset||0;
-  if(S.lightwell.side==="east"){const yi=c.y1+h,ye=o;return [W([c.x0-h,yi],[c.x1+h,yi],t,"court"),W([c.x0-h,ye],[c.x0-h,yi],t,"court"),W([c.x1+h,ye],[c.x1+h,yi],t,"court")];}
+  if(S.lightwell.side==="west"){const yi=c.y1+h,ye=o;return [W([c.x0-h,yi],[c.x1+h,yi],t,"court"),W([c.x0-h,ye],[c.x0-h,yi],t,"court"),W([c.x1+h,ye],[c.x1+h,yi],t,"court")];}
   const yi=c.y0-h,ye=25-o;
   return [W([c.x0-h,yi],[c.x1+h,yi],t,"court"),W([c.x0-h,yi],[c.x0-h,ye],t,"court"),W([c.x1+h,yi],[c.x1+h,ye],t,"court")];
 }
 /* Walls drawn with the light well cut out of them (the well is open from its inner wall to the lot line). */
 function cutWalls(f){
   const c=courtRectFor(f);if(!c)return f.walls;
-  const r={x0:c.x0,x1:c.x1,y0:S.lightwell.side==="east"?-1:c.y0,y1:S.lightwell.side==="east"?c.y1:26},e=1e-3,out=[];
+  const r={x0:c.x0,x1:c.x1,y0:S.lightwell.side==="west"?-1:c.y0,y1:S.lightwell.side==="west"?c.y1:26},e=1e-3,out=[];
   f.walls.forEach(w=>{
     const hz=Math.abs(w.a[1]-w.b[1])<e,vt=Math.abs(w.a[0]-w.b[0])<e;
     if(hz&&w.a[1]>r.y0-e&&w.a[1]<r.y1+e){
@@ -1096,6 +1096,8 @@ function renderPlan(){
   const sx=FRONT+fs*3.2,rx=-fs*3.2;
   g+=`<text x="${sx}" y="15" transform="rotate(90 ${sx} 15)" text-anchor="middle" style="fill:var(--muted);font-size:${fs}px">South 2nd Street</text>`;
   g+=`<text x="${rx}" y="15" transform="rotate(-90 ${rx} 15)" text-anchor="middle" style="fill:var(--muted);font-size:${fs}px">Rear</text>`;
+  g+=`<text x="10" y="${-fs*3.2}" text-anchor="middle" style="fill:var(--muted);font-size:${fs*0.85}px">West lot line</text>`;
+  g+=`<text x="10" y="${30+fs*3.6}" text-anchor="middle" style="fill:var(--muted);font-size:${fs*0.85}px">East lot line</text>`;
   if(ui.floor>0){
     S.floors[ui.floor-1].areas.filter(a=>a.type==="gross").forEach(a=>{
       g+=`<path d="${pathOf(a.pts)}" style="fill:none;stroke:var(--muted);stroke-width:${0.16*k};stroke-dasharray:${0.5*k} ${0.5*k};opacity:.75"/>`;
