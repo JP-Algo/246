@@ -381,13 +381,14 @@ function ensureCore(st){
 }
 /* Design rules: reusable, parametric assumptions. Kept in step with design-rules.json in the repo. */
 const DEFAULT_RULES={
-  version:1,
+  version:2,
   sideOffset:{ratio:600,minIn:1,roundIn:1},          // 1 : 600 of building height = 1 in per 50 ft
   amenityCap:{pct:5},                                 // % of residential floor area
   zoneGreen:{pct:5},                                  // % of residential floor area
   deductions:{parking:100,mechanical:100,corridor100:100,corridor50:50,laundry:100},
   // Scissor stair: two interlocking stairs in one enclosure (NYC BC 2022 §1011.2, 1011.5.2, 1011.6, 1011.8, 1007.1.1 exc. 3)
-  stair:{widthIn:44,sepIn:8,maxRiserIn:7,treadIn:11,landingMaxIn:48,maxFlightRiseFt:12}
+  stair:{widthIn:44,sepIn:4,maxRiserIn:7,treadIn:11,landingMaxIn:48,maxFlightRiseFt:12},
+  core:{wallIn:6}                                     // core enclosure walls (outside, stair end, elevator divider)
 };
 function stairReq(h){
   const r=S.rules.stair,rise=h*12;
@@ -400,6 +401,7 @@ function ensureRules(st){
   const r=st.rules;
   Object.keys(DEFAULT_RULES).forEach(k=>{if(r[k]==null)r[k]=JSON.parse(JSON.stringify(DEFAULT_RULES[k]));});
   Object.keys(DEFAULT_RULES.deductions).forEach(k=>{if(r.deductions[k]==null)r.deductions[k]=DEFAULT_RULES.deductions[k];});
+  if(!(r.version>=2)){r.stair.sepIn=4;r.version=2;}   // 6 in walls + 2 x 44 in stairs + 4 in between
   return st;
 }
 const heightOf=st=>st.floors.filter(f=>f.use!=="cellar").reduce((s,f)=>s+f.height,0);
@@ -423,12 +425,21 @@ function labelOf(k){
 }
 /* The core's long walls and the elevator stay put on every floor. With auto on, the stair part runs
    from the elevator for the length that floor's height needs, so only taller floors get a longer core. */
+/* Core rectangle = outside faces of its walls. With auto on, width = 2 walls + the scissor stair and
+   length = 3 walls (stair end, divider, elevator end) + elevator shaft + that floor's stair length. */
+const coreWallFt=()=>((S.rules&&S.rules.core&&S.rules.core.wallIn)||6)/12;
 function coreRectFor(f){
   const c=S.core;if(!c)return null;
-  const base={y0:c.y0,y1:c.y1,elevW:c.elevW,elevSide:c.elevSide};
+  const t=coreWallFt(),base={y0:c.y0,y1:c.y1,elevW:c.elevW,elevSide:c.elevSide};
   if(!c.auto||!f)return {...base,x0:c.x0,x1:c.x1};
-  const len=stairReq(f.height).lenFt;
-  return c.elevSide==="rear"?{...base,x0:c.x0,x1:c.x0+c.elevW+len}:{...base,x0:c.x1-c.elevW-len,x1:c.x1};
+  const q=stairReq(f.height),len=3*t+c.elevW+q.lenFt;
+  base.y1=c.y0+2*t+q.widthFt;
+  return c.elevSide==="rear"?{...base,x0:c.x0,x1:c.x0+len}:{...base,x0:c.x1-len,x1:c.x1};
+}
+function coreZones(c){
+  const t=coreWallFt(),ew=Math.max(0,Math.min(c.elevW,c.x1-c.x0-3*t));
+  if(c.elevSide==="rear"){const eA=c.x0+t,eB=eA+ew;return {t,eA,eB,div:eB+t/2,sA:eB+t,sB:c.x1-t,iy0:c.y0+t,iy1:c.y1-t};}
+  const eB=c.x1-t,eA=eB-ew;return {t,eA,eB,div:eA-t/2,sA:c.x0+t,sB:eA-t,iy0:c.y0+t,iy1:c.y1-t};
 }
 const coreArea=f=>{const c=coreRectFor(f||cur());return c?(c.x1-c.x0)*(c.y1-c.y0):0;};
 function pointInPoly(q,pts){let ins=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const a=pts[i],b=pts[j];if((a[1]>q[1])!==(b[1]>q[1])&&q[0]<(b[0]-a[0])*(q[1]-a[1])/(b[1]-a[1])+a[0])ins=!ins;}return ins;}
@@ -447,8 +458,8 @@ function coreIssues(f){
 }
 function coreWalls(f){
   const c=coreRectFor(f||cur());if(!c)return [];
-  const ew=Math.min(c.elevW,c.x1-c.x0),ex=c.elevSide==="rear"?c.x0+ew:c.x1-ew;
-  return [...ring(rect(c.x0,c.y0,c.x1,c.y1),0.67,"core"),W([ex,c.y0],[ex,c.y1],0.5,"core")];
+  const z=coreZones(c),h=z.t/2;
+  return [...ring(rect(c.x0+h,c.y0+h,c.x1-h,c.y1-h),z.t,"core"),W([z.div,c.y0+h],[z.div,c.y1-h],z.t,"core")];
 }
 /* Hold the building off the side (east and west) lot lines. Moves every point that sits on a side
    lot line, or on the old offset line, to the new offset. Offsets are stored in feet. */
@@ -840,7 +851,7 @@ function renderSel(){
     const cr=coreRectFor(cur()),front=o.elevSide!=="rear";
     const issues=S.floors.map(fl=>{const i=coreIssues(fl);return i.length?`<li>${fl.name}: core ${i.join(", ")}</li>`:"";}).join("");
     const fields=o.auto
-      ?`${f("Width, across the lot","h",o.y1-o.y0)}${f("Starts from top lot line","y",o.y0)}${f("Elevator shaft length","e",o.elevW)}${f(front?"Elevator front wall from rear lot line":"Elevator rear wall from rear lot line","anchor",front?o.x1:o.x0)}<label>Length on this floor<input class="in" value="${attrLen(cr.x1-cr.x0)}" readonly></label>`
+      ?`<label>Width, set by the stair rule<input class="in" value="${attrLen(cr.y1-cr.y0)}" readonly></label>${f("Starts from top lot line","y",o.y0)}${f("Elevator shaft length","e",o.elevW)}${f(front?"Elevator front wall from rear lot line":"Elevator rear wall from rear lot line","anchor",front?o.x1:o.x0)}<label>Length on this floor<input class="in" value="${attrLen(cr.x1-cr.x0)}" readonly></label>`
       :`${f("Length, rear to front","w",o.x1-o.x0)}${f("Width, across the lot","h",o.y1-o.y0)}${f("Starts from rear lot line","x",o.x0)}${f("Starts from top lot line","y",o.y0)}${f("Elevator shaft length","e",o.elevW)}`;
     el.innerHTML=`<span><span class="k">Elevator and stair core</span> ${fmt(coreArea())} SF on this floor, ${use}</span>
       <label class="check" style="flex-basis:100%"><input type="checkbox" id="coreAuto" ${o.auto?"checked":""}> Stair length follows each floor's height (long walls and elevator stay put)</label>
@@ -866,13 +877,13 @@ function renderSel(){
     }));
     $("#coreAuto").addEventListener("change",e=>{
       pushHist();
-      if(!e.target.checked){const r=coreRectFor(cur());o.x0=r.x0;o.x1=r.x1;}
+      if(!e.target.checked){const r=coreRectFor(cur());o.x0=r.x0;o.x1=r.x1;o.y1=r.y1;}
       o.auto=e.target.checked;commit();
     });
     const fb=$("#coreFit");
     if(fb)fb.addEventListener("click",()=>{
       const n=longestStair(),c=S.core,ew=Math.min(c.elevW,c.x1-c.x0);
-      pushHist();c.x1=c.x0+n.lenFt+ew;c.y1=c.y0+Math.max(c.y1-c.y0,n.widthFt);commit();
+      const t=coreWallFt();pushHist();c.x1=c.x0+n.lenFt+ew+3*t;c.y1=c.y0+n.widthFt+2*t;commit();
     });
     return;
   }
@@ -1083,16 +1094,16 @@ function renderPlan(){
 
   let wl="";
   if(S.core){
-    const c=coreRectFor(f),cw=c.x1-c.x0,ch=c.y1-c.y0,ew=Math.min(c.elevW,cw),front=c.elevSide!=="rear",csel=ui.sel&&ui.sel.k==="core";
-    const eA=front?c.x1-ew:c.x0,eB=front?c.x1:c.x0+ew,sA=front?c.x0:c.x0+ew,sB=front?c.x1-ew:c.x1;
+    const c=coreRectFor(f),cw=c.x1-c.x0,ch=c.y1-c.y0,csel=ui.sel&&ui.sel.k==="core";
+    const z=coreZones(c),eA=z.eA,eB=z.eB,ew=eB-eA,sA=z.sA,sB=z.sB,iy0=z.iy0,iy1=z.iy1;
     wl+=`<rect data-k="core" data-id="core" x="${c.x0}" y="${c.y0}" width="${cw}" height="${ch}" style="fill:var(--core);fill-opacity:.2;stroke:${csel?"var(--sel)":"none"};stroke-width:${0.5*k}"/>`;
     let sym=`<g pointer-events="none" style="stroke:var(--core);stroke-width:${0.12*k};fill:none">`;
-    if(ew>0.1)sym+=`<path d="M${eA} ${c.y0}L${eB} ${c.y1}M${eB} ${c.y0}L${eA} ${c.y1}"/>`;
+    if(ew>0.1)sym+=`<path d="M${eA} ${iy0}L${eB} ${iy1}M${eB} ${iy0}L${eA} ${iy1}"/>`;
     // scissor stair: two flights side by side, running in opposite directions
     const sr=S.rules.stair,sq=stairReq(f.height),fw=sr.widthIn/12,sep=sr.sepIn/12,land=sq.landingFt;
-    const yA0=c.y0,yA1=Math.min(c.y1,c.y0+fw),yB0=Math.min(c.y1,yA1+sep),yB1=Math.min(c.y1,yB0+fw);
+    const yA0=iy0,yA1=Math.min(iy1,iy0+fw),yB0=Math.min(iy1,yA1+sep),yB1=Math.min(iy1,yB0+fw);
     const r0=Math.min(sB,sA+land),r1=Math.min(sB,r0+sq.runFt),tr=sr.treadIn/12;
-    const fits=sq.lenFt<=sB-sA+1e-6&&sq.widthFt<=ch+1e-6;
+    const fits=sq.lenFt<=sB-sA+1e-6&&sq.widthFt<=iy1-iy0+1e-6;
     for(let x=r0;x<=r1+1e-6;x+=tr)sym+=`<path d="M${x} ${yA0}L${x} ${yA1}M${x} ${yB0}L${x} ${yB1}"/>`;
     const arrow=(x0,x1,y)=>{const d=x1>x0?1:-1,h=Math.min(0.9,fw/4);return `<path d="M${x0} ${y}L${x1} ${y}M${x1-d*h} ${y-h*0.7}L${x1} ${y}L${x1-d*h} ${y+h*0.7}" style="stroke:var(--ink);stroke-width:${0.14*k}"/>`;};
     if(r1>r0+1){sym+=arrow(r0+0.3,r1-0.3,(yA0+yA1)/2)+arrow(r1-0.3,r0+0.3,(yB0+yB1)/2);}
@@ -1405,10 +1416,10 @@ function renderRules(){
     ["Zone Green deduction",`${inp("zoneGreen.pct",R.zoneGreen.pct,0.5)}% of residential zoning floor area`,S.settings.zoneGreen?`${fmt(c.zoneGreen)} SF`:"Off for this building","Project assumption, confirm"],
     ...["parking","mechanical","corridor100","corridor50","laundry"].map(k=>[`${AREA_TYPES[k].base} deduction`,`${inp("deductions."+k,R.deductions[k],5)}% of its area`,`${fmt(dedSum(k))} SF on all floors`,"Project assumption, confirm"]),
     ["Elevator and stair core","Counts as floor area on every floor. On commercial floors it counts as residential unless switched off for that floor",
-     co?(co.auto?`${fmtLen(co.y1-co.y0)} wide, elevator fixed, stair length follows each floor's height: `+S.floors.map(f=>`${f.name} ${fmt(coreArea(f))} SF`).join(", "):`${fmtLen(co.x1-co.x0)} × ${fmtLen(co.y1-co.y0)}, ${fmt(coreArea())} SF per floor`)+(commOff?`; commercial on the ${commOff}`:""):"No core","Project decision"],
+     co?(co.auto?`${fmtLen(coreRectFor(cur()).y1-co.y0)} wide, elevator fixed, stair length follows each floor's height: `+S.floors.map(f=>`${f.name} ${fmt(coreArea(f))} SF`).join(", "):`${fmtLen(co.x1-co.x0)} × ${fmtLen(co.y1-co.y0)}, ${fmt(coreArea())} SF per floor`)+(commOff?`; commercial on the ${commOff}`:""):"No core","Project decision"],
     ["Scissor stair<small>Two stairs in one enclosure, drawn in the core</small>",
-     `Each stair ${inp("stair.widthIn",R.stair.widthIn,1)} in wide, ${inp("stair.sepIn",R.stair.sepIn,1)} in rated wall between, risers at most ${inp("stair.maxRiserIn",R.stair.maxRiserIn,0.25)} in, treads ${inp("stair.treadIn",R.stair.treadIn,0.25)} in, landings as deep as the stair (48 in max), 12 ft max rise per flight`,
-     (()=>{const hs=[...new Set(S.floors.map(f=>f.height))].sort((a,b)=>a-b);const q0=stairReq(hs[0]);return `${fmtLen(q0.widthFt)} wide. Length: `+hs.map(h=>`${h} ft floor ${fmtLen(stairReq(h).lenFt)}`).join(", ");})(),
+     `Each stair ${inp("stair.widthIn",R.stair.widthIn,1)} in wide, ${inp("stair.sepIn",R.stair.sepIn,1)} in wall between them, core walls ${inp("core.wallIn",R.core.wallIn,1)} in, risers at most ${inp("stair.maxRiserIn",R.stair.maxRiserIn,0.25)} in, treads ${inp("stair.treadIn",R.stair.treadIn,0.25)} in, landings as deep as the stair (48 in max), 12 ft max rise per flight`,
+     (()=>{const hs=[...new Set(S.floors.map(f=>f.height))].sort((a,b)=>a-b);const q0=stairReq(hs[0]);return `Stairs ${fmtLen(q0.widthFt)} wide, core ${fmtLen(q0.widthFt+2*coreWallFt())} wide outside. Stair length: `+hs.map(h=>`${h} ft floor ${fmtLen(stairReq(h).lenFt)}`).join(", ");})(),
      "NYC Building Code 2022 §1011.2, 1011.5.2, 1011.6, 1011.8, 1007.1.1"],
     ["Cellar","Exempt from zoning floor area","",""+"Project assumption, confirm"]
   ];
