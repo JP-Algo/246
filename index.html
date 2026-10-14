@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>246 South 2nd Street — floor area model</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme: light;
+  --paper:#EDF0EE; --panel:#F8FAF9; --ink:#1E2528; --muted:#5A666B; --line:#C8D0CD; --grid:#DCE2DF;
+  --gross:#2D6BAA; --deduct:#B27410; --amenity:#6A57B8; --terrace:#2E7D50; --over:#B3261E; --sel:#C2307A;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --paper:#13181A; --panel:#1A2023; --ink:#E1E7E4; --muted:#98A4A8; --line:#313A3D; --grid:#222A2D;
+    --gross:#6FA6DC; --deduct:#E2AC47; --amenity:#A898EA; --terrace:#6BBB8C; --over:#F07A70; --sel:#F08DBA;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --paper:#13181A; --panel:#1A2023; --ink:#E1E7E4; --muted:#98A4A8; --line:#313A3D; --grid:#222A2D;
+  --gross:#6FA6DC; --deduct:#E2AC47; --amenity:#A898EA; --terrace:#6BBB8C; --over:#F07A70; --sel:#F08DBA;
+}
+*{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{margin:0;background:var(--paper);color:var(--ink)}
+body{font-family:"Archivo",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.45;font-variant-numeric:tabular-nums}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--sel);outline-offset:2px}
+
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 28px;padding:16px 20px 14px;border-bottom:1px solid var(--line)}
+.top h1{margin:0;font-size:15px;font-weight:600;letter-spacing:.01em}
+.top .sub{margin:2px 0 0;color:var(--muted);font-size:13px}
+.meter{min-width:min(100%,420px);flex:1 1 360px;max-width:560px}
+.meter .figs{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.meter .big{font-size:34px;font-weight:700;line-height:1;letter-spacing:-.02em}
+.meter .of{color:var(--muted);font-size:14px}
+.meter .status{margin-left:auto;font-weight:600;font-size:14px}
+.meter .status.over{color:var(--over)}
+.meter .status.under{color:var(--terrace)}
+.bar{position:relative;height:8px;margin-top:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;background:var(--gross);border-radius:4px}
+.bar i.over{background:var(--over)}
+
+.app{display:grid;grid-template-columns:minmax(0,1fr)}
+.panel{min-width:0}
+.view{position:relative;height:46vh;min-height:300px;border-bottom:1px solid var(--line);overflow:hidden}
+.split{display:none}
+.show3d{display:none;margin-bottom:10px}
+.app.no3d .view{display:none}
+.app.no3d .show3d{display:inline-block}
+.view canvas{display:block;width:100%;height:100%;touch-action:none}
+.view .tools{position:absolute;top:10px;left:10px;display:flex;gap:6px;flex-wrap:wrap}
+.view .hint{position:absolute;bottom:10px;left:12px;color:var(--muted);font-size:12px;pointer-events:none}
+.view .err{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--muted)}
+
+.panel{padding:14px 20px 40px}
+section{padding:14px 0 18px;border-bottom:1px solid var(--line)}
+section:last-child{border-bottom:0}
+h2{margin:0 0 10px;font-size:15px;font-weight:600}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--panel);padding:6px 11px;border-radius:7px;font-size:13px;cursor:pointer;line-height:1.3}
+.btn:hover{border-color:var(--muted)}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.warn{border-color:var(--over);color:var(--over)}
+select.in,input.in{border:1px solid var(--line);background:var(--panel);border-radius:7px;padding:5px 8px;font-size:13px}
+input.in{width:84px}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+.tab{flex:0 0 auto;border:1px solid var(--line);background:transparent;border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer;white-space:nowrap}
+.tab[aria-current="true"]{background:var(--gross);border-color:var(--gross);color:#fff}
+.floorhead{display:flex;flex-wrap:wrap;gap:4px 18px;align-items:baseline;margin:12px 0 8px}
+.floorhead strong{font-size:18px}
+.floorhead span{color:var(--muted);font-size:13px}
+.floorhead b{color:var(--ink);font-weight:600}
+.planwrap{position:relative;border:1px solid var(--line);border-radius:8px;background:var(--panel);overflow:hidden}
+#plan{display:block;width:100%;height:clamp(260px,44vh,440px);touch-action:none;cursor:crosshair;user-select:none;-webkit-user-select:none}
+#plan.select{cursor:default}
+.zoom{position:absolute;right:8px;bottom:8px;display:flex;gap:4px}
+.zoom .btn{padding:4px 9px;background:var(--paper)}
+.note{color:var(--muted);font-size:12.5px;margin:8px 0 0}
+.sel{margin-top:10px;min-height:38px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:13.5px}
+.sel .k{color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted);margin-top:8px}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px;background:var(--c)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:13.5px}
+th,td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-weight:600;color:var(--muted);font-size:12.5px}
+th:first-child,td:first-child{text-align:left}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:color-mix(in srgb,var(--gross) 7%,transparent)}
+tbody tr.on td{background:color-mix(in srgb,var(--gross) 13%,transparent)}
+td small{display:block;color:var(--muted);font-size:11.5px}
+tfoot td{font-weight:600;border-bottom:0}
+.adj td{color:var(--muted)}
+.caps{display:grid;gap:12px;margin-top:6px}
+.cap .l{display:flex;justify-content:space-between;gap:12px;font-size:13.5px}
+.cap .l span:last-child{color:var(--muted)}
+.cap .bar{height:6px;margin-top:5px}
+.cap.over .l span:last-child{color:var(--over);font-weight:600}
+.settings{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px 14px}
+.settings label{display:grid;gap:4px;font-size:12.5px;color:var(--muted)}
+.settings input.in{width:100%;color:var(--ink)}
+.check{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--ink)}
+.savestate{margin:3px 0 0;font-size:12.5px;color:var(--muted)}
+.savestate::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px;background:var(--muted)}
+.savestate.ok::before{background:var(--terrace)}
+.savestate.warn::before{background:var(--deduct)}
+.savestate.err{color:var(--over)}
+.savestate.err::before{background:var(--over)}
+.typed{font-size:12.5px;color:var(--sel);font-weight:600}
+.dimedit{flex-basis:100%;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px 12px}
+.dimedit label{display:grid;gap:3px;font-size:12px;color:var(--muted)}
+.dimedit input.in{width:100%;color:var(--ink)}
+
+@media (min-width:980px){
+  .app{grid-template-columns:minmax(0,var(--viewW,52%)) 10px minmax(420px,1fr);height:calc(100vh - 92px)}
+  .view{height:auto;min-height:0;border-bottom:0}
+  .app.no3d .view{display:block;visibility:hidden}
+  .app.no3d .show3d{display:none}
+  .split{display:block;position:relative;cursor:col-resize;touch-action:none;background:var(--paper);border-left:1px solid var(--line);border-right:1px solid var(--line)}
+  .split::after{content:"";position:absolute;top:50%;left:3px;width:2px;height:36px;margin-top:-18px;border-left:1px solid var(--muted);border-right:1px solid var(--muted);opacity:.6}
+  .split:hover,.split.drag{background:color-mix(in srgb,var(--gross) 14%,var(--paper))}
+  .panel{overflow-y:auto}
+}
+@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>246 South 2nd Street</h1>
+    <p class="sub">Zoning floor area model, traced from the floor plan sketch</p>
+    <p class="savestate" id="saveState" aria-live="polite">Loading…</p>
+  </div>
+  <div class="meter" aria-live="polite">
+    <div class="figs">
+      <span class="big" id="mBig">0</span>
+      <span class="of">SF zoning floor area of <b id="mCap">0</b> allowed</span>
+      <span class="status" id="mStatus"></span>
+    </div>
+    <div class="bar"><i id="mBar"></i></div>
+  </div>
+</header>
+
+<div class="app">
+  <div class="view" id="view">
+    <div class="tools">
+      <button class="btn" id="tExplode" aria-pressed="false">Spread floors</button>
+      <button class="btn" id="tAbove" aria-pressed="true">Show floors above</button>
+      <button class="btn" id="tHide">Hide 3D</button>
+    </div>
+    <div class="hint">Drag to orbit, pinch or scroll to zoom, tap a floor to edit it</div>
+  </div>
+
+  <div class="split" id="split" role="separator" aria-orientation="vertical" aria-label="Resize the 3D view" tabindex="0" title="Drag to resize, double-click to hide or show the 3D view"></div>
+
+  <div class="panel">
+    <section>
+      <button class="btn show3d" id="show3d">Show 3D view</button>
+      <div class="tabs" id="tabs" role="tablist" aria-label="Floors"></div>
+      <div class="floorhead" id="floorhead"></div>
+
+      <div class="row" style="margin-bottom:8px">
+        <button class="btn" data-mode="select">Select and move</button>
+        <button class="btn" data-mode="wall">Draw wall</button>
+        <button class="btn" data-mode="area">Draw area</button>
+        <select class="in" id="areaType" aria-label="Area type"></select>
+        <button class="btn" id="closeShape">Close shape</button>
+        <button class="btn" id="cancelDraft">Cancel</button>
+        <button class="btn" id="undo">Undo</button>
+      </div>
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn" id="tOrtho" aria-pressed="true" title="Keep lines horizontal or vertical. F8 toggles, hold Shift to override for one point">Ortho</button>
+        <button class="btn" id="tSnap" aria-pressed="true" title="Snap to a 6 inch grid and to existing corners. F9 toggles">Snap</button>
+        <button class="btn" id="tDims" aria-pressed="true" title="Show dimensions on the plan">Dimensions</button>
+        <span class="typed" id="typed"></span>
+      </div>
+
+      <div class="planwrap">
+        <svg id="plan" role="application" aria-label="Floor plan editor"></svg>
+        <div class="zoom">
+          <button class="btn" id="zIn" aria-label="Zoom in">+</button>
+          <button class="btn" id="zOut" aria-label="Zoom out">−</button>
+          <button class="btn" id="zFit">Fit</button>
+        </div>
+      </div>
+      <div class="legend">
+        <span style="--c:var(--gross)">Gross floor area</span>
+        <span style="--c:var(--deduct)">Deduction</span>
+        <span style="--c:var(--amenity)">Amenity (5% cap)</span>
+        <span style="--c:var(--terrace)">Terrace (not floor area)</span>
+      </div>
+      <div class="sel" id="sel"></div>
+      <p class="note" id="modeNote"></p>
+
+      <div class="row" style="margin-top:12px">
+        <label class="check">Use
+          <select class="in" id="fUse">
+            <option value="cellar">Cellar (exempt)</option>
+            <option value="commercial">Commercial</option>
+            <option value="residential">Residential</option>
+          </select>
+        </label>
+        <label class="check">Floor-to-floor <input class="in" id="fHeight" type="number" min="7" max="30" step="0.5"> ft</label>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="copyBelow">Copy floor below</button>
+        <button class="btn" id="extWalls">Rebuild exterior walls from gross outline</button>
+        <button class="btn" id="addFloor">Add floor on top</button>
+        <button class="btn" id="removeFloor">Remove top floor</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Floor by floor</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Floor</th><th>Residential gross</th><th>Commercial gross</th><th>Total gross</th><th>Deductions</th><th>Zoning floor area</th><th>Terrace</th></tr></thead>
+          <tbody id="tbody"></tbody>
+          <tfoot id="tfoot"></tfoot>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Against the caps</h2>
+      <div class="caps" id="caps"></div>
+    </section>
+
+    <section>
+      <h2>Zoning inputs</h2>
+      <div class="settings">
+        <label>Lot area (SF)<input class="in" type="number" data-set="lot" step="1"></label>
+        <label>Total FAR<input class="in" type="number" data-set="far" step="0.1"></label>
+        <label>Residential FAR<input class="in" type="number" data-set="resFar" step="0.1"></label>
+        <label>Affordable unit (SF)<input class="in" type="number" data-set="affordable" step="10"></label>
+        <label>Commercial FAR<input class="in" type="number" data-set="commFar" step="0.1"></label>
+        <label>Height limit (ft)<input class="in" type="number" data-set="maxHeight" step="1"></label>
+      </div>
+      <label class="check" style="margin-top:12px"><input type="checkbox" id="zoneGreen"> Zone Green: deduct 5% of residential zoning floor area</label>
+      <div class="row" style="margin-top:14px">
+        <button class="btn" id="reset">Reset to the sketch</button>
+      </div>
+      <p class="note">Changes save automatically to this artifact, so they are there on any device and for anyone you share it with. Gross areas are seeded to match the sketch's figures; wall and area positions are approximate, so trace over them with your architect's dimensions.</p>
+    </section>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function(){
+"use strict";
+const $=s=>document.querySelector(s);
+const fmt=n=>Math.round(n).toLocaleString("en-US");
+let uidN=0;
+const uid=()=>"i"+Date.now().toString(36)+(uidN++).toString(36);
+const KEY="s2nd-floor-model-v1";
+
+/* ---------- geometry seed (feet). x: rear 0 -> street front, y: across the lot ---------- */
+const FRONT=118.17, CX=59, CZ=15;
+const rect=(x0,y0,x1,y1)=>[[x0,y0],[x1,y0],[x1,y1],[x0,y1]];
+const LOT=[[0,0],[FRONT,0],[FRONT,25],[20,25],[20,30],[0,30]];
+const CORE=rect(64,6,80,19);
+
+const AREA_TYPES={
+  gross:{label:"Gross floor area",short:"Gross",kind:"gross",color:"--gross"},
+  parking:{label:"Parking (100%)",short:"Parking",kind:"deduct",factor:1,color:"--deduct"},
+  mechanical:{label:"Mechanical (100%)",short:"Mechanical",kind:"deduct",factor:1,color:"--deduct"},
+  corridor100:{label:"Corridor (100%)",short:"Corridor 100%",kind:"deduct",factor:1,color:"--deduct"},
+  corridor50:{label:"Corridor (50%)",short:"Corridor 50%",kind:"deduct",factor:.5,color:"--deduct"},
+  laundry:{label:"Laundry (100%)",short:"Laundry",kind:"deduct",factor:1,color:"--deduct"},
+  amenity:{label:"Amenity (5% cap)",short:"Amenity",kind:"amenity",factor:1,color:"--amenity"},
+  terrace:{label:"Terrace (outdoor)",short:"Terrace",kind:"terrace",color:"--terrace"}
+};
+const ORDER=["gross","terrace","amenity","parking","mechanical","corridor50","corridor100","laundry"];
+
+const A=(type,pts)=>({id:uid(),type,pts:pts.map(p=>[p[0],p[1]])});
+const W=(a,b,t,tag)=>({id:uid(),a:[a[0],a[1]],b:[b[0],b[1]],t,tag:tag||""});
+const ring=(pts,t,tag)=>pts.map((p,i)=>W(p,pts[(i+1)%pts.length],t,tag));
+
+function seed(){
+  const core=()=>ring(CORE,0.67);
+  const resFloor=(name,x0,x1,terraces)=>{
+    const walls=[...ring(rect(x0,0,x1,25),1,"ext"),...core(),W([87,0],[87,25],0.5)];
+    if(x0<60) walls.push(W([64,0],[64,6],0.5),W([64,19],[64,25],0.5));
+    return {id:uid(),name,use:"residential",height:10,
+      areas:[A("gross",rect(x0,0,x1,25)),A("corridor100",rect(80,0,87,25)),...terraces.map(t=>A("terrace",t))],
+      walls};
+  };
+  const floors=[
+    {id:uid(),name:"Cellar",use:"cellar",height:12,areas:[A("gross",LOT)],walls:[...ring(LOT,1,"ext"),...core()]},
+    {id:uid(),name:"1st floor",use:"commercial",height:14,
+      areas:[A("gross",LOT),A("parking",rect(88.17,13,FRONT,25))],
+      walls:[...ring(LOT,1,"ext"),...core(),W([88.17,13],[FRONT,13],0.5),W([88.17,13],[88.17,25],0.5)]},
+    {id:uid(),name:"2nd floor",use:"commercial",height:11,areas:[A("gross",LOT)],walls:[...ring(LOT,1,"ext"),...core()]},
+    {id:uid(),name:"3rd floor",use:"residential",height:10,
+      areas:[A("gross",rect(48.45,0,FRONT,25)),A("amenity",rect(48.45,0,64,13)),A("corridor100",rect(80,0,87,25)),A("terrace",rect(6.33,0,48.45,25))],
+      walls:[...ring(rect(48.45,0,FRONT,25),1,"ext"),...core(),W([48.45,13],[64,13],0.5),W([87,0],[87,25],0.5)]},
+    {id:uid(),name:"4th floor",use:"residential",height:10,
+      areas:[A("gross",rect(63.67,0,FRONT,25)),A("corridor100",rect(80,0,87,25)),A("terrace",rect(29.3,0,63.67,25))],
+      walls:[...ring(rect(63.67,0,FRONT,25),1,"ext"),...core(),W([87,0],[87,25],0.5)]},
+    resFloor("5th floor",29.84,FRONT,[rect(24.84,1,29.84,11)]),
+    resFloor("6th floor",29.84,FRONT,[rect(24.84,1,29.84,11)]),
+    resFloor("7th floor",29.84,112.01,[rect(24.84,1,29.84,11),rect(112.01,0,FRONT,25)]),
+    resFloor("8th floor",44,113.9,[rect(29.84,0,44,25),rect(113.9,0,FRONT,25)])
+  ];
+  return {settings:{lot:3100,far:4.8,resFar:2.2,commFar:2.0,affordable:700,maxHeight:85,zoneGreen:true},floors};
+}
+
+function load(){
+  try{const t=localStorage.getItem(KEY);if(t){const o=JSON.parse(t);if(o&&Array.isArray(o.floors)&&o.settings)return o;}}catch(e){}
+  return null;
+}
+const CLIENT=uid();
+let docRef=null,dbState="pending",writing=false,writeAgain=false,saveTimer=null,lastSavedJSON=null,retried=false;
+function setSaveState(t,cls){const el=$("#saveState");if(!el)return;el.textContent=t;el.className="savestate "+(cls||"");}
+function save(){
+  try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}
+  if(dbState==="pending"){setSaveState("Saved in this browser, connecting…","warn");return;}
+  if(!docRef){setSaveState(dbState==="readonly"?"View only: your changes stay in this browser":"Saved in this browser only","warn");return;}
+  setSaveState("Saving…","warn");
+  clearTimeout(saveTimer);saveTimer=setTimeout(flush,500);
+}
+async function flush(){
+  clearTimeout(saveTimer);saveTimer=null;
+  if(!docRef)return;
+  if(writing){writeAgain=true;return;}
+  const json=JSON.stringify(S);
+  if(json===lastSavedJSON){setSaveState("All changes saved","ok");return;}
+  writing=true;
+  try{
+    await docRef.set({state:json,by:CLIENT,savedAt:new Date().toISOString(),format:1});
+    lastSavedJSON=json;retried=false;
+    setSaveState("All changes saved","ok");
+  }catch(e){
+    const code=e&&e.code;
+    if(code==="invalid_argument"&&json.length<250000){docRef=null;dbState="readonly";setSaveState("View only: your changes stay in this browser","warn");}
+    else if(code==="quota_exceeded"||code==="invalid_argument"){setSaveState("Couldn't save: the model is too large to store","err");}
+    else if(!retried&&(code==="unavailable"||code==="resource_exhausted")){retried=true;setSaveState("Couldn't save, trying again…","warn");setTimeout(flush,1200+Math.random()*1200);}
+    else{retried=false;setSaveState("Couldn't save. Changes are kept in this browser and will save with your next edit","err");}
+  }finally{
+    writing=false;
+    if(writeAgain){writeAgain=false;flush();}
+  }
+}
+function validState(o){return o&&Array.isArray(o.floors)&&o.floors.length&&o.settings;}
+async function connectDb(){
+  let db=null;
+  try{if(window.claude&&typeof window.claude.use==="function")db=await window.claude.use("db");}catch(e){}
+  if(!db){dbState="none";setSaveState("Saved in this browser only","warn");return;}
+  docRef=db.doc("model/current");dbState="live";
+  let first=true;
+  docRef.onSnapshot(snap=>{
+    if(snap.metadata&&snap.metadata.hasPendingWrites)return;
+    if(!snap.exists){
+      if(first){first=false;
+        if(LOCAL||hist.length)flush();          // carry edits made before saving was turned on
+        else setSaveState("Ready. Changes save automatically","ok");
+      }
+      return;
+    }
+    const d=snap.data()||{};
+    if(typeof d.state!=="string")return;
+    if(d.state===lastSavedJSON){first=false;return;}
+    if(!first&&(saveTimer||writing||drag))return;  // this view has newer edits on the way
+    let o=null;try{o=JSON.parse(d.state);}catch(e){}
+    if(!validState(o))return;
+    first=false;
+    S=o;lastSavedJSON=d.state;
+    try{localStorage.setItem(KEY,d.state);}catch(e){}
+    ui.floor=Math.min(ui.floor,S.floors.length-1);
+    if(!findSel())ui.sel=null;
+    renderAll();
+    setSaveState("All changes saved","ok");
+  },err=>{
+    docRef=null;dbState="none";
+    setSaveState("Live saving stopped. Changes are kept in this browser; reload to reconnect","err");
+  });
+}
+window.addEventListener("pagehide",()=>{if(saveTimer)flush();});
+
+const LOCAL=load();
+let S=LOCAL||seed();
+const ui={floor:Math.min(5,S.floors.length-1),mode:"select",areaType:"gross",sel:null,snap:true,ortho:true,
+  explode:false,above:true,view:{cx:59,cy:15,w:140},draft:null,dims:true,typed:""};
+const PREF_KEY="s2nd-prefs-v1";
+try{const pr=JSON.parse(localStorage.getItem(PREF_KEY))||{};ui.snap=pr.snap!==false;ui.ortho=pr.ortho!==false;ui.dims=pr.dims!==false;}catch(e){}
+function savePrefs(){try{localStorage.setItem(PREF_KEY,JSON.stringify({snap:ui.snap,ortho:ui.ortho,dims:ui.dims}));}catch(e){}}
+let shiftHeld=false;
+const orthoOn=()=>ui.ortho!==shiftHeld;
+let hist=[];
+
+/* ---------- helpers ---------- */
+const cur=()=>S.floors[ui.floor];
+const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+function polyArea(p){let s=0;for(let i=0;i<p.length;i++){const j=(i+1)%p.length;s+=p[i][0]*p[j][1]-p[j][0]*p[i][1];}return Math.abs(s)/2;}
+function centroid(p){let x=0,y=0;p.forEach(q=>{x+=q[0];y+=q[1];});return [x/p.length,y/p.length];}
+function fmtLen(x){
+  const neg=x<0;let inch=Math.round(Math.abs(x)*24)/2;
+  let ft=Math.floor(inch/12);inch=inch-ft*12;
+  const half=inch%1?"½":"";
+  return (neg?"−":"")+ft+"'-"+Math.floor(inch)+half+'"';
+}
+const attrLen=x=>fmtLen(x).replace(/"/g,"&quot;");
+function parseLen(t){
+  t=String(t).trim().replace(/[−–]/g,"-").replace(/½/g,".5").replace(/[’′]/g,"'").replace(/[”″]/g,'"');
+  let m;
+  if((m=t.match(/^(-?\d*\.?\d+)\s*'\s*-?\s*(\d*\.?\d+)?\s*"?$/)))return (m[1].startsWith("-")?-1:1)*(Math.abs(parseFloat(m[1]))+(m[2]?parseFloat(m[2])/12:0));
+  if((m=t.match(/^(\d*\.?\d+)\s*"$/)))return parseFloat(m[1])/12;
+  if((m=t.match(/^(\d+)\s+(\d*\.?\d+)$/)))return parseFloat(m[1])+parseFloat(m[2])/12;
+  if(/^-?\d*\.?\d+$/.test(t))return parseFloat(t);
+  return NaN;
+}
+function rectOf(p){
+  if(p.length!==4)return null;
+  const xs=p.map(q=>q[0]),ys=p.map(q=>q[1]);
+  const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys),e=1e-6;
+  const ok=p.every(q=>(Math.abs(q[0]-x0)<e||Math.abs(q[0]-x1)<e)&&(Math.abs(q[1]-y0)<e||Math.abs(q[1]-y1)<e));
+  const keys=new Set(p.map(q=>(Math.abs(q[0]-x0)<e?0:1)+","+(Math.abs(q[1]-y0)<e?0:1)));
+  return ok&&keys.size===4&&x1-x0>e&&y1-y0>e?{x0,y0,x1,y1}:null;
+}
+const pathOf=pts=>"M"+pts.map(p=>p[0].toFixed(2)+" "+p[1].toFixed(2)).join("L")+"Z";
+const clone=o=>JSON.parse(JSON.stringify(o));
+function reId(f){f.walls.forEach(w=>w.id=uid());f.areas.forEach(a=>a.id=uid());return f;}
+function ord(n){const s=["th","st","nd","rd"],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
+function pushHist(){hist.push(JSON.stringify(S));if(hist.length>80)hist.shift();}
+function cssVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()||"#888";}
+
+function elevations(){
+  let e=0;const out=[];
+  const gap=ui.explode?9:0;
+  let base=0;
+  S.floors.forEach((f,i)=>{if(f.use==="cellar"&&i===0)base=-f.height;});
+  e=base;
+  S.floors.forEach((f,i)=>{out.push(e+i*gap);e+=f.height;});
+  return out;
+}
+
+/* ---------- calculations ---------- */
+function compute(){
+  const st=S.settings;
+  const rows=S.floors.map((f,i)=>{
+    let gross=0,ded=0,amen=0,terr=0;
+    f.areas.forEach(a=>{
+      if(a.pts.length<3)return;
+      const ar=polyArea(a.pts),T=AREA_TYPES[a.type]||AREA_TYPES.gross;
+      if(T.kind==="gross")gross+=ar;else if(T.kind==="deduct")ded+=ar*T.factor;else if(T.kind==="amenity")amen+=ar;else terr+=ar;
+    });
+    const below=f.use==="cellar";
+    return {i,f,gross,ded,amen,terr,below,zfaPre:below?0:Math.max(0,gross-ded)};
+  });
+  const res=rows.filter(r=>r.f.use==="residential");
+  const resPre=res.reduce((s,r)=>s+r.zfaPre,0);
+  const amenRaw=res.reduce((s,r)=>s+r.amen,0);
+  const amenCap=0.05*resPre;
+  const amenAllowed=Math.min(amenRaw,amenCap);
+  const ratio=amenRaw>0?amenAllowed/amenRaw:0;
+  rows.forEach(r=>{
+    r.amenAllowed=r.f.use==="residential"?r.amen*ratio:0;
+    r.zfa=r.below?0:Math.max(0,r.zfaPre-r.amenAllowed);
+    r.dedTotal=r.below?r.gross:(r.gross-r.zfa);
+  });
+  const resZfa0=res.reduce((s,r)=>s+r.zfa,0);
+  const zoneGreen=st.zoneGreen?0.05*resZfa0:0;
+  const resZfa=resZfa0-zoneGreen;
+  const commZfa=rows.filter(r=>r.f.use==="commercial").reduce((s,r)=>s+r.zfa,0);
+  const total=resZfa+commZfa;
+  const allowed=st.lot*st.far;
+  const resCap=Math.min(st.lot*st.resFar+st.affordable,st.lot*3.9);
+  const commCap=st.lot*st.commFar;
+  const grossAbove=rows.filter(r=>!r.below).reduce((s,r)=>s+r.gross,0);
+  const terrTotal=rows.reduce((s,r)=>s+r.terr,0);
+  const height=S.floors.filter(f=>f.use!=="cellar").reduce((s,f)=>s+f.height,0);
+  return {rows,resPre,amenRaw,amenCap,amenAllowed,zoneGreen,resZfa,commZfa,total,allowed,resCap,commCap,grossAbove,terrTotal,height};
+}
+
+/* ---------- totals UI ---------- */
+function renderTotals(){
+  const c=compute();
+  $("#mBig").textContent=fmt(c.total);
+  $("#mCap").textContent=fmt(c.allowed);
+  const diff=c.total-c.allowed;
+  const st=$("#mStatus");
+  st.textContent=Math.abs(diff)<0.5?"Right at the cap":fmt(Math.abs(diff))+" SF "+(diff>0?"over":"under");
+  st.className="status "+(diff>0.5?"over":"under");
+  const bar=$("#mBar");
+  bar.style.width=Math.min(100,c.allowed?c.total/c.allowed*100:0)+"%";
+  bar.className=diff>0.5?"over":"";
+
+  const tb=$("#tbody");
+  tb.innerHTML=c.rows.slice().reverse().map(r=>{
+    const use=r.f.use==="cellar"?"Cellar, exempt":r.f.use==="commercial"?"Commercial":"Residential";
+    return `<tr data-floor="${r.i}" class="${r.i===ui.floor?"on":""}"><td>${r.f.name}<small>${use}</small></td><td>${r.f.use==="residential"?fmt(r.gross):"–"}</td><td>${r.f.use==="commercial"?fmt(r.gross):"–"}</td><td>${fmt(r.gross)}</td><td>${fmt(r.dedTotal)}</td><td>${fmt(r.zfa)}</td><td>${r.terr?fmt(r.terr):"–"}</td></tr>`;
+  }).join("");
+  const resGross=c.rows.filter(r=>r.f.use==="residential").reduce((s,r)=>s+r.gross,0);
+  const commGross=c.rows.filter(r=>r.f.use==="commercial").reduce((s,r)=>s+r.gross,0);
+  $("#tfoot").innerHTML=
+    `<tr class="adj"><td>Amenity counted</td><td></td><td></td><td></td><td>${fmt(c.amenAllowed)} of ${fmt(c.amenRaw)}</td><td colspan="2" style="text-align:left">cap is 5% of residential, ${fmt(c.amenCap)} SF</td></tr>`+
+    `<tr class="adj"><td>Zone Green</td><td></td><td></td><td></td><td>${S.settings.zoneGreen?fmt(c.zoneGreen):"off"}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td></tr>`+
+    `<tr><td>Total above grade</td><td>${fmt(resGross)}</td><td>${fmt(commGross)}</td><td>${fmt(c.grossAbove)}</td><td>${fmt(c.grossAbove-c.total)}</td><td>${fmt(c.total)}</td><td>${fmt(c.terrTotal)}</td></tr>`;
+
+  const cap=(label,v,max,unit)=>{
+    const over=v>max+0.5;
+    return `<div class="cap ${over?"over":""}"><div class="l"><span>${label}</span><span>${fmt(v)} of ${fmt(max)} ${unit}${over?", "+fmt(v-max)+" over":""}</span></div><div class="bar"><i class="${over?"over":""}" style="width:${Math.min(100,max?v/max*100:0)}%"></i></div></div>`;
+  };
+  $("#caps").innerHTML=
+    cap("Total zoning floor area",c.total,c.allowed,"SF")+
+    cap("Residential (2.2 FAR plus the affordable unit)",c.resZfa,c.resCap,"SF")+
+    cap("Commercial",c.commZfa,c.commCap,"SF")+
+    cap("Building height above grade",c.height,S.settings.maxHeight,"ft");
+
+  const r=c.rows[ui.floor];
+  $("#floorhead").innerHTML=`<strong>${r.f.name}</strong><span>Gross <b>${fmt(r.gross)}</b> SF</span><span>Deductions <b>${fmt(r.dedTotal)}</b> SF</span><span>Zoning floor area <b>${fmt(r.zfa)}</b> SF</span>`;
+}
+
+/* ---------- tabs and floor controls ---------- */
+function renderTabs(){
+  $("#tabs").innerHTML=S.floors.map((f,i)=>`<button class="tab" role="tab" data-floor="${i}" aria-current="${i===ui.floor}">${f.name}</button>`).join("");
+  $("#fUse").value=cur().use;
+  $("#fHeight").value=cur().height;
+  $("#copyBelow").disabled=ui.floor===0;
+  $("#removeFloor").disabled=S.floors.length<=2;
+}
+function selectFloor(i){ui.floor=Math.max(0,Math.min(S.floors.length-1,i));ui.sel=null;ui.draft=null;renderAll();}
+
+/* ---------- toolbar ---------- */
+const NOTES={
+  select:"Tap a wall or area to select it. Drag its handles to reshape, drag the body to move it, or drag empty space to pan.",
+  wall:"Tap the start point, then the end point. After the first tap you can type a length, such as 12'6, and press Enter.",
+  area:"Tap each corner, then tap the first corner or Close shape. After a corner you can type a length, such as 25', and press Enter. Choose the area type first."
+};
+function renderToolbar(){
+  document.querySelectorAll("[data-mode]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mode===ui.mode)));
+  $("#areaType").style.display=ui.mode==="area"?"":"none";
+  $("#areaType").value=ui.areaType;
+  const d=ui.draft;
+  $("#closeShape").style.display=ui.mode==="area"?"":"none";
+  $("#closeShape").disabled=!(d&&d.kind==="area"&&d.pts.length>=3);
+  $("#cancelDraft").style.display=d?"":"none";
+  $("#undo").disabled=!hist.length;
+  $("#modeNote").textContent=NOTES[ui.mode];
+  $("#tOrtho").setAttribute("aria-pressed",String(ui.ortho));
+  $("#tSnap").setAttribute("aria-pressed",String(ui.snap));
+  $("#tDims").setAttribute("aria-pressed",String(ui.dims));
+  if(!ui.draft)ui.typed="";
+  renderTyped();
+  $("#plan").classList.toggle("select",ui.mode==="select");
+}
+
+/* ---------- selection panel ---------- */
+function findSel(){
+  if(!ui.sel)return null;
+  const f=cur();
+  return ui.sel.k==="wall"?f.walls.find(w=>w.id===ui.sel.id):f.areas.find(a=>a.id===ui.sel.id);
+}
+function renderSel(){
+  const el=$("#sel"),o=findSel();
+  if(!o){el.innerHTML=`<span class="k">Nothing selected</span>`;return;}
+  if(ui.sel.k==="wall"){
+    el.innerHTML=`<span class="k">Wall</span>
+      <label class="check">Length <input class="in" id="wL" value="${attrLen(dist(o.a,o.b))}" aria-label="Wall length, feet and inches"></label>
+      <label class="check">Thickness <input class="in" id="wT" type="number" min="2" max="36" step="0.5" value="${(o.t*12).toFixed(1)}"> in</label>
+      <button class="btn warn" id="delSel">Delete wall</button>`;
+    $("#wT").addEventListener("change",e=>{const v=parseFloat(e.target.value);if(v>0){pushHist();o.t=v/12;commit();}});
+    $("#wL").addEventListener("change",e=>{
+      const L=parseLen(e.target.value),cl=dist(o.a,o.b);
+      if(!(L>0)||cl<1e-6){e.target.value=fmtLen(cl);return;}
+      pushHist();o.b=[o.a[0]+(o.b[0]-o.a[0])*L/cl,o.a[1]+(o.b[1]-o.a[1])*L/cl];commit();
+    });
+  }else{
+    const T=AREA_TYPES[o.type],ar=polyArea(o.pts);
+    const counted=T.kind==="deduct"?`, deducts ${fmt(ar*T.factor)} SF`:T.kind==="amenity"?", deducted within the 5% cap":"";
+    el.innerHTML=`<label class="check">Area <select class="in" id="aT">${Object.keys(AREA_TYPES).map(k=>`<option value="${k}" ${k===o.type?"selected":""}>${AREA_TYPES[k].label}</option>`).join("")}</select></label>
+      <span>${fmt(ar)} SF${counted}</span>
+      <button class="btn warn" id="delSel">Delete area</button>${dimEditor(o)}`;
+    el.querySelectorAll("[data-r],[data-v]").forEach(inp=>inp.addEventListener("change",e=>applyDimEdit(o,e.target)));
+    $("#aT").addEventListener("change",e=>{pushHist();o.type=e.target.value;commit();});
+  }
+  $("#delSel").addEventListener("click",deleteSel);
+}
+function dimEditor(o){
+  const r=rectOf(o.pts),f=(lab,attrs,v)=>`<label>${lab}<input class="in" ${attrs} value="${attrLen(v)}"></label>`;
+  if(r)return `<div class="dimedit">${f("Length, rear to front",'data-r="w"',r.x1-r.x0)}${f("Width, across the lot",'data-r="h"',r.y1-r.y0)}${f("Starts from rear lot line",'data-r="x"',r.x0)}${f("Starts from top lot line",'data-r="y"',r.y0)}</div>`;
+  return `<div class="dimedit">${o.pts.map((p,i)=>f(`Corner ${i+1}, from rear`,`data-v="${i}" data-c="0"`,p[0])+f(`Corner ${i+1}, from top`,`data-v="${i}" data-c="1"`,p[1])).join("")}</div>`;
+}
+function applyDimEdit(o,inp){
+  const v=parseLen(inp.value);
+  if(!isFinite(v)){renderSel();return;}
+  if(inp.dataset.r){
+    const r=rectOf(o.pts);if(!r){renderSel();return;}
+    let w=r.x1-r.x0,h=r.y1-r.y0,x=r.x0,y=r.y0;
+    const k=inp.dataset.r;
+    if((k==="w"||k==="h")&&!(v>0)){renderSel();return;}
+    if(k==="w")w=v;else if(k==="h")h=v;else if(k==="x")x=v;else y=v;
+    pushHist();o.pts=rect(x,y,x+w,y+h);
+  }else{
+    pushHist();o.pts[+inp.dataset.v][+inp.dataset.c]=v;
+  }
+  commit();
+}
+function deleteSel(){
+  if(!ui.sel)return;
+  pushHist();
+  const f=cur();
+  if(ui.sel.k==="wall")f.walls=f.walls.filter(w=>w.id!==ui.sel.id);else f.areas=f.areas.filter(a=>a.id!==ui.sel.id);
+  ui.sel=null;commit();
+}
+
+/* ---------- plan editor ---------- */
+const svg=$("#plan");
+function vb(){
+  const r=svg.getBoundingClientRect();
+  const ratio=r.width>0?r.height/r.width:0.4;
+  const w=ui.view.w,h=w*ratio;
+  return {x:ui.view.cx-w/2,y:ui.view.cy-h/2,w,h,pxPerFt:r.width/w};
+}
+function toPlan(e){
+  const m=svg.getScreenCTM();if(!m)return [0,0];
+  const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
+  const p=pt.matrixTransform(m.inverse());return [p.x,p.y];
+}
+function snapPt(p,exclKey){
+  if(!ui.snap)return [Math.round(p[0]*48)/48,Math.round(p[1]*48)/48];
+  const v=vb(),thr=Math.max(0.6,v.w/55),f=cur();
+  let best=null,bd=thr;
+  const consider=(q,key)=>{if(key===exclKey)return;const d=dist(p,q);if(d<bd){bd=d;best=q;}};
+  f.walls.forEach(w=>{consider(w.a,w.id+":a");consider(w.b,w.id+":b");});
+  f.areas.forEach(a=>a.pts.forEach((q,i)=>consider(q,a.id+":"+i)));
+  if(best)return [best[0],best[1]];
+  const g=ui.snap?0.5:0.01;
+  return [Math.round(p[0]/g)*g,Math.round(p[1]/g)*g];
+}
+function orthoPt(a,b){
+  if(!orthoOn())return b;
+  return Math.abs(b[0]-a[0])>=Math.abs(b[1]-a[1])?[b[0],a[1]]:[a[0],b[1]];
+}
+
+function renderPlan(){
+  const v=vb();
+  svg.setAttribute("viewBox",`${v.x.toFixed(2)} ${v.y.toFixed(2)} ${v.w.toFixed(2)} ${v.h.toFixed(2)}`);
+  const f=cur(),k=v.w/130,hr=Math.max(v.w/40,22/Math.max(v.pxPerFt,0.01)),vr=v.w/115,fs=v.w/60;
+  let g=`<g pointer-events="none">`;
+  const x0=Math.floor(v.x/5)*5,y0=Math.floor(v.y/5)*5;
+  for(let x=x0;x<=v.x+v.w;x+=5)g+=`<line x1="${x}" y1="${v.y}" x2="${x}" y2="${v.y+v.h}" style="stroke:var(--grid);stroke-width:${(x%25===0?0.2:0.08)*k}"/>`;
+  for(let y=y0;y<=v.y+v.h;y+=5)g+=`<line x1="${v.x}" y1="${y}" x2="${v.x+v.w}" y2="${y}" style="stroke:var(--grid);stroke-width:${(y%25===0?0.2:0.08)*k}"/>`;
+  g+=`<path d="${pathOf(LOT)}" style="fill:none;stroke:var(--muted);stroke-width:${0.22*k};stroke-dasharray:${1.4*k} ${0.9*k}"/>`;
+  const sx=FRONT+fs*3.2,rx=-fs*3.2;
+  g+=`<text x="${sx}" y="15" transform="rotate(90 ${sx} 15)" text-anchor="middle" style="fill:var(--muted);font-size:${fs}px">South 2nd Street</text>`;
+  g+=`<text x="${rx}" y="15" transform="rotate(-90 ${rx} 15)" text-anchor="middle" style="fill:var(--muted);font-size:${fs}px">Rear</text>`;
+  if(ui.floor>0){
+    S.floors[ui.floor-1].areas.filter(a=>a.type==="gross").forEach(a=>{
+      g+=`<path d="${pathOf(a.pts)}" style="fill:none;stroke:var(--muted);stroke-width:${0.16*k};stroke-dasharray:${0.5*k} ${0.5*k};opacity:.75"/>`;
+    });
+  }
+  g+=`</g>`;
+
+  const areas=[...f.areas].sort((a,b)=>ORDER.indexOf(a.type)-ORDER.indexOf(b.type));
+  let ar="",lb=`<g pointer-events="none">`;
+  areas.forEach(a=>{
+    if(a.pts.length<3)return;
+    const T=AREA_TYPES[a.type]||AREA_TYPES.gross,c=`var(${T.color})`,sel=ui.sel&&ui.sel.id===a.id;
+    const dash=a.type==="terrace"?`stroke-dasharray:${0.8*k} ${0.5*k};`:"";
+    ar+=`<path data-k="area" data-id="${a.id}" d="${pathOf(a.pts)}" style="fill:${c};fill-opacity:${a.type==="gross"?0.09:0.26};stroke:${sel?"var(--sel)":c};stroke-width:${(sel?0.5:0.22)*k};${dash}"/>`;
+    const A_=polyArea(a.pts);
+    if(a.type==="gross"){
+      const mx=Math.min(...a.pts.map(p=>p[0])),my=Math.min(...a.pts.map(p=>p[1]));
+      lb+=`<text x="${mx+0.8*k}" y="${my+fs*1.3}" style="fill:var(--gross);font-size:${fs}px;font-weight:600">Gross ${fmt(A_)} SF</text>`;
+    }else{
+      const cc=centroid(a.pts);
+      lb+=`<text x="${cc[0]}" y="${cc[1]}" text-anchor="middle" style="fill:var(--ink);font-size:${fs*0.92}px;font-weight:600">${T.short}</text>`;
+      lb+=`<text x="${cc[0]}" y="${cc[1]+fs*1.1}" text-anchor="middle" style="fill:var(--ink);font-size:${fs*0.88}px">${fmt(A_)} SF</text>`;
+    }
+  });
+  lb+=`</g>`;
+
+  let dm=`<g pointer-events="none">`;
+  const dimPoly=(pts,outside,force)=>{
+    let s=0;for(let i=0;i<pts.length;i++){const j=(i+1)%pts.length;s+=pts[i][0]*pts[j][1]-pts[j][0]*pts[i][1];}
+    const sg=s>=0?1:-1;
+    pts.forEach((p,i)=>{
+      const q=pts[(i+1)%pts.length],dx=q[0]-p[0],dy=q[1]-p[1],L=Math.hypot(dx,dy);
+      if(L*v.pxPerFt<30)return;
+      const ux=dx/L,uy=dy/L,nx=sg*uy,ny=-sg*ux;
+      if(!outside&&!force){
+        const pr=pts.map(o=>o[0]*nx+o[1]*ny);
+        if((Math.max(...pr)-Math.min(...pr))<fs*5)return;   // too thin for a label beside the area name
+      }
+      let ang=Math.atan2(dy,dx)*180/Math.PI;if(ang>90)ang-=180;if(ang<=-90)ang+=180;
+      if(outside){
+        const off=fs*1.4,a=[p[0]+nx*off,p[1]+ny*off],b=[q[0]+nx*off,q[1]+ny*off],t=fs*0.28;
+        const ext=(o)=>`M${(o[0]+nx*fs*0.25).toFixed(2)} ${(o[1]+ny*fs*0.25).toFixed(2)}L${(o[0]+nx*off*1.2).toFixed(2)} ${(o[1]+ny*off*1.2).toFixed(2)}`;
+        const tick=(o)=>`M${(o[0]-(ux+nx)*t).toFixed(2)} ${(o[1]-(uy+ny)*t).toFixed(2)}L${(o[0]+(ux+nx)*t).toFixed(2)} ${(o[1]+(uy+ny)*t).toFixed(2)}`;
+        dm+=`<path d="${ext(p)}${ext(q)}M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}" style="fill:none;stroke:var(--muted);stroke-width:${0.1*k}"/>`;
+        dm+=`<path d="${tick(a)}${tick(b)}" style="fill:none;stroke:var(--ink);stroke-width:${0.2*k}"/>`;
+        const m=[(a[0]+b[0])/2+nx*fs*0.55,(a[1]+b[1])/2+ny*fs*0.55];
+        dm+=`<text x="${m[0].toFixed(2)}" y="${m[1].toFixed(2)}" transform="rotate(${ang.toFixed(1)} ${m[0].toFixed(2)} ${m[1].toFixed(2)})" text-anchor="middle" dominant-baseline="central" style="fill:var(--ink);font-size:${fs*0.82}px;font-weight:600">${fmtLen(L)}</text>`;
+      }else{
+        const m=[(p[0]+q[0])/2-nx*fs*0.7,(p[1]+q[1])/2-ny*fs*0.7];
+        dm+=`<text x="${m[0].toFixed(2)}" y="${m[1].toFixed(2)}" transform="rotate(${ang.toFixed(1)} ${m[0].toFixed(2)} ${m[1].toFixed(2)})" text-anchor="middle" dominant-baseline="central" style="fill:var(--muted);font-size:${fs*0.7}px">${fmtLen(L)}</text>`;
+      }
+    });
+  };
+  const selO=findSel();
+  if(ui.dims)areas.forEach(a=>{if(a.pts.length>=3)dimPoly(a.pts,a.type==="gross");});
+  if(selO&&ui.sel.k==="area"&&selO.pts.length>=3&&(selO.type!=="gross"||!ui.dims))dimPoly(selO.pts,false,true);
+  if(selO&&ui.sel.k==="wall"){
+    const L=dist(selO.a,selO.b);
+    if(L>0.05){
+      const ux=(selO.b[0]-selO.a[0])/L,uy=(selO.b[1]-selO.a[1])/L,off=selO.t/2+fs*0.7;
+      let ang=Math.atan2(uy,ux)*180/Math.PI;if(ang>90)ang-=180;if(ang<=-90)ang+=180;
+      const m=[(selO.a[0]+selO.b[0])/2+uy*off,(selO.a[1]+selO.b[1])/2-ux*off];
+      dm+=`<text x="${m[0]}" y="${m[1]}" transform="rotate(${ang} ${m[0]} ${m[1]})" text-anchor="middle" dominant-baseline="central" style="fill:var(--sel);font-size:${fs*0.9}px;font-weight:600">${fmtLen(L)}</text>`;
+    }
+  }
+  dm+=`</g>`;
+
+  let wl="";
+  f.walls.forEach(w=>{
+    const sel=ui.sel&&ui.sel.id===w.id;
+    wl+=`<line x1="${w.a[0]}" y1="${w.a[1]}" x2="${w.b[0]}" y2="${w.b[1]}" pointer-events="none" style="stroke:${sel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:square"/>`;
+    wl+=`<line data-k="wall" data-id="${w.id}" x1="${w.a[0]}" y1="${w.a[1]}" x2="${w.b[0]}" y2="${w.b[1]}" pointer-events="stroke" style="stroke:transparent;stroke-width:${Math.max(w.t,hr*0.8)}"/>`;
+  });
+
+  let hd="";
+  const handle=(p,attrs)=>`<circle cx="${p[0]}" cy="${p[1]}" r="${vr}" pointer-events="none" style="fill:var(--panel);stroke:var(--sel);stroke-width:${0.28*k}"/><circle ${attrs} cx="${p[0]}" cy="${p[1]}" r="${hr}" style="fill:transparent"/>`;
+  const o=findSel();
+  if(o&&ui.mode==="select"){
+    if(ui.sel.k==="wall"){hd+=handle(o.a,`data-k="end" data-id="${o.id}" data-end="a"`)+handle(o.b,`data-k="end" data-id="${o.id}" data-end="b"`);}
+    else o.pts.forEach((p,i)=>{hd+=handle(p,`data-k="vert" data-id="${o.id}" data-i="${i}"`);});
+  }
+
+  let dr="";
+  const d=ui.draft;
+  if(d&&d.kind==="wall"){
+    dr+=`<circle cx="${d.a[0]}" cy="${d.a[1]}" r="${vr}" pointer-events="none" style="fill:var(--sel)"/>`;
+    if(d.cur){
+      dr+=`<line x1="${d.a[0]}" y1="${d.a[1]}" x2="${d.cur[0]}" y2="${d.cur[1]}" pointer-events="none" style="stroke:var(--sel);stroke-width:0.5;stroke-dasharray:${0.8*k} ${0.5*k}"/>`;
+      const m=[(d.a[0]+d.cur[0])/2,(d.a[1]+d.cur[1])/2];
+      dr+=`<text x="${m[0]}" y="${m[1]-fs*0.6}" text-anchor="middle" pointer-events="none" style="fill:var(--sel);font-size:${fs}px;font-weight:600">${fmtLen(dist(d.a,d.cur))}</text>`;
+    }
+  }
+  if(d&&d.kind==="area"){
+    const pts=d.cur?[...d.pts,d.cur]:d.pts;
+    dr+=`<polyline points="${pts.map(p=>p[0]+","+p[1]).join(" ")}" pointer-events="none" style="fill:var(--sel);fill-opacity:.08;stroke:var(--sel);stroke-width:${0.3*k};stroke-dasharray:${0.8*k} ${0.5*k}"/>`;
+    d.pts.forEach((p,i)=>{dr+=`<circle cx="${p[0]}" cy="${p[1]}" r="${i===0?vr*1.6:vr}" pointer-events="none" style="fill:${i===0?"var(--panel)":"var(--sel)"};stroke:var(--sel);stroke-width:${0.25*k}"/>`;});
+    if(pts.length>=3)dr+=`<text x="${centroid(pts)[0]}" y="${centroid(pts)[1]}" text-anchor="middle" pointer-events="none" style="fill:var(--sel);font-size:${fs}px;font-weight:600">${fmt(polyArea(pts))} SF</text>`;
+  }
+  svg.innerHTML=g+ar+wl+lb+dm+hd+dr;
+}
+
+let drag=null;
+const pointers=new Map();
+let pinch=null;
+
+svg.addEventListener("pointerdown",e=>{
+  try{svg.setPointerCapture(e.pointerId);}catch(err){}
+  pointers.set(e.pointerId,[e.clientX,e.clientY]);
+  if(pointers.size===2){
+    const [p1,p2]=[...pointers.values()];
+    pinch={d0:Math.hypot(p1[0]-p2[0],p1[1]-p2[1]),w0:ui.view.w};
+    if(drag&&drag.hist)commit();
+    drag=null;return;
+  }
+  shiftHeld=e.shiftKey;
+  const p=toPlan(e),f=cur();
+  if(ui.mode==="wall"){
+    const q=snapPt(p);
+    if(!ui.draft)ui.draft={kind:"wall",a:q,cur:null};
+    else{
+      const b=orthoPt(ui.draft.a,q);
+      if(dist(ui.draft.a,b)>0.3){pushHist();const w=W(ui.draft.a,b,0.5);f.walls.push(w);ui.sel={k:"wall",id:w.id};ui.draft=null;commit();return;}
+      ui.draft=null;
+    }
+    renderPlan();renderToolbar();return;
+  }
+  if(ui.mode==="area"){
+    const q0=snapPt(p);
+    if(!ui.draft)ui.draft={kind:"area",pts:[q0],cur:null};
+    else if(ui.draft.pts.length>=3&&dist(q0,ui.draft.pts[0])<Math.max(1,vb().w/45)){finishArea();return;}
+    else ui.draft.pts.push(orthoPt(ui.draft.pts[ui.draft.pts.length-1],q0));
+    ui.typed="";
+    renderPlan();renderToolbar();return;
+  }
+  const t=e.target.closest("[data-k]");
+  if(t){
+    const k=t.dataset.k,id=t.dataset.id;
+    if(k==="end")drag={k,id,end:t.dataset.end,hist:false};
+    else if(k==="vert")drag={k,id,i:+t.dataset.i,hist:false};
+    else{
+      ui.sel={k,id};
+      const o=findSel();
+      drag={k:"move",start:p,orig:clone(o),hist:false};
+    }
+    renderPlan();renderSel();return;
+  }
+  ui.sel=null;
+  drag={k:"pan",sx:e.clientX,sy:e.clientY,cx:ui.view.cx,cy:ui.view.cy};
+  renderPlan();renderSel();
+});
+
+svg.addEventListener("pointermove",e=>{
+  if(pointers.has(e.pointerId))pointers.set(e.pointerId,[e.clientX,e.clientY]);
+  if(pinch&&pointers.size===2){
+    const [p1,p2]=[...pointers.values()];
+    const d=Math.hypot(p1[0]-p2[0],p1[1]-p2[1]);
+    if(d>0){ui.view.w=Math.max(12,Math.min(260,pinch.w0*pinch.d0/d));renderPlan();}
+    return;
+  }
+  shiftHeld=e.shiftKey;
+  const p=toPlan(e);
+  if(!drag){
+    if(ui.draft){
+      const from=draftFrom();
+      ui.draft.cur=from?orthoPt(from,snapPt(p)):snapPt(p);
+      renderPlan();
+    }
+    return;
+  }
+  if(drag.k==="pan"){
+    const v=vb();
+    ui.view.cx=drag.cx-(e.clientX-drag.sx)/v.pxPerFt;
+    ui.view.cy=drag.cy-(e.clientY-drag.sy)/v.pxPerFt;
+    renderPlan();return;
+  }
+  const o=findSel();if(!o)return;
+  if(!drag.hist){pushHist();drag.hist=true;}
+  if(drag.k==="end"){
+    const other=drag.end==="a"?o.b:o.a;
+    const q=snapPt(p,o.id+":"+drag.end);
+    o[drag.end]=orthoPt(other,q);
+  }else if(drag.k==="vert"){
+    o.pts[drag.i]=snapPt(p,o.id+":"+drag.i);
+  }else if(drag.k==="move"){
+    const g=ui.snap?0.5:0.01;
+    const dx=Math.round((p[0]-drag.start[0])/g)*g,dy=Math.round((p[1]-drag.start[1])/g)*g;
+    if(ui.sel.k==="wall"){o.a=[drag.orig.a[0]+dx,drag.orig.a[1]+dy];o.b=[drag.orig.b[0]+dx,drag.orig.b[1]+dy];}
+    else o.pts=drag.orig.pts.map(q=>[q[0]+dx,q[1]+dy]);
+  }
+  renderPlan();scheduleLive();
+});
+function endPointer(e){
+  pointers.delete(e.pointerId);
+  if(pointers.size<2)pinch=null;
+  if(drag&&drag.hist){drag=null;commit();return;}
+  drag=null;
+}
+svg.addEventListener("pointerup",endPointer);
+svg.addEventListener("pointercancel",endPointer);
+svg.addEventListener("wheel",e=>{e.preventDefault();ui.view.w=Math.max(12,Math.min(260,ui.view.w*(e.deltaY>0?1.12:0.89)));renderPlan();},{passive:false});
+
+function finishArea(){
+  const d=ui.draft;if(!d||d.kind!=="area"||d.pts.length<3)return;
+  pushHist();
+  const a=A(ui.areaType,d.pts);cur().areas.push(a);
+  ui.draft=null;ui.sel={k:"area",id:a.id};
+  commit();
+}
+
+let liveQueued=false;
+function scheduleLive(){if(liveQueued)return;liveQueued=true;requestAnimationFrame(()=>{liveQueued=false;renderTotals();build3D();});}
+
+/* ---------- 3D ---------- */
+let renderer,scene,camera,controls,root,pickables=[];
+function init3D(){
+  const el=$("#view");
+  if(typeof THREE==="undefined"||!THREE.OrbitControls){
+    el.insertAdjacentHTML("beforeend",`<div class="err">The 3D view could not load its library. The plan editor and totals still work.</div>`);
+    return false;
+  }
+  renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+  renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+  el.prepend(renderer.domElement);
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(38,1,1,3000);
+  camera.position.set(150,112,168);
+  controls=new THREE.OrbitControls(camera,renderer.domElement);
+  controls.target.set(0,34,0);
+  controls.enableDamping=true;
+  controls.maxPolarAngle=Math.PI*0.495;
+  scene.add(new THREE.HemisphereLight(0xffffff,0x8a8f8c,0.95));
+  const dl=new THREE.DirectionalLight(0xffffff,0.6);dl.position.set(90,170,70);scene.add(dl);
+  root=new THREE.Group();scene.add(root);
+  const ro=new ResizeObserver(()=>{
+    const r=el.getBoundingClientRect();
+    if(r.width<2||r.height<2)return;
+    renderer.setSize(r.width,r.height,false);
+    camera.aspect=r.width/r.height;camera.updateProjectionMatrix();
+  });
+  ro.observe(el);
+  let down=null;
+  renderer.domElement.addEventListener("pointerdown",e=>{down=[e.clientX,e.clientY];});
+  renderer.domElement.addEventListener("pointerup",e=>{
+    if(!down)return;
+    const moved=Math.hypot(e.clientX-down[0],e.clientY-down[1]);down=null;
+    if(moved>6)return;
+    const r=renderer.domElement.getBoundingClientRect();
+    const ndc=new THREE.Vector2(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);
+    const rc=new THREE.Raycaster();rc.setFromCamera(ndc,camera);
+    const hit=rc.intersectObjects(pickables,false)[0];
+    if(hit&&hit.object.userData.floor!=null)selectFloor(hit.object.userData.floor);
+  });
+  (function loop(){requestAnimationFrame(loop);controls.update();renderer.render(scene,camera);})();
+  return true;
+}
+function clearRoot(){
+  [...root.children].forEach(o=>{
+    root.remove(o);
+    o.traverse(n=>{
+      if(n.geometry)n.geometry.dispose();
+      if(n.material)(Array.isArray(n.material)?n.material:[n.material]).forEach(m=>m.dispose());
+    });
+  });
+  pickables=[];
+}
+function isDark(){
+  const t=document.documentElement.getAttribute("data-theme");
+  if(t==="dark")return true;if(t==="light")return false;
+  return window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+function build3D(){
+  if(!root)return;
+  clearRoot();
+  const dark=isDark();
+  const C=n=>new THREE.Color(cssVar(n));
+  const slabCol=new THREE.Color(dark?"#4A5458":"#D3D9D6");
+  const wallCol=new THREE.Color(dark?"#C7CFCC":"#FBFCFB");
+  const selCol=C("--gross");
+  const ink=C("--ink");
+  const elev=elevations();
+  const toShape=pts=>new THREE.Shape(pts.map(p=>new THREE.Vector2(p[0]-CX,CZ-p[1])));
+  S.floors.forEach((f,i)=>{
+    if(!ui.above&&i>ui.floor)return;
+    const y=elev[i],isSel=i===ui.floor;
+    f.areas.forEach(a=>{
+      if(a.pts.length<3)return;
+      const T=AREA_TYPES[a.type]||AREA_TYPES.gross;
+      if(T.kind==="gross"){
+        const geo=new THREE.ExtrudeGeometry(toShape(a.pts),{depth:0.8,bevelEnabled:false});
+        geo.rotateX(-Math.PI/2);
+        const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:isSel?selCol:slabCol,roughness:0.9,metalness:0}));
+        m.position.y=y;m.userData.floor=i;root.add(m);pickables.push(m);
+      }else{
+        const geo=new THREE.ShapeGeometry(toShape(a.pts));
+        geo.rotateX(-Math.PI/2);
+        const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:C(T.color),transparent:true,opacity:isSel?0.8:0.5,side:THREE.DoubleSide,depthWrite:false}));
+        m.position.y=y+(T.kind==="terrace"?0.05:0.86);m.userData.floor=i;root.add(m);pickables.push(m);
+      }
+    });
+    const wmat=new THREE.MeshStandardMaterial({color:isSel?selCol.clone().lerp(wallCol,0.55):wallCol,roughness:0.85,metalness:0});
+    const lmat=new THREE.LineBasicMaterial({color:ink,transparent:true,opacity:isSel?0.7:0.35});
+    const h=Math.max(1,f.height-0.8);
+    f.walls.forEach(w=>{
+      const dx=w.b[0]-w.a[0],dz=w.b[1]-w.a[1],L=Math.hypot(dx,dz);
+      if(L<0.05)return;
+      const geo=new THREE.BoxGeometry(L+w.t,h,w.t);
+      const m=new THREE.Mesh(geo,wmat);
+      m.position.set((w.a[0]+w.b[0])/2-CX,y+0.8+h/2,(w.a[1]+w.b[1])/2-CZ);
+      m.rotation.y=-Math.atan2(dz,dx);
+      m.userData.floor=i;
+      m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),lmat));
+      root.add(m);pickables.push(m);
+    });
+  });
+  const lotPts=LOT.map(p=>new THREE.Vector3(p[0]-CX,0.05,p[1]-CZ));
+  root.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(lotPts),new THREE.LineBasicMaterial({color:ink})));
+  const grid=new THREE.GridHelper(260,52,dark?0x2a3235:0xc3cbc8,dark?0x232a2d:0xd5dbd8);grid.position.y=-0.02;root.add(grid);
+  if(!ui.explode){
+    const hp=LOT.map(p=>new THREE.Vector3(p[0]-CX,S.settings.maxHeight,p[1]-CZ));
+    const hl=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(hp),new THREE.LineDashedMaterial({color:C("--over"),dashSize:2,gapSize:1.5}));
+    hl.computeLineDistances();root.add(hl);
+  }
+}
+
+/* ---------- glue ---------- */
+function commit(){save();renderAll();}
+function renderAll(){renderTabs();renderToolbar();renderPlan();renderSel();renderTotals();build3D();syncSettings();}
+function syncSettings(){
+  document.querySelectorAll("[data-set]").forEach(i=>{if(document.activeElement!==i)i.value=S.settings[i.dataset.set];});
+  $("#zoneGreen").checked=!!S.settings.zoneGreen;
+}
+
+$("#areaType").innerHTML=Object.keys(AREA_TYPES).map(k=>`<option value="${k}">${AREA_TYPES[k].label}</option>`).join("");
+$("#areaType").addEventListener("change",e=>{ui.areaType=e.target.value;});
+document.querySelectorAll("[data-mode]").forEach(b=>b.addEventListener("click",()=>{ui.mode=b.dataset.mode;ui.draft=null;renderToolbar();renderPlan();}));
+$("#closeShape").addEventListener("click",finishArea);
+$("#cancelDraft").addEventListener("click",()=>{ui.draft=null;renderToolbar();renderPlan();});
+$("#undo").addEventListener("click",undo);
+function undo(){if(!hist.length)return;S=JSON.parse(hist.pop());ui.sel=null;ui.draft=null;ui.floor=Math.min(ui.floor,S.floors.length-1);save();renderAll();}
+function toggleOrtho(){ui.ortho=!ui.ortho;savePrefs();renderToolbar();}
+function toggleSnap(){ui.snap=!ui.snap;savePrefs();renderToolbar();}
+$("#tOrtho").addEventListener("click",toggleOrtho);
+$("#tSnap").addEventListener("click",toggleSnap);
+$("#tDims").addEventListener("click",()=>{ui.dims=!ui.dims;savePrefs();renderToolbar();renderPlan();});
+function draftFrom(){
+  const d=ui.draft;if(!d)return null;
+  return d.kind==="wall"?d.a:(d.pts.length?d.pts[d.pts.length-1]:null);
+}
+function renderTyped(){
+  const el=$("#typed");if(!el)return;
+  el.textContent=ui.typed?`Length ${ui.typed}, press Enter to place`:(draftFrom()?"Type a length and press Enter":"");
+}
+function placeTyped(){
+  const d=ui.draft,from=draftFrom(),L=parseLen(ui.typed);
+  ui.typed="";
+  if(!d||!from||!(L>0)){renderTyped();return;}
+  const to=d.cur||[from[0]+1,from[1]];
+  let dx=to[0]-from[0],dy=to[1]-from[1],l=Math.hypot(dx,dy);
+  if(l<1e-6){dx=1;dy=0;l=1;}
+  const pt=[from[0]+dx/l*L,from[1]+dy/l*L];
+  if(d.kind==="wall"){pushHist();const w=W(d.a,pt,0.5);cur().walls.push(w);ui.sel={k:"wall",id:w.id};ui.draft=null;commit();return;}
+  d.pts.push(pt);d.cur=pt;renderPlan();renderToolbar();
+}
+$("#zIn").addEventListener("click",()=>{ui.view.w=Math.max(12,ui.view.w*0.75);renderPlan();});
+$("#zOut").addEventListener("click",()=>{ui.view.w=Math.min(260,ui.view.w/0.75);renderPlan();});
+$("#zFit").addEventListener("click",()=>{ui.view={cx:59,cy:15,w:140};renderPlan();});
+$("#tabs").addEventListener("click",e=>{const b=e.target.closest("[data-floor]");if(b)selectFloor(+b.dataset.floor);});
+$("#tbody").addEventListener("click",e=>{const r=e.target.closest("[data-floor]");if(r)selectFloor(+r.dataset.floor);});
+$("#fUse").addEventListener("change",e=>{pushHist();cur().use=e.target.value;commit();});
+$("#fHeight").addEventListener("change",e=>{const v=parseFloat(e.target.value);if(v>=7){pushHist();cur().height=v;commit();}});
+$("#copyBelow").addEventListener("click",()=>{
+  if(ui.floor===0)return;pushHist();
+  const src=reId(clone(S.floors[ui.floor-1]));
+  cur().walls=src.walls;cur().areas=src.areas;ui.sel=null;commit();
+});
+$("#extWalls").addEventListener("click",()=>{
+  pushHist();const f=cur();
+  f.walls=f.walls.filter(w=>w.tag!=="ext");
+  f.areas.filter(a=>a.type==="gross").forEach(a=>f.walls.push(...ring(a.pts,1,"ext")));
+  ui.sel=null;commit();
+});
+$("#addFloor").addEventListener("click",()=>{
+  pushHist();
+  const top=S.floors[S.floors.length-1];
+  const n=S.floors.filter(f=>f.use!=="cellar").length+1;
+  const nf=reId(clone(top));nf.id=uid();nf.name=ord(n)+" floor";
+  S.floors.push(nf);ui.floor=S.floors.length-1;ui.sel=null;commit();
+});
+$("#removeFloor").addEventListener("click",()=>{
+  if(S.floors.length<=2)return;pushHist();
+  S.floors.pop();ui.floor=Math.min(ui.floor,S.floors.length-1);ui.sel=null;commit();
+});
+document.querySelectorAll("[data-set]").forEach(i=>i.addEventListener("change",e=>{
+  const v=parseFloat(e.target.value);if(isNaN(v))return;pushHist();S.settings[i.dataset.set]=v;commit();
+}));
+$("#zoneGreen").addEventListener("change",e=>{pushHist();S.settings.zoneGreen=e.target.checked;commit();});
+let resetArmed=null;
+$("#reset").addEventListener("click",()=>{
+  const b=$("#reset");
+  if(!resetArmed){b.textContent="Tap again to reset all floors";b.classList.add("warn");resetArmed=setTimeout(()=>{resetArmed=null;b.textContent="Reset to the sketch";b.classList.remove("warn");},3500);return;}
+  clearTimeout(resetArmed);resetArmed=null;b.textContent="Reset to the sketch";b.classList.remove("warn");
+  pushHist();S=seed();ui.floor=Math.min(5,S.floors.length-1);ui.sel=null;ui.draft=null;commit();
+});
+$("#tExplode").addEventListener("click",e=>{ui.explode=!ui.explode;e.currentTarget.setAttribute("aria-pressed",String(ui.explode));build3D();});
+$("#tAbove").addEventListener("click",e=>{ui.above=!ui.above;e.currentTarget.setAttribute("aria-pressed",String(ui.above));build3D();});
+document.addEventListener("keydown",e=>{
+  const tag=(e.target.tagName||"").toLowerCase();
+  if(tag==="input"||tag==="select"||tag==="textarea")return;
+  if(e.key==="Shift"){shiftHeld=true;}
+  if(e.key==="F8"){e.preventDefault();toggleOrtho();return;}
+  if(e.key==="F9"){e.preventDefault();toggleSnap();return;}
+  if(draftFrom()&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
+    if(/^[0-9.'" -]$/.test(e.key)){e.preventDefault();ui.typed+=e.key;renderTyped();return;}
+    if(e.key==="Backspace"&&ui.typed){e.preventDefault();ui.typed=ui.typed.slice(0,-1);renderTyped();return;}
+    if(e.key==="Enter"&&ui.typed){e.preventDefault();placeTyped();return;}
+  }
+  if(e.key==="Escape"){ui.draft=null;renderToolbar();renderPlan();}
+  else if((e.key==="Delete"||e.key==="Backspace")&&ui.sel){e.preventDefault();deleteSel();}
+  else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="z"){e.preventDefault();undo();}
+  else if(e.key==="Enter"&&ui.draft&&ui.draft.kind==="area"){finishArea();}
+});
+new ResizeObserver(()=>renderPlan()).observe(svg);
+if(window.matchMedia)window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>build3D());
+new MutationObserver(()=>{build3D();}).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+
+/* ---------- resizable split between the 3D view and the panel ---------- */
+const SPLIT_KEY="s2nd-split-v1",app=$(".app"),split=$("#split");
+let splitW=null,lastW=null;
+try{const v=JSON.parse(localStorage.getItem(SPLIT_KEY));if(v&&typeof v.w==="number")splitW=v.w;if(v&&typeof v.last==="number")lastW=v.last;}catch(e){}
+function applySplit(){
+  if(splitW==null)app.style.removeProperty("--viewW");else app.style.setProperty("--viewW",splitW+"px");
+  app.classList.toggle("no3d",splitW===0);
+  split.setAttribute("aria-valuenow",String(splitW==null?52:Math.round(splitW)));
+}
+function saveSplit(){try{localStorage.setItem(SPLIT_KEY,JSON.stringify({w:splitW,last:lastW}));}catch(e){}}
+function maxSplit(){return app.getBoundingClientRect().width-430;}
+function hide3D(){if(splitW!==0)lastW=splitW==null?null:splitW;splitW=0;applySplit();saveSplit();}
+function show3D(){splitW=lastW&&lastW>0?Math.min(lastW,maxSplit()):null;applySplit();saveSplit();}
+let splitDrag=false;
+split.addEventListener("pointerdown",e=>{splitDrag=true;try{split.setPointerCapture(e.pointerId);}catch(err){}split.classList.add("drag");e.preventDefault();});
+split.addEventListener("pointermove",e=>{
+  if(!splitDrag)return;
+  let w=e.clientX-app.getBoundingClientRect().left-5;
+  w=Math.max(0,Math.min(maxSplit(),w));
+  splitW=w<140?0:w;if(splitW>0)lastW=splitW;applySplit();
+});
+function endSplit(){if(!splitDrag)return;splitDrag=false;split.classList.remove("drag");if(splitW>0)lastW=splitW;saveSplit();}
+split.addEventListener("pointerup",endSplit);
+split.addEventListener("pointercancel",endSplit);
+split.addEventListener("dblclick",()=>{splitW===0?show3D():hide3D();});
+split.addEventListener("keydown",e=>{
+  if(e.key!=="ArrowLeft"&&e.key!=="ArrowRight")return;
+  e.preventDefault();
+  const curW=splitW==null?$("#view").getBoundingClientRect().width:splitW;
+  let w=curW+(e.key==="ArrowLeft"?-40:40);
+  w=Math.max(0,Math.min(maxSplit(),w));
+  splitW=w<140?0:w;if(splitW>0)lastW=splitW;applySplit();saveSplit();
+});
+$("#tHide").addEventListener("click",hide3D);
+$("#show3d").addEventListener("click",show3D);
+applySplit();
+
+document.addEventListener("keyup",e=>{if(e.key==="Shift")shiftHeld=false;});
+
+init3D();
+renderAll();
+connectDb();
+})();
+</script>
+</body>
+</html>
