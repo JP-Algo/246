@@ -1709,8 +1709,9 @@ document.addEventListener("keydown",e=>{
     if(e.key==="Enter"&&ui.typed){e.preventDefault();placeTyped();return;}
   }
   if(e.key==="Escape"){
-    if(ui.fs&&!ui.draft&&!ui.pop){setFull(false);return;}
-    ui.draft=null;ui.pop=null;renderToolbar();renderPlan();
+    // Escape cancels what is in progress and returns to Select and move; once there, it leaves full screen
+    if(ui.fs&&ui.mode==="select"&&!ui.draft&&!ui.pop){setFull(false);return;}
+    ui.draft=null;ui.pop=null;ui.hover=null;ui.typed="";ui.mode="select";renderToolbar();renderPlan();
   }
   else if((e.key==="Delete"||e.key==="Backspace")&&ui.sel){e.preventDefault();deleteSel();}
   else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="z"){e.preventDefault();undo();}
