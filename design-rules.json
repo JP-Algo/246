@@ -81,6 +81,16 @@
       "label": "Corridor floor area exclusion",
       "meaning": "50% when the corridor has at least 20 SF of glazing (directly in the corridor, in an adjacent stair enclosure wall with a door having at least 16 SF of glazing, or in common space along the corridor); plus 50% when the corridor is no more than 100 ft from the vertical circulation core to the farthest dwelling unit door. Together: 100%.",
       "source": "NYC Zoning Resolution 23-232 (a) and (b)"
+    },
+    "useAreas": {
+      "label": "Residential and Commercial areas",
+      "meaning": "Drawn inside the gross outline to set the use of that part of a floor (for example a residential lobby on a commercial floor). The rest of the floor follows the floor's use. Deductions and amenity count toward the use of the area they sit in. The core is not double counted when it sits inside a Residential area.",
+      "source": "Project modeling convention"
+    },
+    "sellable": {
+      "label": "Sellable area, residential and commercial",
+      "meaning": "Tracked for efficiency only and not part of the floor area math. Efficiency = sellable area / gross floor area of that use, above grade.",
+      "source": "Project modeling convention"
     }
   },
   "siteInputs246South2nd": {

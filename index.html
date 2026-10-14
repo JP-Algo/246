@@ -11,7 +11,7 @@
 :root{
   color-scheme: light;
   --paper:#EDF0EE; --panel:#F8FAF9; --ink:#1E2528; --muted:#5A666B; --line:#C8D0CD; --grid:#DCE2DF;
-  --gross:#2D6BAA; --deduct:#B27410; --amenity:#6A57B8; --terrace:#2E7D50; --core:#0E7C86; --over:#B3261E; --sel:#C2307A;
+  --gross:#2D6BAA; --deduct:#B27410; --amenity:#6A57B8; --terrace:#2E7D50; --core:#0E7C86; --comm:#9C3D54; --sell:#44505A; --over:#B3261E; --sel:#C2307A;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px);
   padding-bottom:env(safe-area-inset-bottom,0px);
@@ -20,13 +20,13 @@
   :root:not([data-theme="light"]){
     color-scheme: dark;
     --paper:#13181A; --panel:#1A2023; --ink:#E1E7E4; --muted:#98A4A8; --line:#313A3D; --grid:#222A2D;
-    --gross:#6FA6DC; --deduct:#E2AC47; --amenity:#A898EA; --terrace:#6BBB8C; --core:#5CC4CC; --over:#F07A70; --sel:#F08DBA;
+    --gross:#6FA6DC; --deduct:#E2AC47; --amenity:#A898EA; --terrace:#6BBB8C; --core:#5CC4CC; --comm:#E58BA0; --sell:#C9D2D8; --over:#F07A70; --sel:#F08DBA;
   }
 }
 :root[data-theme="dark"]{
   color-scheme: dark;
   --paper:#13181A; --panel:#1A2023; --ink:#E1E7E4; --muted:#98A4A8; --line:#313A3D; --grid:#222A2D;
-  --gross:#6FA6DC; --deduct:#E2AC47; --amenity:#A898EA; --terrace:#6BBB8C; --core:#5CC4CC; --over:#F07A70; --sel:#F08DBA;
+  --gross:#6FA6DC; --deduct:#E2AC47; --amenity:#A898EA; --terrace:#6BBB8C; --core:#5CC4CC; --comm:#E58BA0; --sell:#C9D2D8; --over:#F07A70; --sel:#F08DBA;
 }
 *{box-sizing:inherit}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
@@ -97,7 +97,7 @@ input.in{width:84px}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted);margin-top:8px}
 .legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px;background:var(--c)}
 .tablewrap{overflow-x:auto}
-table{border-collapse:collapse;width:100%;min-width:640px;font-size:13.5px}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:13.5px}
 th,td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
 th{font-weight:600;color:var(--muted);font-size:12.5px}
 th:first-child,td:first-child{text-align:left}
@@ -237,6 +237,9 @@ tfoot td{font-weight:600;border-bottom:0}
         <span style="--c:var(--amenity)">Amenity (5% cap)</span>
         <span style="--c:var(--terrace)">Terrace (not floor area)</span>
         <span style="--c:var(--core)">Elevator and stair core</span>
+        <span style="--c:var(--gross)">Residential area</span>
+        <span style="--c:var(--comm)">Commercial area</span>
+        <span style="--c:var(--sell)">Sellable area (not in the FAR math)</span>
       </div>
       <div class="sel" id="sel"></div>
       <p class="note" id="modeNote"></p>
@@ -264,7 +267,7 @@ tfoot td{font-weight:600;border-bottom:0}
       <h2>Floor by floor</h2>
       <div class="tablewrap">
         <table>
-          <thead><tr><th>Floor</th><th>Residential gross</th><th>Commercial gross</th><th>Total gross</th><th>Deductions</th><th>Zoning floor area</th><th>Terrace</th></tr></thead>
+          <thead><tr><th>Floor</th><th>Residential gross</th><th>Commercial gross</th><th>Total gross</th><th>Deductions</th><th>Zoning floor area</th><th>Sellable</th><th>Terrace</th></tr></thead>
           <tbody id="tbody"></tbody>
           <tfoot id="tfoot"></tfoot>
         </table>
@@ -320,16 +323,23 @@ const LOT=[[0,0],[FRONT,0],[FRONT,25],[20,25],[20,30],[0,30]];
 const CORE=rect(64,6,80,19);
 
 const AREA_TYPES={
-  gross:{label:"Gross floor area",short:"Gross",kind:"gross",color:"--gross"},
+  gross:{label:"Gross floor area (follows the floor's use)",short:"Gross",kind:"gross",color:"--gross"},
   parking:{base:"Parking",label:"Parking (100%)",short:"Parking",kind:"deduct",factor:1,color:"--deduct"},
   mechanical:{base:"Mechanical",label:"Mechanical (100%)",short:"Mechanical",kind:"deduct",factor:1,color:"--deduct"},
   corridor100:{base:"Corridor, full",label:"Corridor (100%)",short:"Corridor 100%",kind:"deduct",factor:1,color:"--deduct"},
   corridor50:{base:"Corridor, partial",label:"Corridor (50%)",short:"Corridor 50%",kind:"deduct",factor:.5,color:"--deduct"},
   laundry:{base:"Laundry",label:"Laundry (100%)",short:"Laundry",kind:"deduct",factor:1,color:"--deduct"},
   amenity:{label:"Amenity (5% cap)",short:"Amenity",kind:"amenity",factor:1,color:"--amenity"},
-  terrace:{label:"Terrace (outdoor)",short:"Terrace",kind:"terrace",color:"--terrace"}
+  terrace:{label:"Terrace (outdoor)",short:"Terrace",kind:"terrace",color:"--terrace"},
+  // Use areas sit inside the gross outline and set the use of that part of the floor
+  resArea:{label:"Residential area",short:"Residential",kind:"use",use:"residential",color:"--gross"},
+  commArea:{label:"Commercial area",short:"Commercial",kind:"use",use:"commercial",color:"--comm"},
+  // Sellable areas are tracked for efficiency only and do not change floor area
+  sellRes:{label:"Sellable area, residential",short:"Sellable res.",kind:"sell",use:"residential",color:"--sell"},
+  sellComm:{label:"Sellable area, commercial",short:"Sellable comm.",kind:"sell",use:"commercial",color:"--sell"}
 };
-const ORDER=["gross","terrace","amenity","parking","mechanical","corridor50","corridor100","laundry"];
+const MENU=["gross","resArea","commArea","parking","mechanical","corridor100","corridor50","laundry","amenity","terrace","sellRes","sellComm"];
+const ORDER=["gross","resArea","commArea","terrace","amenity","parking","mechanical","corridor50","corridor100","laundry","sellRes","sellComm"];
 
 const A=(type,pts)=>({id:uid(),type,pts:pts.map(p=>[p[0],p[1]])});
 const W=(a,b,t,tag)=>({id:uid(),a:[a[0],a[1]],b:[b[0],b[1]],t,tag:tag||""});
@@ -668,41 +678,45 @@ function elevations(){
 function compute(){
   const st=S.settings;
   const rows=S.floors.map((f,i)=>{
-    let gross=0,ded=0,amen=0,terr=0;
+    const below=f.use==="cellar",cr=courtRectFor(f);
+    // Residential and Commercial areas set the use of the part of the floor they cover
+    const ovs={residential:[],commercial:[]};
+    f.areas.forEach(a=>{const T=AREA_TYPES[a.type];if(T&&T.kind==="use"&&a.pts.length>=3)ovs[T.use].push(a);});
+    const useAt=q=>ovs.residential.some(a=>pointInPoly(q,a.pts))?"residential":ovs.commercial.some(a=>pointInPoly(q,a.pts))?"commercial":f.use;
+    let gross=0,court=0,terr=0,ovRes=0,ovComm=0,amen=0,sellRes=0,sellComm=0;
+    const ded={residential:0,commercial:0};
     f.areas.forEach(a=>{
       if(a.pts.length<3)return;
-      const ar=polyArea(a.pts),T=AREA_TYPES[a.type]||AREA_TYPES.gross;
-      if(T.kind==="gross")gross+=ar;else if(T.kind==="deduct")ded+=ar*factorOf(a.type);else if(T.kind==="amenity")amen+=ar;else terr+=ar;
+      const T=AREA_TYPES[a.type]||AREA_TYPES.gross,ar=polyArea(a.pts),rr=rectOf(a.pts);
+      const cv=cr?(rr?rectOverlap(rr,cr):(T.kind==="gross"?(cr.x1-cr.x0)*(cr.y1-cr.y0):0)):0,net=Math.max(0,ar-cv);
+      if(T.kind==="gross"){gross+=net;court+=cv;}
+      else if(T.kind==="use"){if(T.use==="residential")ovRes+=net;else ovComm+=net;}
+      else if(T.kind==="deduct"){ded[useAt(centroid(a.pts))==="commercial"?"commercial":"residential"]+=net*factorOf(a.type);}
+      else if(T.kind==="amenity"){if(useAt(centroid(a.pts))==="residential")amen+=net;}
+      else if(T.kind==="sell"){if(T.use==="residential")sellRes+=net;else sellComm+=net;}
+      else terr+=ar;
     });
-    const below=f.use==="cellar";
-    const cr=courtRectFor(f);let court=0;
-    if(cr){
-      f.areas.forEach(a=>{
-        if(a.pts.length<3)return;
-        const T=AREA_TYPES[a.type]||AREA_TYPES.gross,r=rectOf(a.pts);
-        const ov=r?rectOverlap(r,cr):(T.kind==="gross"?(cr.x1-cr.x0)*(cr.y1-cr.y0):0);
-        if(!ov)return;
-        if(T.kind==="gross"){gross-=ov;court+=ov;}else if(T.kind==="deduct")ded-=ov*factorOf(a.type);else if(T.kind==="amenity")amen-=ov;
-      });
+    const cc=coreRectFor(f),coreInRes=cc&&ovs.residential.some(a=>pointInPoly([(cc.x0+cc.x1)/2,(cc.y0+cc.y1)/2],a.pts));
+    const coreRes=!below&&f.use==="commercial"&&f.coreRes!==false&&!coreInRes?coreArea(f):0;
+    let resGross=0,commGross=0;
+    if(!below){
+      if(f.use==="residential"){commGross=Math.min(ovComm,gross);resGross=gross-commGross;}
+      else{resGross=Math.min(gross,ovRes+coreRes);commGross=gross-resGross;}
     }
-    const coreRes=!below&&f.use==="commercial"&&f.coreRes!==false?coreArea(f):0;
-    return {i,f,gross,ded,amen,terr,below,coreRes,court,zfaPre:below?0:Math.max(0,gross-ded)};
+    const resPreF=below?0:Math.max(0,resGross-ded.residential),commPreF=below?0:Math.max(0,commGross-ded.commercial);
+    return {i,f,gross,court,terr,below,coreRes,amen:below?0:amen,sellRes,sellComm,resGross,commGross,resPreF,commPreF};
   });
-  const res=rows.filter(r=>r.f.use==="residential");
-  const resPre=res.reduce((s,r)=>s+r.zfaPre,0)+rows.reduce((s,r)=>s+r.coreRes,0);
-  const amenRaw=res.reduce((s,r)=>s+r.amen,0);
+  const resPre=rows.reduce((s,r)=>s+r.resPreF,0);
+  const amenRaw=rows.reduce((s,r)=>s+r.amen,0);
   const amenCap=S.rules.amenityCap.pct/100*resPre;
   const amenAllowed=Math.min(amenRaw,amenCap);
   const ratio=amenRaw>0?amenAllowed/amenRaw:0;
   rows.forEach(r=>{
-    r.amenAllowed=r.f.use==="residential"?r.amen*ratio:0;
-    r.zfa=r.below?0:Math.max(0,r.zfaPre-r.amenAllowed);
+    r.amenAllowed=r.amen*ratio;
+    r.resZfa=Math.max(0,r.resPreF-r.amenAllowed);
+    r.commZfa=r.commPreF;
+    r.zfa=r.below?0:r.resZfa+r.commZfa;
     r.dedTotal=r.below?r.gross:(r.gross-r.zfa);
-    const coreZ=Math.min(r.coreRes,r.zfa);
-    r.resZfa=r.f.use==="residential"?r.zfa:coreZ;
-    r.commZfa=r.f.use==="commercial"?r.zfa-coreZ:0;
-    r.resGross=r.f.use==="residential"?r.gross:Math.min(r.coreRes,r.gross);
-    r.commGross=r.f.use==="commercial"?r.gross-r.resGross:0;
   });
   const resZfa0=rows.reduce((s,r)=>s+r.resZfa,0);
   const zoneGreen=st.zoneGreen?S.rules.zoneGreen.pct/100*resZfa0:0;
@@ -715,7 +729,9 @@ function compute(){
   const grossAbove=rows.filter(r=>!r.below).reduce((s,r)=>s+r.gross,0);
   const terrTotal=rows.reduce((s,r)=>s+r.terr,0);
   const height=S.floors.filter(f=>f.use!=="cellar").reduce((s,f)=>s+f.height,0);
-  return {rows,resPre,amenRaw,amenCap,amenAllowed,zoneGreen,resZfa,commZfa,total,allowed,resCap,commCap,grossAbove,terrTotal,height};
+  const sellRes=rows.reduce((s,r)=>s+r.sellRes,0),sellComm=rows.reduce((s,r)=>s+r.sellComm,0);
+  const resGrossT=rows.reduce((s,r)=>s+r.resGross,0),commGrossT=rows.reduce((s,r)=>s+r.commGross,0);
+  return {sellRes,sellComm,resGrossT,commGrossT,rows,resPre,amenRaw,amenCap,amenAllowed,zoneGreen,resZfa,commZfa,total,allowed,resCap,commCap,grossAbove,terrTotal,height};
 }
 
 /* ---------- totals UI ---------- */
@@ -733,15 +749,19 @@ function renderTotals(){
 
   const tb=$("#tbody");
   tb.innerHTML=c.rows.slice().reverse().map(r=>{
-    const use=(r.f.use==="cellar"?"Cellar, exempt":r.f.use==="commercial"?(r.coreRes?"Commercial, core residential":"Commercial"):"Residential")+(r.court?`, light well ${fmt(r.court)} SF`:"");
-    return `<tr data-floor="${r.i}" class="${r.i===ui.floor?"on":""}"><td>${r.f.name}<small>${use}</small></td><td>${r.resGross?fmt(r.resGross):"–"}</td><td>${r.commGross?fmt(r.commGross):"–"}</td><td>${fmt(r.gross)}</td><td>${fmt(r.dedTotal)}</td><td>${fmt(r.zfa)}</td><td>${r.terr?fmt(r.terr):"–"}</td></tr>`;
+    const mixed=r.f.use!=="cellar"&&r.resGross>0.5&&r.commGross>0.5;
+    const use=(r.f.use==="cellar"?"Cellar, exempt":mixed?(r.f.use==="commercial"&&r.coreRes&&r.resGross<=r.coreRes+0.5?"Commercial, core residential":"Mixed use"):r.f.use==="commercial"?"Commercial":"Residential")+(r.court?`, light well ${fmt(r.court)} SF`:"");
+    const sell=r.sellRes+r.sellComm;
+    const sellCell=sell?`${fmt(sell)}${r.sellRes&&r.sellComm?`<small>R ${fmt(r.sellRes)} · C ${fmt(r.sellComm)}</small>`:`<small>${r.sellRes?"Residential":"Commercial"}</small>`}`:"–";
+    return `<tr data-floor="${r.i}" class="${r.i===ui.floor?"on":""}"><td>${r.f.name}<small>${use}</small></td><td>${r.resGross?fmt(r.resGross):"–"}</td><td>${r.commGross?fmt(r.commGross):"–"}</td><td>${fmt(r.gross)}</td><td>${fmt(r.dedTotal)}</td><td>${fmt(r.zfa)}</td><td>${sellCell}</td><td>${r.terr?fmt(r.terr):"–"}</td></tr>`;
   }).join("");
   const resGross=c.rows.reduce((s,r)=>s+r.resGross,0);
   const commGross=c.rows.reduce((s,r)=>s+r.commGross,0);
   $("#tfoot").innerHTML=
-    `<tr class="adj"><td>Amenity counted</td><td></td><td></td><td></td><td>${fmt(c.amenAllowed)} of ${fmt(c.amenRaw)}</td><td colspan="2" style="text-align:left">cap is ${S.rules.amenityCap.pct}% of residential, ${fmt(c.amenCap)} SF</td></tr>`+
-    `<tr class="adj"><td>Zone Green</td><td></td><td></td><td></td><td>${S.settings.zoneGreen?fmt(c.zoneGreen):"off"}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td></tr>`+
-    `<tr><td>Total above grade</td><td>${fmt(resGross)}</td><td>${fmt(commGross)}</td><td>${fmt(c.grossAbove)}</td><td>${fmt(c.grossAbove-c.total)}</td><td>${fmt(c.total)}</td><td>${fmt(c.terrTotal)}</td></tr>`;
+    `<tr class="adj"><td>Amenity counted</td><td></td><td></td><td></td><td>${fmt(c.amenAllowed)} of ${fmt(c.amenRaw)}</td><td colspan="3" style="text-align:left">cap is ${S.rules.amenityCap.pct}% of residential, ${fmt(c.amenCap)} SF</td></tr>`+
+    `<tr class="adj"><td>Zone Green</td><td></td><td></td><td></td><td>${S.settings.zoneGreen?fmt(c.zoneGreen):"off"}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td></tr>`+
+    `<tr><td>Total above grade</td><td>${fmt(resGross)}</td><td>${fmt(commGross)}</td><td>${fmt(c.grossAbove)}</td><td>${fmt(c.grossAbove-c.total)}</td><td>${fmt(c.total)}</td><td>${fmt(c.sellRes+c.sellComm)}</td><td>${fmt(c.terrTotal)}</td></tr>`+
+    `<tr class="adj"><td>Sellable efficiency<small>sellable ÷ gross of that use</small></td><td>${c.resGrossT?Math.round(c.sellRes/c.resGrossT*100)+"%":"–"}</td><td>${c.commGrossT?Math.round(c.sellComm/c.commGrossT*100)+"%":"–"}</td><td>${c.grossAbove?Math.round((c.sellRes+c.sellComm)/c.grossAbove*100)+"%":"–"}</td><td></td><td></td><td>R ${fmt(c.sellRes)} · C ${fmt(c.sellComm)}</td><td></td></tr>`;
 
   const cap=(label,v,max,unit)=>{
     const over=v>max+0.5;
@@ -993,8 +1013,8 @@ function renderSel(){
     });
   }else{
     const T=AREA_TYPES[o.type],ar=polyArea(o.pts);
-    const counted=T.kind==="deduct"?`, deducts ${fmt(ar*factorOf(o.type))} SF`:T.kind==="amenity"?`, deducted within the ${S.rules.amenityCap.pct}% cap`:"";
-    el.innerHTML=`<label class="check">Area <select class="in" id="aT">${Object.keys(AREA_TYPES).map(k=>`<option value="${k}" ${k===o.type?"selected":""}>${labelOf(k)}</option>`).join("")}</select></label>
+    const counted=T.kind==="deduct"?`, deducts ${fmt(ar*factorOf(o.type))} SF`:T.kind==="amenity"?`, deducted within the ${S.rules.amenityCap.pct}% cap`:T.kind==="use"?`, counts as ${T.use} floor area`:T.kind==="sell"?", sellable, not part of the floor area math":"";
+    el.innerHTML=`<label class="check">Area <select class="in" id="aT">${MENU.map(k=>`<option value="${k}" ${k===o.type?"selected":""}>${labelOf(k)}</option>`).join("")}</select></label>
       <span>${fmt(ar)} SF${counted}</span>
       <button class="btn warn" id="delSel">Delete area</button>${dimEditor(o)}`;
     el.querySelectorAll("[data-r],[data-v]").forEach(inp=>inp.addEventListener("change",e=>applyDimEdit(o,e.target)));
@@ -1145,8 +1165,8 @@ function renderPlan(){
   areas.forEach(a=>{
     if(a.pts.length<3||!showFar)return;
     const T=AREA_TYPES[a.type]||AREA_TYPES.gross,c=`var(${T.color})`,sel=ui.sel&&ui.sel.id===a.id;
-    const dash=a.type==="terrace"?`stroke-dasharray:${0.8*k} ${0.5*k};`:"";
-    ar+=`<path data-k="area" data-id="${a.id}" d="${pathOf(a.pts)}" style="fill:${c};fill-opacity:${a.type==="gross"?0.09:0.26};stroke:${sel?"var(--sel)":c};stroke-width:${(sel?0.5:0.22)*k};${dash}"/>`;
+    const dash=a.type==="terrace"?`stroke-dasharray:${0.8*k} ${0.5*k};`:T.kind==="sell"?`stroke-dasharray:${1.2*k} ${0.4*k} ${0.2*k} ${0.4*k};`:"";
+    ar+=`<path data-k="area" data-id="${a.id}" d="${pathOf(a.pts)}" style="fill:${c};fill-opacity:${a.type==="gross"?0.09:T.kind==="sell"?0.05:T.kind==="use"?0.16:0.26};stroke:${sel?"var(--sel)":c};stroke-width:${(sel?0.5:0.22)*k};${dash}"/>`;
     const A_=polyArea(a.pts);
     if(a.type==="gross"){
       const mx=Math.min(...a.pts.map(p=>p[0])),my=Math.min(...a.pts.map(p=>p[1]));
@@ -1500,6 +1520,7 @@ function build3D(){
       if(a.pts.length<3)return;
       const T=AREA_TYPES[a.type]||AREA_TYPES.gross;
       if(T.kind!=="gross"&&ui.layer==="int")return;
+      if(T.kind==="sell")return;
       if(T.kind==="gross"){
         const geo=new THREE.ExtrudeGeometry(toShape(a.pts),{depth:0.8,bevelEnabled:false});
         geo.rotateX(-Math.PI/2);
@@ -1591,7 +1612,7 @@ function syncSettings(){
   $("#zgPct").textContent=S.rules.zoneGreen.pct;
 }
 
-function fillAreaTypes(){$("#areaType").innerHTML=Object.keys(AREA_TYPES).map(k=>`<option value="${k}">${labelOf(k)}</option>`).join("");$("#areaType").value=ui.areaType;}
+function fillAreaTypes(){$("#areaType").innerHTML=MENU.map(k=>`<option value="${k}">${labelOf(k)}</option>`).join("");$("#areaType").value=ui.areaType;}
 $("#areaType").addEventListener("change",e=>{ui.areaType=e.target.value;});
 document.querySelectorAll("[data-layer]").forEach(b=>b.addEventListener("click",()=>{
   ui.layer=b.dataset.layer;
