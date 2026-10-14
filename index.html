@@ -245,6 +245,7 @@ tfoot td{font-weight:600;border-bottom:0}
         <label>Affordable unit (SF)<input class="in" type="number" data-set="affordable" step="10"></label>
         <label>Commercial FAR<input class="in" type="number" data-set="commFar" step="0.1"></label>
         <label>Height limit (ft)<input class="in" type="number" data-set="maxHeight" step="1"></label>
+        <label>Offset from east and west lot lines (in)<input class="in" type="number" id="sideOff" min="0" max="24" step="0.5"></label>
       </div>
       <label class="check" style="margin-top:12px"><input type="checkbox" id="zoneGreen"> Zone Green: deduct 5% of residential zoning floor area</label>
       <div class="row" style="margin-top:14px">
@@ -314,7 +315,21 @@ function seed(){
     resFloor("7th floor",29.84,112.01,[rect(24.84,1,29.84,11),rect(112.01,0,FRONT,25)]),
     resFloor("8th floor",44,113.9,[rect(29.84,0,44,25),rect(113.9,0,FRONT,25)])
   ];
-  return {settings:{lot:3100,far:4.8,resFar:2.2,commFar:2.0,affordable:700,maxHeight:85,zoneGreen:true},floors};
+  const st={settings:{lot:3100,far:4.8,resFar:2.2,commFar:2.0,affordable:700,maxHeight:85,zoneGreen:true,sideOffset:0},floors};
+  applySideOffset(st,0.25);
+  return st;
+}
+/* Hold the building off the side (east and west) lot lines. Moves every point that sits on a side
+   lot line, or on the old offset line, to the new offset. Offsets are stored in feet. */
+const SIDE_LINES=[[0,1],[25,-1],[30,-1]];
+function applySideOffset(st,ft){
+  const old=st.settings.sideOffset||0,e=1e-3;
+  const map=y=>{for(const [line,dir] of SIDE_LINES)if(Math.abs(y-(line+dir*old))<e)return line+dir*ft;return y;};
+  st.floors.forEach(f=>{
+    f.areas.forEach(a=>a.pts.forEach(p=>{p[1]=map(p[1]);}));
+    f.walls.forEach(w=>{w.a[1]=map(w.a[1]);w.b[1]=map(w.b[1]);});
+  });
+  st.settings.sideOffset=ft;
 }
 
 function load(){
@@ -722,6 +737,15 @@ function renderPlan(){
       dm+=`<text x="${m[0]}" y="${m[1]}" transform="rotate(${ang} ${m[0]} ${m[1]})" text-anchor="middle" dominant-baseline="central" style="fill:var(--sel);font-size:${fs*0.9}px;font-weight:600">${fmtLen(L)}</text>`;
     }
   }
+  const off=S.settings.sideOffset||0;
+  if(ui.dims&&off>0){
+    const lx=FRONT-fs*5,txt=fmtLen(off).replace(/^0'-/,"")+" to lot line";
+    [[0,1],[25,-1]].forEach(([line,dir])=>{
+      const ty=line-dir*fs*3;
+      dm+=`<path d="M${lx} ${line}L${lx} ${line+dir*off}M${lx} ${line}L${lx} ${ty+dir*fs*0.6}" style="fill:none;stroke:var(--sel);stroke-width:${0.12*k}"/>`;
+      dm+=`<text x="${lx}" y="${ty}" text-anchor="middle" dominant-baseline="central" style="fill:var(--sel);font-size:${fs*0.75}px;font-weight:600">${txt}</text>`;
+    });
+  }
   dm+=`</g>`;
 
   let wl="";
@@ -987,6 +1011,7 @@ function renderAll(){renderTabs();renderToolbar();renderPlan();renderSel();rende
 function syncSettings(){
   document.querySelectorAll("[data-set]").forEach(i=>{if(document.activeElement!==i)i.value=S.settings[i.dataset.set];});
   $("#zoneGreen").checked=!!S.settings.zoneGreen;
+  if(document.activeElement!==$("#sideOff"))$("#sideOff").value=+((S.settings.sideOffset||0)*12).toFixed(2);
 }
 
 $("#areaType").innerHTML=Object.keys(AREA_TYPES).map(k=>`<option value="${k}">${AREA_TYPES[k].label}</option>`).join("");
@@ -1052,6 +1077,11 @@ $("#removeFloor").addEventListener("click",()=>{
 document.querySelectorAll("[data-set]").forEach(i=>i.addEventListener("change",e=>{
   const v=parseFloat(e.target.value);if(isNaN(v))return;pushHist();S.settings[i.dataset.set]=v;commit();
 }));
+$("#sideOff").addEventListener("change",e=>{
+  const v=parseFloat(e.target.value);
+  if(!(v>=0&&v<24)){syncSettings();return;}
+  pushHist();applySideOffset(S,v/12);commit();
+});
 $("#zoneGreen").addEventListener("change",e=>{pushHist();S.settings.zoneGreen=e.target.checked;commit();});
 let resetArmed=null;
 $("#reset").addEventListener("click",()=>{
