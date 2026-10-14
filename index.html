@@ -249,7 +249,7 @@ tfoot td{font-weight:600;border-bottom:0}
             <option value="residential">Residential</option>
           </select>
         </label>
-        <label class="check">Floor-to-floor <input class="in" id="fHeight" type="number" min="7" max="30" step="0.5"> ft</label>
+        <label class="check">Floor-to-floor <input class="in" id="fHeight" aria-label="Floor-to-floor height, feet and inches"></label>
         <label class="check" id="coreResWrap"><input type="checkbox" id="fCoreRes"> Core counts as residential</label>
       </div>
       <div class="row" style="margin-top:10px">
@@ -390,7 +390,7 @@ const DEFAULT_RULES={
   stair:{widthIn:44,sepIn:4,maxRiserIn:7,treadIn:11,landingMaxIn:48,maxFlightRiseFt:12},
   core:{wallIn:6},                                    // core enclosure walls (outside, stair end, elevator divider)
   // Light well = small inner court with no legally required windows (ZR 23-352). Clear dimensions, walls are outside it.
-  court:{lowMinDimFt:10,lowMinAreaSF:200,highMinDimFt:15,highMinAreaSF:300,highAboveFt:75,wallIn:8}
+  court:{lowMinDimFt:10,lowMinAreaSF:200,highMinDimFt:15,highMinAreaSF:300,highAboveFt:75,wallIn:8,measureAt:"top"}   // measureAt: "top" of each story (stricter) or its "floor" level
 };
 function stairReq(h){
   const r=S.rules.stair,rise=h*12;
@@ -459,7 +459,7 @@ function courtRectFor(f){
   const L=S.lightwell;if(!L||!f)return null;
   const i=S.floors.indexOf(f),from=S.floors.findIndex(x=>x.id===L.from);
   if(from<0||i<from||f.use==="cellar")return null;
-  const r=S.rules.court,high=floorTop(i)>r.highAboveFt+1e-6;
+  const r=S.rules.court,lvl=r.measureAt==="floor"?floorTop(i)-f.height:floorTop(i),high=lvl>r.highAboveFt+1e-6;
   const dim=high?r.highMinDimFt:r.lowMinDimFt,area=high?r.highMinAreaSF:r.lowMinAreaSF;
   const ov=(L.sizes||{})[f.id];
   const depth=ov?ov.depth:dim,len=ov?ov.len:Math.max(dim,area/dim);
@@ -761,7 +761,7 @@ function renderTotals(){
 function renderTabs(){
   $("#tabs").innerHTML=S.floors.map((f,i)=>`<button class="tab" role="tab" data-floor="${i}" aria-current="${i===ui.floor}">${f.name}</button>`).join("");
   $("#fUse").value=cur().use;
-  $("#fHeight").value=cur().height;
+  $("#fHeight").value=fmtLen(cur().height);
   $("#coreResWrap").style.display=cur().use==="commercial"&&S.core?"":"none";
   $("#fCoreRes").checked=cur().coreRes!==false;
   $("#copyBelow").disabled=ui.floor===0;
@@ -1029,7 +1029,7 @@ function longestStair(){
 }
 function coreFitButton(){
   const n=longestStair();if(!n)return "";
-  return `<button class="btn" id="coreFit" title="Sets the stair part of the core to the longest scissor stair needed on any floor">Fit core to the stair (${fmtLen(n.lenFt)} for the ${n.h} ft ${n.name})</button>`;
+  return `<button class="btn" id="coreFit" title="Sets the stair part of the core to the longest scissor stair needed on any floor">Fit core to the stair (${fmtLen(n.lenFt)} for the ${fmtLen(n.h)} ${n.name})</button>`;
 }
 function deleteSel(){
   if(!ui.sel||ui.sel.k==="core")return;
@@ -1535,7 +1535,7 @@ function renderRules(){
     ["Elevator and stair core","Counts as floor area on every floor. On commercial floors it counts as residential unless switched off for that floor",
      co?(co.auto?`${fmtLen(coreRectFor(cur()).y1-co.y0)} wide, elevator fixed, stair length follows each floor's height: `+S.floors.map(f=>`${f.name} ${fmt(coreArea(f))} SF`).join(", "):`${fmtLen(co.x1-co.x0)} × ${fmtLen(co.y1-co.y0)}, ${fmt(coreArea())} SF per floor`)+(commOff?`; commercial on the ${commOff}`:""):"No core","Project decision"],
     ["Light well<small>Small inner court with no legally required windows facing it. Clear inside the walls, not floor area</small>",
-     `At or below ${inp("court.highAboveFt",R.court.highAboveFt,1)} ft: at least ${inp("court.lowMinAreaSF",R.court.lowMinAreaSF,10)} SF, no side under ${inp("court.lowMinDimFt",R.court.lowMinDimFt,0.5)} ft. Above: at least ${inp("court.highMinAreaSF",R.court.highMinAreaSF,10)} SF, no side under ${inp("court.highMinDimFt",R.court.highMinDimFt,0.5)} ft. Walls ${inp("court.wallIn",R.court.wallIn,1)} in`,
+     `At or below ${inp("court.highAboveFt",R.court.highAboveFt,1)} ft: at least ${inp("court.lowMinAreaSF",R.court.lowMinAreaSF,10)} SF, no side under ${inp("court.lowMinDimFt",R.court.lowMinDimFt,0.5)} ft. Above: at least ${inp("court.highMinAreaSF",R.court.highMinAreaSF,10)} SF, no side under ${inp("court.highMinDimFt",R.court.highMinDimFt,0.5)} ft. Walls ${inp("court.wallIn",R.court.wallIn,1)} in. Height checked at <select class="in" data-rule-s="court.measureAt"><option value="top" ${R.court.measureAt!=="floor"?"selected":""}>the top of each story</option><option value="floor" ${R.court.measureAt==="floor"?"selected":""}>the floor level of each story</option></select>${R.court.measureAt==="floor"?' <small style="color:var(--over)">Less strict reading; a plan examiner may measure to the top of the story</small>':""}`,
      S.lightwell?S.floors.map(f=>{const q=courtRectFor(f);return q?`${f.name} ${fmtLen(q.len)} × ${fmtLen(q.depth)}`:"";}).filter(Boolean).join(", "):"No light well",
      "NYC Zoning Resolution 23-352"],
     ["Corridor deduction<small>Why a corridor can be deducted 100%</small>",
@@ -1543,7 +1543,7 @@ function renderRules(){
      "Use the Corridor, full type where both apply","NYC Zoning Resolution 23-232"],
     ["Scissor stair<small>Two stairs in one enclosure, drawn in the core</small>",
      `Each stair ${inp("stair.widthIn",R.stair.widthIn,1)} in wide, ${inp("stair.sepIn",R.stair.sepIn,1)} in wall between them, core walls ${inp("core.wallIn",R.core.wallIn,1)} in, risers at most ${inp("stair.maxRiserIn",R.stair.maxRiserIn,0.25)} in, treads ${inp("stair.treadIn",R.stair.treadIn,0.25)} in, landings as deep as the stair (48 in max), 12 ft max rise per flight`,
-     (()=>{const hs=[...new Set(S.floors.map(f=>f.height))].sort((a,b)=>a-b);const q0=stairReq(hs[0]);return `Stairs ${fmtLen(q0.widthFt)} wide, core ${fmtLen(q0.widthFt+2*coreWallFt())} wide outside. Stair length: `+hs.map(h=>`${h} ft floor ${fmtLen(stairReq(h).lenFt)}`).join(", ");})(),
+     (()=>{const hs=[...new Set(S.floors.map(f=>f.height))].sort((a,b)=>a-b);const q0=stairReq(hs[0]);return `Stairs ${fmtLen(q0.widthFt)} wide, core ${fmtLen(q0.widthFt+2*coreWallFt())} wide outside. Stair length: `+hs.map(h=>`${fmtLen(h)} floor ${fmtLen(stairReq(h).lenFt)}`).join(", ");})(),
      "NYC Building Code 2022 §1011.2, 1011.5.2, 1011.6, 1011.8, 1007.1.1"],
     ["Cellar","Exempt from zoning floor area","",""+"Project assumption, confirm"]
   ];
@@ -1611,7 +1611,13 @@ $("#tabs").addEventListener("click",e=>{const b=e.target.closest("[data-floor]")
 $("#tbody").addEventListener("click",e=>{const r=e.target.closest("[data-floor]");if(r)selectFloor(+r.dataset.floor);});
 $("#fCoreRes").addEventListener("change",e=>{pushHist();cur().coreRes=e.target.checked;commit();});
 $("#fUse").addEventListener("change",e=>{pushHist();cur().use=e.target.value;commit();});
-$("#fHeight").addEventListener("change",e=>{const v=parseFloat(e.target.value);if(v>=7){pushHist();cur().height=v;commit();}});
+$("#fHeight").addEventListener("change",e=>{const v=parseLen(e.target.value);if(v>=7&&v<=30){pushHist();cur().height=v;commit();}else renderTabs();});
+$("#rulesBody").addEventListener("change",e=>{
+  const t=e.target.closest("[data-rule-s]");if(!t)return;
+  const path=t.dataset.ruleS.split(".");pushHist();
+  let o=S.rules;for(let i=0;i<path.length-1;i++)o=o[path[i]];
+  o[path[path.length-1]]=t.value;t.blur();commit();
+});
 $("#copyBelow").addEventListener("click",()=>{
   if(ui.floor===0)return;pushHist();
   const src=reId(clone(S.floors[ui.floor-1]));

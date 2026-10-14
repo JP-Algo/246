@@ -72,9 +72,10 @@
       "wallIn": 8,
       "meaning": "Dimensions are the clear open court, measured to the court walls and the lot line; walls are outside it. Portions at or below 75 ft: at least 200 SF and no dimension under 10 ft. Above 75 ft: 300 SF and 15 ft. A court on a side lot line is an inner court. Not floor area.",
       "sizing": "depth = minimum dimension; length = max(minimum dimension, minimum area / depth)",
-      "thisBuilding": "West lot line (top edge of the plan), from the 4th floor to the roof: 20'-0\" x 10'-0\" (200 SF) on floors 4-7. 8th floor set by the owner to 30'-0\" x 10'-0\" (300 SF), which meets the 300 SF area but not the 15 ft minimum dimension above 75 ft.",
+      "thisBuilding": "West lot line (top edge of the plan), from the 4th floor to the roof, 20'-0\" x 10'-0\" (200 SF) on floors 4-8. The 1st floor is 13'-11\" so the 8th floor level is 74'-11\", just below 75 ft.",
       "source": "NYC Zoning Resolution 23-352",
-      "overrides": "A floor can override the code-minimum size; the model flags any floor that falls below the minimums."
+      "measureAt": "floor",
+      "measureMeaning": "Which height decides the 75 ft threshold: 'top' of each story (stricter, the default) or the story's 'floor' level. This building uses 'floor'; a plan examiner may read the rule as the top of the story, which would put the whole 8th floor above 75 ft."
     },
     "corridorDeduction": {
       "label": "Corridor floor area exclusion",
@@ -92,6 +93,7 @@
     "affordableBonusSF": 700,
     "commercialFAR": 2.0,
     "heightLimitFt": 85,
-    "orientation": "Plan top edge (y = 0) is the west lot line, bottom edge is the east lot line, right edge is South 2nd Street"
+    "orientation": "Plan top edge (y = 0) is the west lot line, bottom edge is the east lot line, right edge is South 2nd Street",
+    "floorHeights": "Cellar 12'-0\", 1st 13'-11\", 2nd 11'-0\", 3rd-8th 10'-0\"; roof at 84'-11\" above grade"
   }
 }
