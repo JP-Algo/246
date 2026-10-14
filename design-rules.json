@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "description": "Reusable, parametric design rules from the 246 South 2nd Street model. Values match DEFAULT_RULES in index.html; a new building model can start from this file.",
+  "jurisdiction": "New York City",
+  "rules": {
+    "sideOffset": {
+      "label": "Separation from east and west (side) lot lines",
+      "ratio": 600,
+      "ratioMeaning": "Offset = building height above grade / ratio (same units). 600 = 1 in per 50 ft of height.",
+      "minIn": 1,
+      "roundIn": 1,
+      "roundMeaning": "Round the offset up to the next multiple of roundIn inches.",
+      "appliesTo": "Lot lines not on a street (side lot lines). Rear and street lot lines are not offset in this model.",
+      "source": "NYC Building Code 2022 §1613.4 (structural separations). A smaller gap is allowed by rational analysis, never under 1 in.",
+      "example": "85 ft tall: 85 / 50 = 1.7 in, rounded up to 2 in"
+    },
+    "amenityCap": {
+      "label": "Amenity deduction cap",
+      "pct": 5,
+      "meaning": "Amenity space is deducted up to this % of residential floor area.",
+      "source": "Project assumption from the original model, confirm with the zoning analysis"
+    },
+    "zoneGreen": {
+      "label": "Zone Green deduction",
+      "pct": 5,
+      "meaning": "When on for a building, deduct this % of residential zoning floor area.",
+      "source": "Project assumption from the original model, confirm with the zoning analysis"
+    },
+    "deductions": {
+      "label": "Floor area deductions, % of each area deducted",
+      "parking": 100,
+      "mechanical": 100,
+      "corridor100": 100,
+      "corridor50": 50,
+      "laundry": 100,
+      "source": "Project assumption from the original model, confirm with the zoning analysis"
+    },
+    "core": {
+      "label": "Elevator and stair core",
+      "meaning": "One core stacked in the same position on every floor. It counts as floor area on every floor; on commercial floors it counts as residential unless switched off for that floor.",
+      "thisBuilding": "16'-0\" x 13'-0\" (208 SF), 64'-0\" from the rear lot line, 6'-0\" from the top lot line, 6'-0\" elevator shaft; counts as commercial on the 2nd floor",
+      "source": "Project decision"
+    },
+    "cellar": {
+      "label": "Cellar",
+      "meaning": "Exempt from zoning floor area.",
+      "source": "Project assumption from the original model, confirm with the zoning analysis"
+    }
+  },
+  "siteInputs246South2nd": {
+    "lotAreaSF": 3100,
+    "lotDepthFt": 120,
+    "lotWidthFt": 25,
+    "rearJog": "rear 20 ft is 30 ft wide",
+    "totalFAR": 4.8,
+    "residentialFAR": 2.2,
+    "affordableBonusSF": 700,
+    "commercialFAR": 2.0,
+    "heightLimitFt": 85
+  }
+}

@@ -11,7 +11,7 @@
 :root{
   color-scheme: light;
   --paper:#EDF0EE; --panel:#F8FAF9; --ink:#1E2528; --muted:#5A666B; --line:#C8D0CD; --grid:#DCE2DF;
-  --gross:#2D6BAA; --deduct:#B27410; --amenity:#6A57B8; --terrace:#2E7D50; --over:#B3261E; --sel:#C2307A;
+  --gross:#2D6BAA; --deduct:#B27410; --amenity:#6A57B8; --terrace:#2E7D50; --core:#0E7C86; --over:#B3261E; --sel:#C2307A;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px);
   padding-bottom:env(safe-area-inset-bottom,0px);
@@ -20,13 +20,13 @@
   :root:not([data-theme="light"]){
     color-scheme: dark;
     --paper:#13181A; --panel:#1A2023; --ink:#E1E7E4; --muted:#98A4A8; --line:#313A3D; --grid:#222A2D;
-    --gross:#6FA6DC; --deduct:#E2AC47; --amenity:#A898EA; --terrace:#6BBB8C; --over:#F07A70; --sel:#F08DBA;
+    --gross:#6FA6DC; --deduct:#E2AC47; --amenity:#A898EA; --terrace:#6BBB8C; --core:#5CC4CC; --over:#F07A70; --sel:#F08DBA;
   }
 }
 :root[data-theme="dark"]{
   color-scheme: dark;
   --paper:#13181A; --panel:#1A2023; --ink:#E1E7E4; --muted:#98A4A8; --line:#313A3D; --grid:#222A2D;
-  --gross:#6FA6DC; --deduct:#E2AC47; --amenity:#A898EA; --terrace:#6BBB8C; --over:#F07A70; --sel:#F08DBA;
+  --gross:#6FA6DC; --deduct:#E2AC47; --amenity:#A898EA; --terrace:#6BBB8C; --core:#5CC4CC; --over:#F07A70; --sel:#F08DBA;
 }
 *{box-sizing:inherit}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
@@ -117,6 +117,12 @@ tfoot td{font-weight:600;border-bottom:0}
 .savestate.err{color:var(--over)}
 .savestate.err::before{background:var(--over)}
 .typed{font-size:12.5px;color:var(--sel);font-weight:600}
+.rules table{min-width:680px}
+.rules th,.rules td{text-align:left;white-space:normal;vertical-align:top}
+.rules td:first-child{font-weight:600}
+.rules td small{display:block;color:var(--muted);font-size:11.5px;font-weight:400}
+.rules input.in{width:64px;padding:2px 6px}
+.rules tbody tr{cursor:default}
 .dimedit{flex-basis:100%;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px 12px}
 .dimedit label{display:grid;gap:3px;font-size:12px;color:var(--muted)}
 .dimedit input.in{width:100%;color:var(--ink)}
@@ -198,6 +204,7 @@ tfoot td{font-weight:600;border-bottom:0}
         <span style="--c:var(--deduct)">Deduction</span>
         <span style="--c:var(--amenity)">Amenity (5% cap)</span>
         <span style="--c:var(--terrace)">Terrace (not floor area)</span>
+        <span style="--c:var(--core)">Elevator and stair core</span>
       </div>
       <div class="sel" id="sel"></div>
       <p class="note" id="modeNote"></p>
@@ -211,6 +218,7 @@ tfoot td{font-weight:600;border-bottom:0}
           </select>
         </label>
         <label class="check">Floor-to-floor <input class="in" id="fHeight" type="number" min="7" max="30" step="0.5"> ft</label>
+        <label class="check" id="coreResWrap"><input type="checkbox" id="fCoreRes"> Core counts as residential</label>
       </div>
       <div class="row" style="margin-top:10px">
         <button class="btn" id="copyBelow">Copy floor below</button>
@@ -237,6 +245,12 @@ tfoot td{font-weight:600;border-bottom:0}
     </section>
 
     <section>
+      <h2>Design rules</h2>
+      <p class="note" style="margin:0 0 10px">Reusable rules that drive this model. They are saved with the model and kept in the project repo so the next building can start from them. Change a value and every floor updates.</p>
+      <div class="tablewrap rules"><table><thead><tr><th>Rule</th><th>Parameter</th><th>This building</th><th>Source</th></tr></thead><tbody id="rulesBody"></tbody></table></div>
+    </section>
+
+    <section>
       <h2>Zoning inputs</h2>
       <div class="settings">
         <label>Lot area (SF)<input class="in" type="number" data-set="lot" step="1"></label>
@@ -245,9 +259,9 @@ tfoot td{font-weight:600;border-bottom:0}
         <label>Affordable unit (SF)<input class="in" type="number" data-set="affordable" step="10"></label>
         <label>Commercial FAR<input class="in" type="number" data-set="commFar" step="0.1"></label>
         <label>Height limit (ft)<input class="in" type="number" data-set="maxHeight" step="1"></label>
-        <label>Offset from east and west lot lines (in)<input class="in" type="number" id="sideOff" min="0" max="24" step="0.5"></label>
+        <label>Offset from east and west lot lines (in), set by the design rule<input class="in" type="number" id="sideOff" readonly></label>
       </div>
-      <label class="check" style="margin-top:12px"><input type="checkbox" id="zoneGreen"> Zone Green: deduct 5% of residential zoning floor area</label>
+      <label class="check" style="margin-top:12px"><input type="checkbox" id="zoneGreen"> Zone Green: deduct <span id="zgPct">5</span>% of residential zoning floor area</label>
       <div class="row" style="margin-top:14px">
         <button class="btn" id="reset">Reset to the sketch</button>
       </div>
@@ -275,11 +289,11 @@ const CORE=rect(64,6,80,19);
 
 const AREA_TYPES={
   gross:{label:"Gross floor area",short:"Gross",kind:"gross",color:"--gross"},
-  parking:{label:"Parking (100%)",short:"Parking",kind:"deduct",factor:1,color:"--deduct"},
-  mechanical:{label:"Mechanical (100%)",short:"Mechanical",kind:"deduct",factor:1,color:"--deduct"},
-  corridor100:{label:"Corridor (100%)",short:"Corridor 100%",kind:"deduct",factor:1,color:"--deduct"},
-  corridor50:{label:"Corridor (50%)",short:"Corridor 50%",kind:"deduct",factor:.5,color:"--deduct"},
-  laundry:{label:"Laundry (100%)",short:"Laundry",kind:"deduct",factor:1,color:"--deduct"},
+  parking:{base:"Parking",label:"Parking (100%)",short:"Parking",kind:"deduct",factor:1,color:"--deduct"},
+  mechanical:{base:"Mechanical",label:"Mechanical (100%)",short:"Mechanical",kind:"deduct",factor:1,color:"--deduct"},
+  corridor100:{base:"Corridor, full",label:"Corridor (100%)",short:"Corridor 100%",kind:"deduct",factor:1,color:"--deduct"},
+  corridor50:{base:"Corridor, partial",label:"Corridor (50%)",short:"Corridor 50%",kind:"deduct",factor:.5,color:"--deduct"},
+  laundry:{base:"Laundry",label:"Laundry (100%)",short:"Laundry",kind:"deduct",factor:1,color:"--deduct"},
   amenity:{label:"Amenity (5% cap)",short:"Amenity",kind:"amenity",factor:1,color:"--amenity"},
   terrace:{label:"Terrace (outdoor)",short:"Terrace",kind:"terrace",color:"--terrace"}
 };
@@ -317,7 +331,61 @@ function seed(){
   ];
   const st={settings:{lot:3100,far:4.8,resFar:2.2,commFar:2.0,affordable:700,maxHeight:85,zoneGreen:true,sideOffset:0},floors};
   applySideOffset(st,0.25);
+  ensureCore(st);ensureRules(st);syncDerived(st);
   return st;
+}
+/* One elevator and stair core shared by every floor, stored once on the model. On commercial floors its
+   area counts toward residential floor area unless that floor's coreRes switch is off. */
+function ensureCore(st){
+  if(st.core)return st;
+  st.core={x0:CORE[0][0],y0:CORE[0][1],x1:CORE[2][0],y1:CORE[2][1],elevW:6};
+  const onCore=q=>{const c=st.core,e=1e-3;
+    return q[0]>c.x0-e&&q[0]<c.x1+e&&q[1]>c.y0-e&&q[1]<c.y1+e&&(Math.abs(q[0]-c.x0)<e||Math.abs(q[0]-c.x1)<e||Math.abs(q[1]-c.y0)<e||Math.abs(q[1]-c.y1)<e);};
+  st.floors.forEach(f=>{
+    f.walls=f.walls.filter(w=>!(Math.abs(w.t-0.67)<0.01&&onCore(w.a)&&onCore(w.b)));
+    if(f.use==="commercial"&&f.coreRes===undefined)f.coreRes=f.name!=="2nd floor";
+  });
+  return st;
+}
+/* Design rules: reusable, parametric assumptions. Kept in step with design-rules.json in the repo. */
+const DEFAULT_RULES={
+  version:1,
+  sideOffset:{ratio:600,minIn:1,roundIn:1},          // 1 : 600 of building height = 1 in per 50 ft
+  amenityCap:{pct:5},                                 // % of residential floor area
+  zoneGreen:{pct:5},                                  // % of residential floor area
+  deductions:{parking:100,mechanical:100,corridor100:100,corridor50:50,laundry:100}
+};
+function ensureRules(st){
+  if(!st.rules)st.rules=JSON.parse(JSON.stringify(DEFAULT_RULES));
+  const r=st.rules;
+  Object.keys(DEFAULT_RULES).forEach(k=>{if(r[k]==null)r[k]=JSON.parse(JSON.stringify(DEFAULT_RULES[k]));});
+  Object.keys(DEFAULT_RULES.deductions).forEach(k=>{if(r.deductions[k]==null)r.deductions[k]=DEFAULT_RULES.deductions[k];});
+  return st;
+}
+const heightOf=st=>st.floors.filter(f=>f.use!=="cellar").reduce((s,f)=>s+f.height,0);
+function sideOffsetRaw(st){return heightOf(st)*12/st.rules.sideOffset.ratio;}
+function sideOffsetIn(st){
+  const r=st.rules.sideOffset,v=Math.max(r.minIn,sideOffsetRaw(st));
+  return r.roundIn>0?Math.ceil(v/r.roundIn-1e-9)*r.roundIn:v;
+}
+function syncDerived(st){
+  const want=sideOffsetIn(st)/12;
+  if(Math.abs((st.settings.sideOffset||0)-want)>1e-9)applySideOffset(st,want);
+  return st;
+}
+const dedPct=k=>(S&&S.rules&&S.rules.deductions[k]!=null)?S.rules.deductions[k]:(AREA_TYPES[k].factor||0)*100;
+const factorOf=k=>dedPct(k)/100;
+function labelOf(k){
+  const T=AREA_TYPES[k];
+  if(T.kind==="deduct")return `${T.base} (${dedPct(k)}%)`;
+  if(T.kind==="amenity")return `Amenity (${S&&S.rules?S.rules.amenityCap.pct:5}% cap)`;
+  return T.label;
+}
+const coreArea=()=>{const c=S.core;return c?(c.x1-c.x0)*(c.y1-c.y0):0;};
+function coreWalls(){
+  const c=S.core;if(!c)return [];
+  const ex=c.x0+Math.min(c.elevW,c.x1-c.x0);
+  return [...ring(rect(c.x0,c.y0,c.x1,c.y1),0.67,"core"),W([ex,c.y0],[ex,c.y1],0.5,"core")];
 }
 /* Hold the building off the side (east and west) lot lines. Moves every point that sits on a side
    lot line, or on the old offset line, to the new offset. Offsets are stored in feet. */
@@ -390,6 +458,7 @@ async function connectDb(){
     if(!first&&(saveTimer||writing||drag))return;  // this view has newer edits on the way
     let o=null;try{o=JSON.parse(d.state);}catch(e){}
     if(!validState(o))return;
+    ensureCore(o);ensureRules(o);syncDerived(o);
     first=false;
     S=o;lastSavedJSON=d.state;
     try{localStorage.setItem(KEY,d.state);}catch(e){}
@@ -397,6 +466,7 @@ async function connectDb(){
     if(!findSel())ui.sel=null;
     renderAll();
     setSaveState("All changes saved","ok");
+    if(JSON.stringify(S)!==d.state)flush();   // store any rule-driven updates
   },err=>{
     docRef=null;dbState="none";
     setSaveState("Live saving stopped. Changes are kept in this browser; reload to reconnect","err");
@@ -405,7 +475,7 @@ async function connectDb(){
 window.addEventListener("pagehide",()=>{if(saveTimer)flush();});
 
 const LOCAL=load();
-let S=LOCAL||seed();
+let S=syncDerived(ensureRules(ensureCore(LOCAL||seed())));
 const ui={floor:Math.min(5,S.floors.length-1),mode:"select",areaType:"gross",sel:null,snap:true,ortho:true,
   explode:false,above:true,view:{cx:60,cy:15,w:142},draft:null,dims:true,typed:""};
 const PREF_KEY="s2nd-prefs-v1";
@@ -469,26 +539,32 @@ function compute(){
     f.areas.forEach(a=>{
       if(a.pts.length<3)return;
       const ar=polyArea(a.pts),T=AREA_TYPES[a.type]||AREA_TYPES.gross;
-      if(T.kind==="gross")gross+=ar;else if(T.kind==="deduct")ded+=ar*T.factor;else if(T.kind==="amenity")amen+=ar;else terr+=ar;
+      if(T.kind==="gross")gross+=ar;else if(T.kind==="deduct")ded+=ar*factorOf(a.type);else if(T.kind==="amenity")amen+=ar;else terr+=ar;
     });
     const below=f.use==="cellar";
-    return {i,f,gross,ded,amen,terr,below,zfaPre:below?0:Math.max(0,gross-ded)};
+    const coreRes=!below&&f.use==="commercial"&&f.coreRes!==false?coreArea():0;
+    return {i,f,gross,ded,amen,terr,below,coreRes,zfaPre:below?0:Math.max(0,gross-ded)};
   });
   const res=rows.filter(r=>r.f.use==="residential");
-  const resPre=res.reduce((s,r)=>s+r.zfaPre,0);
+  const resPre=res.reduce((s,r)=>s+r.zfaPre,0)+rows.reduce((s,r)=>s+r.coreRes,0);
   const amenRaw=res.reduce((s,r)=>s+r.amen,0);
-  const amenCap=0.05*resPre;
+  const amenCap=S.rules.amenityCap.pct/100*resPre;
   const amenAllowed=Math.min(amenRaw,amenCap);
   const ratio=amenRaw>0?amenAllowed/amenRaw:0;
   rows.forEach(r=>{
     r.amenAllowed=r.f.use==="residential"?r.amen*ratio:0;
     r.zfa=r.below?0:Math.max(0,r.zfaPre-r.amenAllowed);
     r.dedTotal=r.below?r.gross:(r.gross-r.zfa);
+    const coreZ=Math.min(r.coreRes,r.zfa);
+    r.resZfa=r.f.use==="residential"?r.zfa:coreZ;
+    r.commZfa=r.f.use==="commercial"?r.zfa-coreZ:0;
+    r.resGross=r.f.use==="residential"?r.gross:Math.min(r.coreRes,r.gross);
+    r.commGross=r.f.use==="commercial"?r.gross-r.resGross:0;
   });
-  const resZfa0=res.reduce((s,r)=>s+r.zfa,0);
-  const zoneGreen=st.zoneGreen?0.05*resZfa0:0;
+  const resZfa0=rows.reduce((s,r)=>s+r.resZfa,0);
+  const zoneGreen=st.zoneGreen?S.rules.zoneGreen.pct/100*resZfa0:0;
   const resZfa=resZfa0-zoneGreen;
-  const commZfa=rows.filter(r=>r.f.use==="commercial").reduce((s,r)=>s+r.zfa,0);
+  const commZfa=rows.reduce((s,r)=>s+r.commZfa,0);
   const total=resZfa+commZfa;
   const allowed=st.lot*st.far;
   const resCap=Math.min(st.lot*st.resFar+st.affordable,st.lot*3.9);
@@ -514,13 +590,13 @@ function renderTotals(){
 
   const tb=$("#tbody");
   tb.innerHTML=c.rows.slice().reverse().map(r=>{
-    const use=r.f.use==="cellar"?"Cellar, exempt":r.f.use==="commercial"?"Commercial":"Residential";
-    return `<tr data-floor="${r.i}" class="${r.i===ui.floor?"on":""}"><td>${r.f.name}<small>${use}</small></td><td>${r.f.use==="residential"?fmt(r.gross):"–"}</td><td>${r.f.use==="commercial"?fmt(r.gross):"–"}</td><td>${fmt(r.gross)}</td><td>${fmt(r.dedTotal)}</td><td>${fmt(r.zfa)}</td><td>${r.terr?fmt(r.terr):"–"}</td></tr>`;
+    const use=r.f.use==="cellar"?"Cellar, exempt":r.f.use==="commercial"?(r.coreRes?"Commercial, core residential":"Commercial"):"Residential";
+    return `<tr data-floor="${r.i}" class="${r.i===ui.floor?"on":""}"><td>${r.f.name}<small>${use}</small></td><td>${r.resGross?fmt(r.resGross):"–"}</td><td>${r.commGross?fmt(r.commGross):"–"}</td><td>${fmt(r.gross)}</td><td>${fmt(r.dedTotal)}</td><td>${fmt(r.zfa)}</td><td>${r.terr?fmt(r.terr):"–"}</td></tr>`;
   }).join("");
-  const resGross=c.rows.filter(r=>r.f.use==="residential").reduce((s,r)=>s+r.gross,0);
-  const commGross=c.rows.filter(r=>r.f.use==="commercial").reduce((s,r)=>s+r.gross,0);
+  const resGross=c.rows.reduce((s,r)=>s+r.resGross,0);
+  const commGross=c.rows.reduce((s,r)=>s+r.commGross,0);
   $("#tfoot").innerHTML=
-    `<tr class="adj"><td>Amenity counted</td><td></td><td></td><td></td><td>${fmt(c.amenAllowed)} of ${fmt(c.amenRaw)}</td><td colspan="2" style="text-align:left">cap is 5% of residential, ${fmt(c.amenCap)} SF</td></tr>`+
+    `<tr class="adj"><td>Amenity counted</td><td></td><td></td><td></td><td>${fmt(c.amenAllowed)} of ${fmt(c.amenRaw)}</td><td colspan="2" style="text-align:left">cap is ${S.rules.amenityCap.pct}% of residential, ${fmt(c.amenCap)} SF</td></tr>`+
     `<tr class="adj"><td>Zone Green</td><td></td><td></td><td></td><td>${S.settings.zoneGreen?fmt(c.zoneGreen):"off"}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td></tr>`+
     `<tr><td>Total above grade</td><td>${fmt(resGross)}</td><td>${fmt(commGross)}</td><td>${fmt(c.grossAbove)}</td><td>${fmt(c.grossAbove-c.total)}</td><td>${fmt(c.total)}</td><td>${fmt(c.terrTotal)}</td></tr>`;
 
@@ -543,6 +619,8 @@ function renderTabs(){
   $("#tabs").innerHTML=S.floors.map((f,i)=>`<button class="tab" role="tab" data-floor="${i}" aria-current="${i===ui.floor}">${f.name}</button>`).join("");
   $("#fUse").value=cur().use;
   $("#fHeight").value=cur().height;
+  $("#coreResWrap").style.display=cur().use==="commercial"&&S.core?"":"none";
+  $("#fCoreRes").checked=cur().coreRes!==false;
   $("#copyBelow").disabled=ui.floor===0;
   $("#removeFloor").disabled=S.floors.length<=2;
 }
@@ -576,11 +654,29 @@ function renderToolbar(){
 function findSel(){
   if(!ui.sel)return null;
   const f=cur();
+  if(ui.sel.k==="core")return S.core||null;
   return ui.sel.k==="wall"?f.walls.find(w=>w.id===ui.sel.id):f.areas.find(a=>a.id===ui.sel.id);
 }
 function renderSel(){
   const el=$("#sel"),o=findSel();
   if(!o){el.innerHTML=`<span class="k">Nothing selected</span>`;return;}
+  if(ui.sel.k==="core"){
+    const f=(lab,key,v)=>`<label>${lab}<input class="in" data-core="${key}" value="${attrLen(v)}"></label>`;
+    const use=cur().use==="cellar"?"exempt on the cellar":cur().use==="residential"||cur().coreRes!==false?"counts as residential on this floor":"counts as commercial on this floor";
+    el.innerHTML=`<span><span class="k">Elevator and stair core, same on every floor</span> ${fmt(coreArea())} SF, ${use}</span>
+      <div class="dimedit">${f("Length, rear to front","w",o.x1-o.x0)}${f("Width, across the lot","h",o.y1-o.y0)}${f("Starts from rear lot line","x",o.x0)}${f("Starts from top lot line","y",o.y0)}${f("Elevator shaft length","e",o.elevW)}</div>`;
+    el.querySelectorAll("[data-core]").forEach(inp=>inp.addEventListener("change",e=>{
+      const v=parseLen(e.target.value),k=e.target.dataset.core;
+      if(!isFinite(v)||((k==="w"||k==="h")&&!(v>0))||(k==="e"&&!(v>=0))){renderSel();return;}
+      pushHist();
+      const w=o.x1-o.x0,h=o.y1-o.y0;
+      if(k==="w")o.x1=o.x0+v;else if(k==="h")o.y1=o.y0+v;
+      else if(k==="x"){o.x0=v;o.x1=v+w;}else if(k==="y"){o.y0=v;o.y1=v+h;}
+      else o.elevW=v;
+      commit();
+    }));
+    return;
+  }
   if(ui.sel.k==="wall"){
     el.innerHTML=`<span class="k">Wall</span>
       <label class="check">Length <input class="in" id="wL" value="${attrLen(dist(o.a,o.b))}" aria-label="Wall length, feet and inches"></label>
@@ -594,8 +690,8 @@ function renderSel(){
     });
   }else{
     const T=AREA_TYPES[o.type],ar=polyArea(o.pts);
-    const counted=T.kind==="deduct"?`, deducts ${fmt(ar*T.factor)} SF`:T.kind==="amenity"?", deducted within the 5% cap":"";
-    el.innerHTML=`<label class="check">Area <select class="in" id="aT">${Object.keys(AREA_TYPES).map(k=>`<option value="${k}" ${k===o.type?"selected":""}>${AREA_TYPES[k].label}</option>`).join("")}</select></label>
+    const counted=T.kind==="deduct"?`, deducts ${fmt(ar*factorOf(o.type))} SF`:T.kind==="amenity"?`, deducted within the ${S.rules.amenityCap.pct}% cap`:"";
+    el.innerHTML=`<label class="check">Area <select class="in" id="aT">${Object.keys(AREA_TYPES).map(k=>`<option value="${k}" ${k===o.type?"selected":""}>${labelOf(k)}</option>`).join("")}</select></label>
       <span>${fmt(ar)} SF${counted}</span>
       <button class="btn warn" id="delSel">Delete area</button>${dimEditor(o)}`;
     el.querySelectorAll("[data-r],[data-v]").forEach(inp=>inp.addEventListener("change",e=>applyDimEdit(o,e.target)));
@@ -624,7 +720,7 @@ function applyDimEdit(o,inp){
   commit();
 }
 function deleteSel(){
-  if(!ui.sel)return;
+  if(!ui.sel||ui.sel.k==="core")return;
   pushHist();
   const f=cur();
   if(ui.sel.k==="wall")f.walls=f.walls.filter(w=>w.id!==ui.sel.id);else f.areas=f.areas.filter(a=>a.id!==ui.sel.id);
@@ -651,6 +747,7 @@ function snapPt(p,exclKey){
   const consider=(q,key)=>{if(key===exclKey)return;const d=dist(p,q);if(d<bd){bd=d;best=q;}};
   f.walls.forEach(w=>{consider(w.a,w.id+":a");consider(w.b,w.id+":b");});
   f.areas.forEach(a=>a.pts.forEach((q,i)=>consider(q,a.id+":"+i)));
+  if(S.core&&exclKey!=="core"){const c=S.core;[[c.x0,c.y0],[c.x1,c.y0],[c.x1,c.y1],[c.x0,c.y1]].forEach(q=>consider(q,"core"));}
   if(best)return [best[0],best[1]];
   const g=ui.snap?0.5:0.01;
   return [Math.round(p[0]/g)*g,Math.round(p[1]/g)*g];
@@ -727,6 +824,7 @@ function renderPlan(){
   };
   const selO=findSel();
   if(ui.dims)areas.forEach(a=>{if(a.pts.length>=3)dimPoly(a.pts,a.type==="gross");});
+  if(S.core&&(ui.dims||(ui.sel&&ui.sel.k==="core"))){const c=S.core;dimPoly(rect(c.x0,c.y0,c.x1,c.y1),false,true);}
   if(selO&&ui.sel.k==="area"&&selO.pts.length>=3&&(selO.type!=="gross"||!ui.dims))dimPoly(selO.pts,false,true);
   if(selO&&ui.sel.k==="wall"){
     const L=dist(selO.a,selO.b);
@@ -749,6 +847,21 @@ function renderPlan(){
   dm+=`</g>`;
 
   let wl="";
+  if(S.core){
+    const c=S.core,cw=c.x1-c.x0,ch=c.y1-c.y0,ex=c.x0+Math.min(c.elevW,cw),csel=ui.sel&&ui.sel.k==="core";
+    wl+=`<rect data-k="core" data-id="core" x="${c.x0}" y="${c.y0}" width="${cw}" height="${ch}" style="fill:var(--core);fill-opacity:.2;stroke:${csel?"var(--sel)":"none"};stroke-width:${0.5*k}"/>`;
+    let sym=`<g pointer-events="none" style="stroke:var(--core);stroke-width:${0.12*k};fill:none">`;
+    if(ex>c.x0+0.1)sym+=`<path d="M${c.x0} ${c.y0}L${ex} ${c.y1}M${ex} ${c.y0}L${c.x0} ${c.y1}"/>`;
+    const midY=(c.y0+c.y1)/2;
+    sym+=`<path d="M${ex} ${midY}L${c.x1} ${midY}"/>`;
+    for(let x=ex+1;x<c.x1-0.2;x+=1)sym+=`<path d="M${x} ${c.y0}L${x} ${c.y1}"/>`;
+    sym+=`</g>`;
+    wl+=sym;
+    coreWalls().forEach(w=>{wl+=`<line x1="${w.a[0]}" y1="${w.a[1]}" x2="${w.b[0]}" y2="${w.b[1]}" pointer-events="none" style="stroke:${csel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:square"/>`;});
+    const lab=(x,t)=>`<text x="${x}" y="${c.y0+ch/2}" text-anchor="middle" dominant-baseline="central" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.75}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.25}px">${t}</text>`;
+    if(ex-c.x0>3)wl+=lab((c.x0+ex)/2,"Elev.");
+    if(c.x1-ex>4)wl+=lab((ex+c.x1)/2,"Stair");
+  }
   f.walls.forEach(w=>{
     const sel=ui.sel&&ui.sel.id===w.id;
     wl+=`<line x1="${w.a[0]}" y1="${w.a[1]}" x2="${w.b[0]}" y2="${w.b[1]}" pointer-events="none" style="stroke:${sel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:square"/>`;
@@ -760,7 +873,7 @@ function renderPlan(){
   const o=findSel();
   if(o&&ui.mode==="select"){
     if(ui.sel.k==="wall"){hd+=handle(o.a,`data-k="end" data-id="${o.id}" data-end="a"`)+handle(o.b,`data-k="end" data-id="${o.id}" data-end="b"`);}
-    else o.pts.forEach((p,i)=>{hd+=handle(p,`data-k="vert" data-id="${o.id}" data-i="${i}"`);});
+    else if(ui.sel.k==="area")o.pts.forEach((p,i)=>{hd+=handle(p,`data-k="vert" data-id="${o.id}" data-i="${i}"`);});
   }
 
   let dr="";
@@ -868,6 +981,7 @@ svg.addEventListener("pointermove",e=>{
     const g=ui.snap?0.5:0.01;
     const dx=Math.round((p[0]-drag.start[0])/g)*g,dy=Math.round((p[1]-drag.start[1])/g)*g;
     if(ui.sel.k==="wall"){o.a=[drag.orig.a[0]+dx,drag.orig.a[1]+dy];o.b=[drag.orig.b[0]+dx,drag.orig.b[1]+dy];}
+    else if(ui.sel.k==="core"){o.x0=drag.orig.x0+dx;o.x1=drag.orig.x1+dx;o.y0=drag.orig.y0+dy;o.y1=drag.orig.y1+dy;}
     else o.pts=drag.orig.pts.map(q=>[q[0]+dx,q[1]+dy]);
   }
   renderPlan();scheduleLive();
@@ -983,7 +1097,12 @@ function build3D(){
     const wmat=new THREE.MeshStandardMaterial({color:isSel?selCol.clone().lerp(wallCol,0.55):wallCol,roughness:0.85,metalness:0});
     const lmat=new THREE.LineBasicMaterial({color:ink,transparent:true,opacity:isSel?0.7:0.35});
     const h=Math.max(1,f.height-0.8);
-    f.walls.forEach(w=>{
+    if(S.core){
+      const c=S.core,geo=new THREE.BoxGeometry(c.x1-c.x0,h,c.y1-c.y0);
+      const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:C("--core"),transparent:true,opacity:isSel?0.45:0.25,depthWrite:false}));
+      m.position.set((c.x0+c.x1)/2-CX,y+0.8+h/2,(c.y0+c.y1)/2-CZ);m.userData.floor=i;root.add(m);
+    }
+    [...f.walls,...coreWalls()].forEach(w=>{
       const dx=w.b[0]-w.a[0],dz=w.b[1]-w.a[1],L=Math.hypot(dx,dz);
       if(L<0.05)return;
       const geo=new THREE.BoxGeometry(L+w.t,h,w.t);
@@ -1006,15 +1125,36 @@ function build3D(){
 }
 
 /* ---------- glue ---------- */
-function commit(){save();renderAll();}
-function renderAll(){renderTabs();renderToolbar();renderPlan();renderSel();renderTotals();build3D();syncSettings();}
+function commit(){syncDerived(S);save();renderAll();}
+function renderRules(){
+  const R=S.rules,c=compute(),body=$("#rulesBody");
+  if(!body||(document.activeElement&&document.activeElement.closest&&document.activeElement.closest("#rulesBody")))return;
+  const inp=(path,v,step)=>`<input class="in" type="number" step="${step||1}" min="0" data-rule="${path}" value="${v}">`;
+  const dedSum=k=>S.floors.filter(f=>f.use!=="cellar").reduce((s,f)=>s+f.areas.filter(a=>a.type===k&&a.pts.length>=3).reduce((t,a)=>t+polyArea(a.pts),0),0)*factorOf(k);
+  const co=S.core,commOff=S.floors.filter(f=>f.use==="commercial"&&f.coreRes===false).map(f=>f.name).join(", ");
+  const rows=[
+    ["Separation from east and west lot lines<small>Seismic gap to the neighboring buildings</small>",
+     `1 : ${inp("sideOffset.ratio",R.sideOffset.ratio,10)} of building height (1 in per ${+(R.sideOffset.ratio/12).toFixed(2)} ft), at least ${inp("sideOffset.minIn",R.sideOffset.minIn,0.25)} in, rounded up to ${inp("sideOffset.roundIn",R.sideOffset.roundIn,0.25)} in`,
+     `${fmt(c.height)} ft tall, ${sideOffsetRaw(S).toFixed(2)} in, so <b>${+sideOffsetIn(S).toFixed(2)} in</b>`,
+     "NYC Building Code 2022 §1613.4"],
+    ["Amenity deduction cap",`${inp("amenityCap.pct",R.amenityCap.pct,0.5)}% of residential floor area`,`${fmt(c.amenCap)} SF cap, ${fmt(c.amenAllowed)} SF used`,"Project assumption, confirm"],
+    ["Zone Green deduction",`${inp("zoneGreen.pct",R.zoneGreen.pct,0.5)}% of residential zoning floor area`,S.settings.zoneGreen?`${fmt(c.zoneGreen)} SF`:"Off for this building","Project assumption, confirm"],
+    ...["parking","mechanical","corridor100","corridor50","laundry"].map(k=>[`${AREA_TYPES[k].base} deduction`,`${inp("deductions."+k,R.deductions[k],5)}% of its area`,`${fmt(dedSum(k))} SF on all floors`,"Project assumption, confirm"]),
+    ["Elevator and stair core","Counts as floor area on every floor. On commercial floors it counts as residential unless switched off for that floor",
+     co?`${fmtLen(co.x1-co.x0)} × ${fmtLen(co.y1-co.y0)}, ${fmt(coreArea())} SF per floor${commOff?`; commercial on the ${commOff}`:""}`:"No core","Project decision"],
+    ["Cellar","Exempt from zoning floor area","",""+"Project assumption, confirm"]
+  ];
+  body.innerHTML=rows.map(r=>`<tr>${r.map(x=>`<td>${x}</td>`).join("")}</tr>`).join("");
+}
+function renderAll(){fillAreaTypes();renderRules();renderTabs();renderToolbar();renderPlan();renderSel();renderTotals();build3D();syncSettings();}
 function syncSettings(){
   document.querySelectorAll("[data-set]").forEach(i=>{if(document.activeElement!==i)i.value=S.settings[i.dataset.set];});
   $("#zoneGreen").checked=!!S.settings.zoneGreen;
-  if(document.activeElement!==$("#sideOff"))$("#sideOff").value=+((S.settings.sideOffset||0)*12).toFixed(2);
+  $("#sideOff").value=+((S.settings.sideOffset||0)*12).toFixed(2);
+  $("#zgPct").textContent=S.rules.zoneGreen.pct;
 }
 
-$("#areaType").innerHTML=Object.keys(AREA_TYPES).map(k=>`<option value="${k}">${AREA_TYPES[k].label}</option>`).join("");
+function fillAreaTypes(){$("#areaType").innerHTML=Object.keys(AREA_TYPES).map(k=>`<option value="${k}">${labelOf(k)}</option>`).join("");$("#areaType").value=ui.areaType;}
 $("#areaType").addEventListener("change",e=>{ui.areaType=e.target.value;});
 document.querySelectorAll("[data-mode]").forEach(b=>b.addEventListener("click",()=>{ui.mode=b.dataset.mode;ui.draft=null;renderToolbar();renderPlan();}));
 $("#closeShape").addEventListener("click",finishArea);
@@ -1050,6 +1190,7 @@ $("#zOut").addEventListener("click",()=>{ui.view.w=Math.min(260,ui.view.w/0.75);
 $("#zFit").addEventListener("click",()=>{ui.view={cx:60,cy:15,w:142};renderPlan();});
 $("#tabs").addEventListener("click",e=>{const b=e.target.closest("[data-floor]");if(b)selectFloor(+b.dataset.floor);});
 $("#tbody").addEventListener("click",e=>{const r=e.target.closest("[data-floor]");if(r)selectFloor(+r.dataset.floor);});
+$("#fCoreRes").addEventListener("change",e=>{pushHist();cur().coreRes=e.target.checked;commit();});
 $("#fUse").addEventListener("change",e=>{pushHist();cur().use=e.target.value;commit();});
 $("#fHeight").addEventListener("change",e=>{const v=parseFloat(e.target.value);if(v>=7){pushHist();cur().height=v;commit();}});
 $("#copyBelow").addEventListener("click",()=>{
@@ -1077,10 +1218,15 @@ $("#removeFloor").addEventListener("click",()=>{
 document.querySelectorAll("[data-set]").forEach(i=>i.addEventListener("change",e=>{
   const v=parseFloat(e.target.value);if(isNaN(v))return;pushHist();S.settings[i.dataset.set]=v;commit();
 }));
-$("#sideOff").addEventListener("change",e=>{
-  const v=parseFloat(e.target.value);
-  if(!(v>=0&&v<24)){syncSettings();return;}
-  pushHist();applySideOffset(S,v/12);commit();
+$("#rulesBody").addEventListener("change",e=>{
+  const t=e.target.closest("[data-rule]");if(!t)return;
+  const v=parseFloat(t.value),path=t.dataset.rule.split(".");
+  const min=path[1]==="ratio"?1:0;
+  if(!(v>=min)){t.value="";t.blur();renderRules();return;}
+  pushHist();
+  let o=S.rules;for(let i=0;i<path.length-1;i++)o=o[path[i]];
+  o[path[path.length-1]]=v;
+  t.blur();commit();
 });
 $("#zoneGreen").addEventListener("change",e=>{pushHist();S.settings.zoneGreen=e.target.checked;commit();});
 let resetArmed=null;
