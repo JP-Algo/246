@@ -1505,7 +1505,7 @@ function renderPlan(){
   // the selected wall's drawn line
   if(ui.sel&&ui.sel.k==="wall"&&ui.mode==="select"){
     const w=findSel();
-    if(w){const [a,b]=refLine(w);dr+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" pointer-events="none" style="stroke:var(--sel);stroke-width:${0.3*k}"/>`;}
+    if(w){const [a,b]=refLine(w);dr+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" pointer-events="none" style="stroke:var(--ink);stroke-width:2px;vector-effect:non-scaling-stroke"/>`;}   // the drawn (vector) line, thin black over the pink wall
   }
   const hv=ui.hover;
   if(hv&&(ui.mode==="wall"||ui.mode==="area"||hv.drag)&&["end","corner","mid","on","grid","ortho"].includes(hv.kind)){
@@ -1521,8 +1521,8 @@ function renderPlan(){
   if(d&&d.kind==="wall"){
     dr+=`<circle cx="${d.a[0]}" cy="${d.a[1]}" r="${vr}" pointer-events="none" style="fill:var(--sel)"/>`;
     if(d.cur){
-      if(dist(d.a,d.cur)>0.05){const pw=makeWall(d.a,d.cur);dr+=`<line x1="${pw.a[0]}" y1="${pw.a[1]}" x2="${pw.b[0]}" y2="${pw.b[1]}" pointer-events="none" style="stroke:var(--sel);stroke-opacity:.35;stroke-width:${pw.t};stroke-linecap:butt"/>`;}
-      dr+=`<line x1="${d.a[0]}" y1="${d.a[1]}" x2="${d.cur[0]}" y2="${d.cur[1]}" pointer-events="none" style="stroke:var(--sel);stroke-width:${0.15*k};stroke-dasharray:${0.8*k} ${0.5*k}"/>`;
+      if(dist(d.a,d.cur)>0.05){const pw=makeWall(d.a,d.cur);dr+=`<line x1="${pw.a[0]}" y1="${pw.a[1]}" x2="${pw.b[0]}" y2="${pw.b[1]}" pointer-events="none" style="stroke:var(--sel);stroke-opacity:.6;stroke-width:${pw.t};stroke-linecap:butt"/>`;}
+      dr+=`<line x1="${d.a[0]}" y1="${d.a[1]}" x2="${d.cur[0]}" y2="${d.cur[1]}" pointer-events="none" style="stroke:var(--ink);stroke-width:2px;vector-effect:non-scaling-stroke"/>`;   // the line being drawn
       const m=[(d.a[0]+d.cur[0])/2,(d.a[1]+d.cur[1])/2];
       dr+=`<text x="${m[0]}" y="${m[1]-fs*0.6}" text-anchor="middle" pointer-events="none" style="fill:var(--sel);font-size:${fs}px;font-weight:600">${fmtLen(dist(d.a,d.cur))}</text>`;
     }
