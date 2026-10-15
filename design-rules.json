@@ -23,8 +23,8 @@
     "zoneGreen": {
       "label": "Zone Green deduction",
       "pct": 5,
-      "meaning": "When on for a building, deduct this % of residential zoning floor area.",
-      "source": "Project assumption from the original model, confirm with the zoning analysis"
+      "meaning": "When on for a building, deduct this % of the building's gross floor area above grade, taken off the residential floor area (capped at the residential floor area). Shown as a bonus on the market-rate residential allowance.",
+      "source": "Project owner: 5% of the gross square footage of the building; confirm with the zoning analysis"
     },
     "deductions": {
       "label": "Floor area deductions, % of each area deducted",
