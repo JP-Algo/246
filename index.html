@@ -1108,7 +1108,7 @@ function renderSel(){
       <label class="check">Length <input class="in" id="wL" value="${attrLen(dist(o.a,o.b))}" aria-label="Wall length, feet and inches"></label>
       <label class="check">Width <input class="in" id="wT" type="number" min="2" max="36" step="0.5" value="${(o.t*12).toFixed(1)}"> in</label>
       <button class="btn warn" id="delSel">Delete wall</button>
-      <span class="note" style="margin:0">Double-click the wall on the plan for more length and width options</span>`;
+      <span class="note" style="margin:0">More length and thickness options are in the box at the top of the plan</span>`;
     $("#wT").addEventListener("change",e=>{const v=parseFloat(e.target.value);if(v>0){const R=refLine(o);pushHist();setWallFromRef(o,R[0],R[1],o.ref||0,v/12);commit();}});
     $("#wL").addEventListener("change",e=>{
       const L=parseLen(e.target.value),cl=dist(o.a,o.b);
@@ -1606,7 +1606,13 @@ svg.addEventListener("pointerdown",e=>{
         if(lastWallDown&&lastWallDown.id===id&&now-lastWallDown.t<450){lastWallDown=null;drag=null;openPop("wall:"+id);return;}
         lastWallDown={id,t:now};
       }
-      if(!(ui.pop&&ui.pop.ref==="wall"&&ui.pop.id===id))ui.pop=null;
+      if(k==="wall"){
+        // a single click opens the wall box in its corner of the plan (without taking keyboard focus)
+        if(!(ui.pop&&ui.pop.ref==="wall"&&ui.pop.id===id)){
+          ui.pop={ref:"wall",id,fixed:0};
+          const w=f.walls.find(x=>x.id===id);if(w){const en=endsInfo([w.a,w.b]);if(endOnLot(en.mx,en.horiz)&&!endOnLot(en.mn,en.horiz))ui.pop.fixed=1;}
+        }
+      }else if(!(ui.pop&&ui.pop.ref==="wall"&&ui.pop.id===id))ui.pop=null;
       const o=findSel();
       drag={k:"move",start:p,orig:clone(o),hist:false};
     }
