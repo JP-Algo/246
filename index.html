@@ -215,7 +215,7 @@ tfoot td{font-weight:600;border-bottom:0}
         <span class="seg" role="group" aria-label="Snap to walls at" id="snapTo" title="Which parts of walls to snap to"><button data-snapto="c">Wall centers</button><button data-snapto="f">Wall faces</button><button data-snapto="m" title="Snap to the middle of walls and area edges">Midpoints</button></span>
         <span id="wallOpts" class="row" style="gap:8px">
           <label class="check">Wall thickness <input class="in" id="wallT" type="number" min="1" max="36" step="0.5" style="width:64px"> in</label>
-          <span class="seg" role="group" aria-label="Line you draw is the wall's"><button data-just="left" title="The line you draw is the wall's left face, looking along the direction you draw">Left face</button><button data-just="center">Center</button><button data-just="right" title="The line you draw is the wall's right face, looking along the direction you draw">Right face</button></span>
+          <span class="seg" role="group" aria-label="Line you draw is the wall's"><button data-just="out" title="The line you draw is the wall's outside face; the wall builds in toward the building">Outside face</button><button data-just="center">Center</button><button data-just="in" title="The line you draw is the wall's inside face; the wall builds out away from the building">Inside face</button></span>
         </span>
         <span class="typed" id="typed"></span>
       </div>
@@ -257,7 +257,7 @@ tfoot td{font-weight:600;border-bottom:0}
       </div>
       <div class="row" style="margin-top:10px">
         <button class="btn" id="copyBelow">Copy floor below</button>
-        <button class="btn" id="extWalls">Rebuild exterior walls from gross outline</button>
+        <span class="row" style="gap:6px"><button class="btn" id="extWalls" title="Replaces this floor's exterior walls with walls whose outside face sits on the gross outline">Rebuild exterior walls</button><button class="btn" id="extWallsAll">on every floor</button><label class="check">thickness <input class="in" id="extT" type="number" min="4" max="24" step="1" style="width:56px"> in</label></span>
         <button class="btn" id="addFloor">Add floor on top</button>
         <button class="btn" id="removeFloor">Remove top floor</button>
       </div>
@@ -400,6 +400,7 @@ const DEFAULT_RULES={
   stair:{widthIn:44,sepIn:4,maxRiserIn:7,treadIn:11,landingMaxIn:48,maxFlightRiseFt:12},
   core:{wallIn:6},                                    // core enclosure walls (outside, stair end, elevator divider)
   // Light well = small inner court with no legally required windows (ZR 23-352). Clear dimensions, walls are outside it.
+  extWall:{thickIn:12},                               // exterior walls: outside face on the building envelope
   court:{lowMinDimFt:10,lowMinAreaSF:200,highMinDimFt:15,highMinAreaSF:300,highAboveFt:75,wallIn:8,measureAt:"top"}   // measureAt: "top" of each story (stricter) or its "floor" level
 };
 function stairReq(h){
@@ -633,7 +634,7 @@ let S=ensureLightwell(syncDerived(ensureRules(ensureCore(LOCAL||seed()))));
 const ui={floor:Math.min(5,S.floors.length-1),mode:"select",areaType:"gross",sel:null,snap:true,ortho:true,
   explode:false,above:true,view:{cx:60,cy:15,w:142},draft:null,dims:true,typed:"",layers:{far:true,int:true,sell:true},wallT:6,just:"center",snapC:true,snapF:true,snapM:true,hover:null};
 const PREF_KEY="s2nd-prefs-v1";
-try{const pr=JSON.parse(localStorage.getItem(PREF_KEY))||{};ui.snap=pr.snap!==false;ui.ortho=pr.ortho!==false;ui.dims=pr.dims!==false;if(pr.layers&&typeof pr.layers==="object")ui.layers={far:pr.layers.far!==false,int:pr.layers.int!==false,sell:pr.layers.sell!==false};else if(pr.layer==="far")ui.layers={far:true,int:false,sell:true};else if(pr.layer==="int")ui.layers={far:false,int:true,sell:false};if(pr.wallT>0)ui.wallT=pr.wallT;if(["left","center","right"].includes(pr.just))ui.just=pr.just;if(typeof pr.snapC==="boolean")ui.snapC=pr.snapC;if(typeof pr.snapF==="boolean")ui.snapF=pr.snapF;if(typeof pr.snapM==="boolean")ui.snapM=pr.snapM;}catch(e){}
+try{const pr=JSON.parse(localStorage.getItem(PREF_KEY))||{};ui.snap=pr.snap!==false;ui.ortho=pr.ortho!==false;ui.dims=pr.dims!==false;if(pr.layers&&typeof pr.layers==="object")ui.layers={far:pr.layers.far!==false,int:pr.layers.int!==false,sell:pr.layers.sell!==false};else if(pr.layer==="far")ui.layers={far:true,int:false,sell:true};else if(pr.layer==="int")ui.layers={far:false,int:true,sell:false};if(pr.wallT>0)ui.wallT=pr.wallT;if(["out","center","in"].includes(pr.just))ui.just=pr.just;else if(pr.just==="left"||pr.just==="right")ui.just="out";if(typeof pr.snapC==="boolean")ui.snapC=pr.snapC;if(typeof pr.snapF==="boolean")ui.snapF=pr.snapF;if(typeof pr.snapM==="boolean")ui.snapM=pr.snapM;}catch(e){}
 function savePrefs(){try{localStorage.setItem(PREF_KEY,JSON.stringify({snap:ui.snap,ortho:ui.ortho,dims:ui.dims,layers:ui.layers,wallT:ui.wallT,just:ui.just,snapC:ui.snapC,snapF:ui.snapF,snapM:ui.snapM}));}catch(e){}}
 let shiftHeld=false;
 const orthoOn=()=>ui.ortho!==shiftHeld;
@@ -1119,8 +1120,17 @@ function wallFaces(w){
   return [[[w.a[0]+n[0]*h,w.a[1]+n[1]*h],[w.b[0]+n[0]*h,w.b[1]+n[1]*h]],[[w.a[0]-n[0]*h,w.a[1]-n[1]*h],[w.b[0]-n[0]*h,w.b[1]-n[1]*h]]];
 }
 /* Turn a drawn line into a wall centerline using the chosen drawing side. */
+/* Normal of a->b that points into the building (the floor's gross outline, or the lot if none). */
+function inwardN(a,b){
+  const n=leftN(a,b),m=[(a[0]+b[0])/2,(a[1]+b[1])/2],d=0.6,f=cur();
+  const gross=f.areas.filter(x=>x.type==="gross"&&x.pts.length>=3);
+  const ql=[m[0]+n[0]*d,m[1]+n[1]*d],qr=[m[0]-n[0]*d,m[1]-n[1]*d];
+  let pl=gross.some(x=>pointInPoly(ql,x.pts)),pr=gross.some(x=>pointInPoly(qr,x.pts));
+  if(pl===pr){pl=pointInPoly(ql,LOT);pr=pointInPoly(qr,LOT);}   // no outline here: use the lot
+  return pr&&!pl?[-n[0],-n[1]]:n;
+}
 function makeWall(a,b){
-  const t=ui.wallT/12,n=leftN(a,b),s=ui.just==="left"?-1:ui.just==="right"?1:0,h=s*t/2;
+  const t=ui.wallT/12,n=inwardN(a,b),s=ui.just==="out"?1:ui.just==="in"?-1:0,h=s*t/2;
   return W([a[0]+n[0]*h,a[1]+n[1]*h],[b[0]+n[0]*h,b[1]+n[1]*h],t);
 }
 function projSeg(p,a,b){
@@ -1131,6 +1141,11 @@ function projSeg(p,a,b){
 /* snapInfo describes the last snap: kind is end (wall or face end), corner (area or core corner),
    mid (midpoint), on (on a wall line), grid or free. */
 let snapInfo={kind:"free",line:null,desc:""};
+/* The side offset lines, the given distance inside the east and west lot lines. */
+function offsetLines(){
+  const o=S.settings.sideOffset||0;if(o<=0)return [];
+  return [[[0,o],[FRONT,o]],[[20,25-o],[FRONT,25-o]],[[0,30-o],[20,30-o]]];
+}
 function wallKind(w){return w.tag==="core"?"core wall":w.tag==="court"?"light well wall":w.tag==="ext"?"exterior wall":"wall";}
 function snapPt(p,exclKey){
   if(!ui.snap){snapInfo={kind:"free",line:null,desc:""};return [Math.round(p[0]*48)/48,Math.round(p[1]*48)/48];}
@@ -1180,6 +1195,7 @@ function snapPt(p,exclKey){
   });
   if(S.core&&exclKey!=="core"){const c=coreRectFor(f);[[c.x0,c.y0],[c.x1,c.y0],[c.x1,c.y1],[c.x0,c.y1]].forEach(q=>consider(q,"core","corner","Outside corner of core"));}
   LOT.forEach((q,i)=>{consider(q,"lot:"+i,"corner","Lot corner");lines.push([q,LOT[(i+1)%LOT.length],"On lot line"]);});
+  offsetLines().forEach(([a,b])=>{const t=`On ${fmtLen(S.settings.sideOffset||0).replace(/^0'-/,"")} offset line`;lines.push([a,b,t]);consider(a,"off","corner",t.replace("On ","End of "));consider(b,"off","corner",t.replace("On ","End of "));});
   if(best){snapInfo={kind:bk,line:null,desc:bdesc};return [best[0],best[1]];}
   // no point close by: slide onto the nearest wall face, centerline, building envelope or lot line
   let lb=null,ld=thr*0.7,ll=null;
@@ -1223,6 +1239,7 @@ function renderPlan(){
   for(let x=x0;x<=v.x+v.w;x+=5)g+=`<line x1="${x}" y1="${v.y}" x2="${x}" y2="${v.y+v.h}" style="stroke:var(--grid);stroke-width:${(x%25===0?0.2:0.08)*k}"/>`;
   for(let y=y0;y<=v.y+v.h;y+=5)g+=`<line x1="${v.x}" y1="${y}" x2="${v.x+v.w}" y2="${y}" style="stroke:var(--grid);stroke-width:${(y%25===0?0.2:0.08)*k}"/>`;
   g+=`<path d="${pathOf(LOT)}" style="fill:none;stroke:var(--muted);stroke-width:${0.22*k};stroke-dasharray:${1.4*k} ${0.9*k}"/>`;
+  offsetLines().forEach(([a,b])=>{g+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" style="stroke:var(--sel);stroke-opacity:.55;stroke-width:${0.1*k};stroke-dasharray:${0.3*k} ${0.4*k}"/>`;});
   const sx=FRONT+fs*3.2,rx=-fs*3.2;
   g+=`<text x="${sx}" y="15" transform="rotate(90 ${sx} 15)" text-anchor="middle" style="fill:var(--muted);font-size:${fs}px">South 2nd Street</text>`;
   g+=`<text x="${rx}" y="15" transform="rotate(-90 ${rx} 15)" text-anchor="middle" style="fill:var(--muted);font-size:${fs}px">Rear</text>`;
@@ -1708,6 +1725,7 @@ function syncSettings(){
   $("#zoneGreen").checked=!!S.settings.zoneGreen;
   $("#sideOff").value=+((S.settings.sideOffset||0)*12).toFixed(2);
   $("#zgPct").textContent=S.rules.zoneGreen.pct;
+  if(document.activeElement!==$("#extT"))$("#extT").value=(S.rules.extWall&&S.rules.extWall.thickIn)||12;
 }
 
 /* The Draw area list shows the area types of the layers that are on. */
@@ -1785,12 +1803,25 @@ $("#copyBelow").addEventListener("click",()=>{
   const src=reId(clone(S.floors[ui.floor-1]));
   cur().walls=src.walls;cur().areas=src.areas;ui.sel=null;commit();
 });
-$("#extWalls").addEventListener("click",()=>{
-  pushHist();const f=cur();
+/* Exterior walls sit inside the gross outline, outside face on it, so they never cross the offset line. */
+function insetRing(pts,d){
+  let s2=0;for(let i=0;i<pts.length;i++){const j=(i+1)%pts.length;s2+=pts[i][0]*pts[j][1]-pts[j][0]*pts[i][1];}
+  const sg=s2>=0?-1:1,nrm=(a,b)=>{const L=dist(a,b)||1,ux=(b[0]-a[0])/L,uy=(b[1]-a[1])/L;return [sg*uy,-sg*ux];};  // inward normal
+  return pts.map((v,i)=>{
+    const pv=pts[(i-1+pts.length)%pts.length],nx=pts[(i+1)%pts.length],n1=nrm(pv,v),n2=nrm(v,nx);
+    const dot=n1[0]*n2[0]+n1[1]*n2[1];
+    if(dot>0.99)return [v[0]+n1[0]*d,v[1]+n1[1]*d];
+    const k=d/(1+dot);return [v[0]+(n1[0]+n2[0])*k,v[1]+(n1[1]+n2[1])*k];
+  });
+}
+function rebuildExt(f){
+  const t=(S.rules.extWall&&S.rules.extWall.thickIn||12)/12;
   f.walls=f.walls.filter(w=>w.tag!=="ext");
-  f.areas.filter(a=>a.type==="gross").forEach(a=>f.walls.push(...ring(a.pts,1,"ext")));
-  ui.sel=null;commit();
-});
+  f.areas.filter(a=>a.type==="gross"&&a.pts.length>=3).forEach(a=>f.walls.push(...ring(insetRing(a.pts,t/2),t,"ext")));
+}
+$("#extWalls").addEventListener("click",()=>{pushHist();rebuildExt(cur());ui.sel=null;ui.pop=null;commit();});
+$("#extWallsAll").addEventListener("click",()=>{pushHist();S.floors.forEach(rebuildExt);ui.sel=null;ui.pop=null;commit();});
+$("#extT").addEventListener("change",e=>{const v=parseFloat(e.target.value);if(v>=4&&v<=24){pushHist();S.rules.extWall={thickIn:v};commit();}else syncSettings();});
 $("#addFloor").addEventListener("click",()=>{
   pushHist();
   const top=S.floors[S.floors.length-1];

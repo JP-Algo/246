@@ -91,6 +91,12 @@
       "label": "Sellable area, residential and commercial",
       "meaning": "Tracked for efficiency only and not part of the floor area math. Efficiency = sellable area / gross floor area of that use, above grade.",
       "source": "Project modeling convention"
+    },
+    "extWall": {
+      "label": "Exterior walls",
+      "thickIn": 12,
+      "meaning": "Exterior walls sit inside the building envelope with their outside face on it, so on the east and west sides the outside face is on the side offset line (2 in inside the lot line) and the thickness builds inward.",
+      "source": "Project modeling convention"
     }
   },
   "siteInputs246South2nd": {
