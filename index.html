@@ -818,6 +818,18 @@ function inLot(q){
   if(q[0]<-e||q[0]>FRONT+e)return false;
   return q[1]>=o-e&&q[1]<=(q[0]<=20+e?30:25)-o+e;
 }
+/* Which of a wall's two sides (min = top/rear on the plan, max = bottom/street) faces the outside of the
+   building. Partitions with building on both sides are named by their side on the screen. */
+function wallSides(w,horiz){
+  let n=leftN(w.a,w.b);if((horiz?n[1]:n[0])>0)n=[-n[0],-n[1]];   // n points to the min side
+  const m=[(w.a[0]+w.b[0])/2,(w.a[1]+w.b[1])/2],d=w.t/2+0.3,f=cur();
+  const qMin=[m[0]+n[0]*d,m[1]+n[1]*d],qMax=[m[0]-n[0]*d,m[1]-n[1]*d];
+  const gross=f.areas.filter(x=>x.type==="gross"&&x.pts.length>=3);
+  let iMin=gross.some(x=>pointInPoly(qMin,x.pts)),iMax=gross.some(x=>pointInPoly(qMax,x.pts));
+  if(iMin===iMax){iMin=pointInPoly(qMin,LOT)&&inLot(qMin);iMax=pointInPoly(qMax,LOT)&&inLot(qMax);}
+  if(iMin!==iMax){const outKey=iMin?"max":"min";return {outKey,inKey:outKey==="min"?"max":"min",outLabel:"Align to outside",inLabel:"Align to inside"};}
+  return horiz?{outKey:"min",inKey:"max",outLabel:"Align to upper side",inLabel:"Align to lower side"}:{outKey:"min",inKey:"max",outLabel:"Align to left side",inLabel:"Align to right side"};
+}
 function popObj(){
   const P=ui.pop;if(!P)return null;
   if(P.ref==="wall"){const w=cur().walls.find(x=>x.id===P.id);return w&&ui.layers.int?{w,ends:[w.a,w.b]}:null;}
@@ -851,8 +863,9 @@ function renderPop(){
     el.innerHTML=`<label>Length <input class="in" id="popLen" value="${attrLen(L)}" ${bothLot?"readonly":""}></label>
       ${bothLot?`<span class="note" style="margin:0">Both ends are on lot lines, so the lot sets this length</span>`:`<span class="seg" role="group" aria-label="End to keep in place"><button data-fix="0" aria-pressed="${P.fixed===0}">Keep ${e.names[0]} end</button><button data-fix="1" aria-pressed="${P.fixed===1}">Keep ${e.names[1]} end</button></span>`}
       ${o.w?`<label>Width <input class="in" id="popW" type="number" min="1" max="36" step="0.5" value="${+(o.w.t*12).toFixed(2)}"> in</label>
-      <span class="seg" role="group" aria-label="When the width changes"><button data-wfix="min" aria-pressed="${P.wfix==="min"}">Keep ${e.horiz?"west":"rear"} face</button><button data-wfix="center" aria-pressed="${!P.wfix||P.wfix==="center"}">Grow both sides</button><button data-wfix="max" aria-pressed="${P.wfix==="max"}">Keep ${e.horiz?"east":"street"} face</button></span>`:""}
-      <p class="note" style="flex-basis:100%;margin:0">Pick which end and ${o.w?"which face ":""}stay in place (shown in pink on the plan), then type a new ${o.w?"length or width":"length"}.</p>
+      ${(()=>{const sd=wallSides(o.w,e.horiz),b=(k,t)=>`<button data-wfix="${k}" aria-pressed="${k==="center"?(!P.wfix||P.wfix==="center"):P.wfix===k}">${t}</button>`;
+        return `<span class="seg" role="group" aria-label="When the width changes">${b(sd.outKey,sd.outLabel)}${b("center","Centered")}${b(sd.inKey,sd.inLabel)}</span>`;})()}`:""}
+      <p class="note" style="flex-basis:100%;margin:0">Pick which end stays in place${o.w?", and which side of the wall stays on its line when the width changes":""} (shown in pink on the plan), then type a new ${o.w?"length or width":"length"}.</p>
       <button class="x" id="popX" aria-label="Close">×</button>
       ${P.msg?`<p class="note" style="flex-basis:100%;margin:0;color:var(--over)">${P.msg}</p>`:""}`;
   }
