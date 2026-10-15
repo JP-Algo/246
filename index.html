@@ -864,7 +864,11 @@ function renderPop(){
       ${bothLot?`<span class="note" style="margin:0">Both ends are on lot lines, so the lot sets this length</span>`:`<span class="seg" role="group" aria-label="End to keep in place"><button data-fix="0" aria-pressed="${P.fixed===0}">Keep ${e.names[0]} end</button><button data-fix="1" aria-pressed="${P.fixed===1}">Keep ${e.names[1]} end</button></span>`}
       ${o.w?`<label>Width <input class="in" id="popW" type="number" min="1" max="36" step="0.5" value="${+(o.w.t*12).toFixed(2)}"> in</label>
       ${(()=>{const sd=wallSides(o.w,e.horiz),b=(k,t)=>`<button data-wfix="${k}" aria-pressed="${k==="center"?(!P.wfix||P.wfix==="center"):P.wfix===k}">${t}</button>`;
-        return `<span class="seg" role="group" aria-label="When the width changes">${b(sd.outKey,sd.outLabel)}${b("center","Centered")}${b(sd.inKey,sd.inLabel)}</span>`;})()}`:""}
+        const ext=sd.outLabel==="Align to outside",sideA=sd.outLabel.replace("Align to ",""),sideB=sd.inLabel.replace("Align to ","");
+        const help=ext
+          ?`<b>Align to outside:</b> the wall's outside face stays on its line and the extra thickness goes into the building. Use this for exterior walls on the 2" offset line.<br><b>Centered:</b> the wall grows evenly on both sides.<br><b>Align to inside:</b> the inside face stays put and the wall grows outward.`
+          :`<b>${sd.outLabel}:</b> the wall's ${sideA} face stays on its line and the extra thickness goes to the ${sideB}.<br><b>Centered:</b> the wall grows evenly on both sides.<br><b>${sd.inLabel}:</b> the ${sideB} face stays put and the wall grows to the ${sideA}.`;
+        return `<span class="seg" role="group" aria-label="When the width changes">${b(sd.outKey,sd.outLabel)}${b("center","Centered")}${b(sd.inKey,sd.inLabel)}</span><p class="note" style="flex-basis:100%;margin:0;line-height:1.5">${help}</p>`;})()}`:""}
       <p class="note" style="flex-basis:100%;margin:0">Pick which end stays in place${o.w?", and which side of the wall stays on its line when the width changes":""} (shown in pink on the plan), then type a new ${o.w?"length or width":"length"}.</p>
       <button class="x" id="popX" aria-label="Close">×</button>
       ${P.msg?`<p class="note" style="flex-basis:100%;margin:0;color:var(--over)">${P.msg}</p>`:""}`;
