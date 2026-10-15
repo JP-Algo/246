@@ -403,7 +403,9 @@ const DEFAULT_RULES={
   stair:{widthIn:44,sepIn:4,maxRiserIn:7,treadIn:11,landingMaxIn:48,maxFlightRiseFt:12},
   core:{wallIn:6},                                    // core enclosure walls (outside, stair end, elevator divider)
   // Light well = small inner court with no legally required windows (ZR 23-352). Clear dimensions, walls are outside it.
-  extWall:{thickIn:12},                               // exterior walls: outside face on the building envelope
+  extWall:{thickIn:12},
+  // Height and setback (R6, narrow street, qualifying affordable housing): ZR 23-432, 23-433. Max height is the zoning input.
+  envelope:{baseFt:65,setbackFt:15},                               // exterior walls: outside face on the building envelope
   court:{lowMinDimFt:10,lowMinAreaSF:200,highMinDimFt:15,highMinAreaSF:300,highAboveFt:75,wallIn:8,measureAt:"top"}   // measureAt: "top" of each story (stricter) or its "floor" level
 };
 function stairReq(h){
@@ -552,6 +554,16 @@ function drawEnds(list){
     const ea=ext(w.a),eb=ext(w.b);
     return {w,a:[w.a[0]-u[0]*ea,w.a[1]-u[1]*ea],b:[w.b[0]+u[0]*eb,w.b[1]+u[1]*eb]};
   });
+}
+/* Street-side setback: any floor that rises above the max base height must keep its street side
+   setbackFt back from the street line. */
+function setbackLimit(){return FRONT-S.rules.envelope.setbackFt;}
+function setbackIssue(f){
+  const i=S.floors.indexOf(f);if(i<0||f.use==="cellar")return null;
+  if(floorTop(i)<=S.rules.envelope.baseFt+1e-6)return null;
+  const g=f.areas.filter(a=>a.type==="gross"&&a.pts.length>=3);if(!g.length)return null;
+  const mx=Math.max(...g.flatMap(a=>a.pts.map(q=>q[0]))),lim=setbackLimit();
+  return mx>lim+0.01?{over:mx-lim,lim}:null;
 }
 function coreIssues(f){
   const c=coreRectFor(f);if(!c||f.use==="cellar")return [];
@@ -818,7 +830,9 @@ function renderTotals(){
     cap("Total zoning floor area",c.total,c.allowed,"SF")+
     cap("Residential (2.2 FAR plus the affordable unit)",c.resZfa,c.resCap,"SF")+
     cap("Commercial",c.commZfa,c.commCap,"SF")+
-    cap("Building height above grade",c.height,S.settings.maxHeight,"ft");
+    cap("Building height above grade",c.height,S.settings.maxHeight,"ft")+
+    (()=>{const bad=S.floors.filter(f=>setbackIssue(f));const e=S.rules.envelope;
+      return `<div class="cap ${bad.length?"over":""}"><div class="l"><span>Street setback above ${fmtLen(e.baseFt)}</span><span>${bad.length?bad.map(f=>`${f.name} ${fmtLen(setbackIssue(f).over)} past`).join(", "):`all floors at least ${fmtLen(e.setbackFt)} back`}</span></div></div>`;})();
 
   const r=c.rows[ui.floor];
   $("#floorhead").innerHTML=`<strong>${r.f.name}</strong><span>Gross <b>${fmt(r.gross)}</b> SF</span><span>Deductions <b>${fmt(r.dedTotal)}</b> SF</span><span>Zoning floor area <b>${fmt(r.zfa)}</b> SF</span>`;
@@ -1359,6 +1373,14 @@ function renderPlan(){
   for(let x=x0;x<=v.x+v.w;x+=5)g+=`<line x1="${x}" y1="${v.y}" x2="${x}" y2="${v.y+v.h}" style="stroke:var(--grid);stroke-width:${(x%25===0?0.2:0.08)*k}"/>`;
   for(let y=y0;y<=v.y+v.h;y+=5)g+=`<line x1="${v.x}" y1="${y}" x2="${v.x+v.w}" y2="${y}" style="stroke:var(--grid);stroke-width:${(y%25===0?0.2:0.08)*k}"/>`;
   g+=`<path d="${pathOf(LOT)}" style="fill:none;stroke:var(--muted);stroke-width:${0.22*k};stroke-dasharray:${1.4*k} ${0.9*k}"/>`;
+  {
+    const i=S.floors.indexOf(f);
+    if(f.use!=="cellar"&&floorTop(i)>S.rules.envelope.baseFt+1e-6){
+      const lim=setbackLimit(),iss=setbackIssue(f);
+      g+=`<line x1="${lim}" y1="0" x2="${lim}" y2="25" style="stroke:var(--over);stroke-width:${0.18*k};stroke-dasharray:${1.2*k} ${0.8*k}"/>`;
+      g+=`<text x="${lim-fs*0.6}" y="${-fs*0.8}" text-anchor="end" style="fill:var(--over);font-size:${fs*0.72}px;font-weight:600">${fmtLen(S.rules.envelope.setbackFt)} setback above ${fmtLen(S.rules.envelope.baseFt)}${iss?`: building is ${fmtLen(iss.over)} past it`:""}</text>`;
+    }
+  }
   offsetLines().forEach(([a,b])=>{g+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" style="stroke:var(--sel);stroke-opacity:.55;stroke-width:${0.1*k};stroke-dasharray:${0.3*k} ${0.4*k}"/>`;});
   const sx=FRONT+fs*3.2,rx=-fs*3.2;
   g+=`<text x="${sx}" y="15" transform="rotate(90 ${sx} 15)" text-anchor="middle" style="fill:var(--muted);font-size:${fs}px">South 2nd Street</text>`;
@@ -1834,9 +1856,17 @@ function build3D(){
   root.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(lotPts),new THREE.LineBasicMaterial({color:ink})));
   const grid=new THREE.GridHelper(260,52,dark?0x2a3235:0xc3cbc8,dark?0x232a2d:0xd5dbd8);grid.position.y=-0.02;root.add(grid);
   if(!ui.explode){
-    const hp=LOT.map(p=>new THREE.Vector3(p[0]-CX,S.settings.maxHeight,p[1]-CZ));
-    const hl=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(hp),new THREE.LineDashedMaterial({color:C("--over"),dashSize:2,gapSize:1.5}));
-    hl.computeLineDistances();root.add(hl);
+    // zoning envelope: the base up to the max base height, then a setback from the street up to the max height
+    const mat=new THREE.LineDashedMaterial({color:C("--over"),dashSize:2,gapSize:1.5});
+    const base=S.rules.envelope.baseFt,top=S.settings.maxHeight,lim=setbackLimit();
+    const v=(x,y,z)=>new THREE.Vector3(x-CX,y,z-CZ);
+    const upper=LOT.map(p=>[Math.min(p[0],lim),p[1]]);
+    const add=(pts,loop)=>{const g=new THREE.BufferGeometry().setFromPoints(pts);const l=loop?new THREE.LineLoop(g,mat):new THREE.Line(g,mat);l.computeLineDistances();root.add(l);};
+    add(LOT.map(p=>v(p[0],base,p[1])),true);                 // top of the base
+    add(upper.map(p=>v(p[0],top,p[1])),true);                // max height, set back from the street
+    add([v(lim,base,0),v(lim,base,25)],false);               // setback line at the base height
+    add([v(lim,base,0),v(lim,top,0)],false);add([v(lim,base,25),v(lim,top,25)],false);
+    add([v(FRONT,0,0),v(FRONT,base,0)],false);add([v(FRONT,0,25),v(FRONT,base,25)],false);   // street wall up to the base
   }
 }
 
@@ -1858,6 +1888,10 @@ function renderRules(){
     ...["parking","mechanical","corridor100","corridor50","laundry"].map(k=>[`${AREA_TYPES[k].base} deduction`,`${inp("deductions."+k,R.deductions[k],5)}% of its area`,`${fmt(dedSum(k))} SF on all floors`,"Project assumption, confirm"]),
     ["Elevator and stair core","Counts as floor area on every floor. On commercial floors it counts as residential unless switched off for that floor",
      co?(co.auto?`${fmtLen(coreRectFor(cur()).y1-co.y0)} wide, elevator fixed, stair length follows each floor's height: `+S.floors.map(f=>`${f.name} ${fmt(coreArea(f))} SF`).join(", "):`${fmtLen(co.x1-co.x0)} × ${fmtLen(co.y1-co.y0)}, ${fmt(coreArea())} SF per floor`)+(commOff?`; commercial on the ${commOff}`:""):"No core","Project decision"],
+    ["Height and setback<small>R6, narrow street, qualifying affordable housing</small>",
+     `Base up to ${inp("envelope.baseFt",R.envelope.baseFt,1)} ft, then the street wall sets back ${inp("envelope.setbackFt",R.envelope.setbackFt,1)} ft; max height ${fmt(S.settings.maxHeight)} ft (zoning input)`,
+     (()=>{const bad=S.floors.filter(f=>setbackIssue(f));return bad.length?`<span style="color:var(--over)">${bad.map(f=>f.name).join(", ")} past the setback</span>`:"All floors comply";})(),
+     "NYC Zoning Resolution 23-432, 23-433"],
     ["Light well<small>Small inner court with no legally required windows facing it. Clear inside the walls, not floor area</small>",
      `At or below ${inp("court.highAboveFt",R.court.highAboveFt,1)} ft: at least ${inp("court.lowMinAreaSF",R.court.lowMinAreaSF,10)} SF, no side under ${inp("court.lowMinDimFt",R.court.lowMinDimFt,0.5)} ft. Above: at least ${inp("court.highMinAreaSF",R.court.highMinAreaSF,10)} SF, no side under ${inp("court.highMinDimFt",R.court.highMinDimFt,0.5)} ft. Walls ${inp("court.wallIn",R.court.wallIn,1)} in. Height checked at <select class="in" data-rule-s="court.measureAt"><option value="top" ${R.court.measureAt!=="floor"?"selected":""}>the top of each story</option><option value="floor" ${R.court.measureAt==="floor"?"selected":""}>the floor level of each story</option></select>${R.court.measureAt==="floor"?' <small style="color:var(--over)">Less strict reading; a plan examiner may measure to the top of the story</small>':""}`,
      S.lightwell?S.floors.map(f=>{const q=courtRectFor(f);return q?`${f.name} ${fmtLen(q.len)} × ${fmtLen(q.depth)}`:"";}).filter(Boolean).join(", "):"No light well",

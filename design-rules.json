@@ -101,6 +101,16 @@
       "meaning": "Exterior walls sit inside the building envelope with their outside face on it, so on the east and west sides the outside face is on the side offset line (2 in inside the lot line) and the thickness builds inward.",
       "source": "Project modeling convention",
       "wallModel": "Every wall keeps the line it was drawn on, a thickness, and which side of that line it sits on (inside, centered or outside). Changing the thickness never moves the drawn line. Rebuilt exterior walls use the building envelope as their drawn line, sitting inside it."
+    },
+    "envelope": {
+      "label": "Height and setback (R6, narrow street, qualifying affordable housing)",
+      "baseFt": 65,
+      "minBaseFt": 30,
+      "setbackFt": 15,
+      "maxHeightFt": 85,
+      "meaning": "The street wall may rise to the max base height (min 30 ft, max 65 ft); any floor that rises above it must sit at least 15 ft back from the street line on a narrow street (10 ft on a wide street; reduced 1 ft per ft the street wall is set back, never under 7 ft); max building height 85 ft. Standard (non-qualifying) R6 on a narrow street is 45 ft base and 55 ft max height. Within 100 ft of a wide street the affordable limits are 65 ft base and 95 ft max.",
+      "thisBuilding": "Floors 1-6 rise to 64'-11\" at the street line; the 7th and 8th floors' street sides are 15'-0\" back, at 105'-0\" from the rear lot line.",
+      "source": "NYC Zoning Resolution 23-432, 23-433"
     }
   },
   "siteInputs246South2nd": {
