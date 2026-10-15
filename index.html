@@ -992,8 +992,8 @@ $("#dimpop").addEventListener("toggle",e=>{if(e.target.tagName==="DETAILS")ui.po
 /* ---------- toolbar ---------- */
 const NOTES={
   select:"Tap a wall or area to select it. Drag its handles to reshape, drag the body to move it, or drag empty space to pan.",
-  wall:"Tap the start point, then the end point. After the first tap you can type a length, such as 12'6, and press Enter.",
-  area:"Tap each corner, then tap the first corner or Close shape. After a corner you can type a length, such as 25', and press Enter. Choose the area type first."
+  wall:"Tap the start point, then the end point. After the first tap you can type a length, such as 5 or 5'6\", press Enter to lock it, then click to pick the direction.",
+  area:"Tap each corner, then tap the first corner or Close shape. After a corner you can type a length, such as 25', press Enter to lock it, then click to pick the direction. Choose the area type first."
 };
 function renderToolbar(){
   document.querySelectorAll("[data-mode]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mode===ui.mode)));
@@ -1575,7 +1575,7 @@ svg.addEventListener("pointerdown",e=>{
   const dimT=ui.mode==="select"&&e.target.closest&&e.target.closest("[data-dim]");
   if(dimT){openPop(dimT.dataset.dim);return;}
   if(ui.mode==="wall"){
-    const q=placePt(ui.draft?ui.draft.a:null,p);
+    const q=ui.draft&&ui.draft.lock?lockedPt(ui.draft.a,p):placePt(ui.draft?ui.draft.a:null,p);
     if(!ui.draft){ui.draft={kind:"wall",a:q,cur:null};ui.lastPlace={p,from:null,which:"wallStart"};}
     else{
       const b=q;
@@ -1588,7 +1588,7 @@ svg.addEventListener("pointerdown",e=>{
     const q0=placePt(null,p);
     if(!ui.draft){ui.draft={kind:"area",pts:[q0],cur:null};ui.lastPlace={p,from:null,which:"areaPt"};}
     else if(ui.draft.pts.length>=3&&dist(q0,ui.draft.pts[0])<Math.max(1,vb().w/45)){finishArea();return;}
-    else{const from=ui.draft.pts[ui.draft.pts.length-1];ui.draft.pts.push(placePt(from,p));ui.lastPlace={p,from,which:"areaPt"};}
+    else{const from=ui.draft.pts[ui.draft.pts.length-1];ui.draft.pts.push(ui.draft.lock?lockedPt(from,p):placePt(from,p));ui.lastPlace=ui.draft.lock?null:{p,from,which:"areaPt"};delete ui.draft.lock;}
     ui.typed="";
     renderPlan();renderToolbar();return;
   }
@@ -1634,6 +1634,7 @@ svg.addEventListener("pointermove",e=>{
     if(ui.mode==="wall"||ui.mode==="area"){
       if(!ui.lastP||dist(ui.lastP,p)*vb().pxPerFt>3){ui.snapIdx=0;if(ui.lastPlace&&dist(ui.lastPlace.p,p)*vb().pxPerFt>4)ui.lastPlace=null;}   // a real move starts again from the nearest snap
       ui.lastP=p;
+      if(ui.draft&&ui.draft.lock){ui.draft.cur=lockedPt(draftFrom(),p);ui.hover=null;renderPlan();return;}
       const q=placePt(draftFrom(),p);
       ui.hover={pt:q,kind:snapInfo.kind,desc:snapInfo.desc};
       if(ui.draft)ui.draft.cur=q;
@@ -1911,18 +1912,26 @@ function draftFrom(){
 }
 function renderTyped(){
   const el=$("#typed");if(!el)return;
-  el.textContent=ui.typed?`Length ${ui.typed}, press Enter to place`:(draftFrom()?"Type a length and press Enter":"");
+  const d=ui.draft;
+  el.textContent=ui.typed?`Length ${ui.typed}, press Enter to lock it`
+    :d&&d.lock?`Length ${fmtLen(d.lock)} locked: click to pick the direction (Esc to unlock)`
+    :(draftFrom()?"Type a length and press Enter":"");
 }
+/* Typing a length and pressing Enter locks the next segment's length; the next click sets its direction. */
 function placeTyped(){
   const d=ui.draft,from=draftFrom(),L=parseLen(ui.typed);
   ui.typed="";
   if(!d||!from||!(L>0)){renderTyped();return;}
-  const to=d.cur||[from[0]+1,from[1]];
-  let dx=to[0]-from[0],dy=to[1]-from[1],l=Math.hypot(dx,dy);
+  d.lock=L;
+  if(ui.lastP)d.cur=lockedPt(from,ui.lastP);
+  renderPlan();renderToolbar();
+}
+/* The point at the locked length from `from`, in the direction of the cursor (squared up when Ortho is on). */
+function lockedPt(from,p){
+  const d=ui.draft,raw=orthoOn()?orthoPt(from,p):p;
+  let dx=raw[0]-from[0],dy=raw[1]-from[1],l=Math.hypot(dx,dy);
   if(l<1e-6){dx=1;dy=0;l=1;}
-  const pt=[from[0]+dx/l*L,from[1]+dy/l*L];
-  if(d.kind==="wall"){pushHist();const w=makeWall(d.a,pt);cur().walls.push(w);ui.sel={k:"wall",id:w.id};ui.draft=null;commit();return;}
-  d.pts.push(pt);d.cur=pt;renderPlan();renderToolbar();
+  return [from[0]+dx/l*d.lock,from[1]+dy/l*d.lock];
 }
 $("#zIn").addEventListener("click",()=>{ui.view.w=Math.max(12,ui.view.w*0.75);renderPlan();});
 $("#zOut").addEventListener("click",()=>{ui.view.w=Math.min(260,ui.view.w/0.75);renderPlan();});
@@ -2040,6 +2049,7 @@ document.addEventListener("keydown",e=>{
   }
   if(e.key==="Escape"){
     // Escape cancels what is in progress and returns to Select and move; once there, it leaves full screen
+    if(ui.draft&&ui.draft.lock){delete ui.draft.lock;renderToolbar();renderPlan();return;}   // first unlock a typed length
     // 1st Escape: stop drawing and return to Select and move. 2nd: deselect. 3rd: leave full screen.
     if(ui.draft||ui.mode!=="select"){ui.draft=null;ui.hover=null;ui.typed="";ui.mode="select";renderToolbar();renderPlan();return;}
     if(ui.sel||ui.pop){ui.sel=null;ui.pop=null;renderPlan();renderSel();return;}
