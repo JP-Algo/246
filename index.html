@@ -11,7 +11,7 @@
 :root{
   color-scheme: light;
   --paper:#EDF0EE; --panel:#F8FAF9; --ink:#1E2528; --muted:#5A666B; --line:#C8D0CD; --grid:#DCE2DF;
-  --gross:#2D6BAA; --deduct:#B27410; --amenity:#6A57B8; --terrace:#2E7D50; --core:#0E7C86; --comm:#9C3D54; --sell:#44505A; --over:#B3261E; --sel:#C2307A;
+  --gross:#2D6BAA; --deduct:#B27410; --amenity:#6A57B8; --terrace:#2E7D50; --core:#0E7C86; --comm:#9C3D54; --aff:#C2571A; --sell:#44505A; --over:#B3261E; --sel:#C2307A;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px);
   padding-bottom:env(safe-area-inset-bottom,0px);
@@ -20,13 +20,13 @@
   :root:not([data-theme="light"]){
     color-scheme: dark;
     --paper:#13181A; --panel:#1A2023; --ink:#E1E7E4; --muted:#98A4A8; --line:#313A3D; --grid:#222A2D;
-    --gross:#6FA6DC; --deduct:#E2AC47; --amenity:#A898EA; --terrace:#6BBB8C; --core:#5CC4CC; --comm:#E58BA0; --sell:#C9D2D8; --over:#F07A70; --sel:#F08DBA;
+    --gross:#6FA6DC; --deduct:#E2AC47; --amenity:#A898EA; --terrace:#6BBB8C; --core:#5CC4CC; --comm:#E58BA0; --aff:#F2A06A; --sell:#C9D2D8; --over:#F07A70; --sel:#F08DBA;
   }
 }
 :root[data-theme="dark"]{
   color-scheme: dark;
   --paper:#13181A; --panel:#1A2023; --ink:#E1E7E4; --muted:#98A4A8; --line:#313A3D; --grid:#222A2D;
-  --gross:#6FA6DC; --deduct:#E2AC47; --amenity:#A898EA; --terrace:#6BBB8C; --core:#5CC4CC; --comm:#E58BA0; --sell:#C9D2D8; --over:#F07A70; --sel:#F08DBA;
+  --gross:#6FA6DC; --deduct:#E2AC47; --amenity:#A898EA; --terrace:#6BBB8C; --core:#5CC4CC; --comm:#E58BA0; --aff:#F2A06A; --sell:#C9D2D8; --over:#F07A70; --sel:#F08DBA;
 }
 *{box-sizing:inherit}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
@@ -242,6 +242,7 @@ tfoot td{font-weight:600;border-bottom:0}
         <span style="--c:var(--core)">Elevator and stair core</span>
         <span style="--c:var(--gross)">Residential area</span>
         <span style="--c:var(--comm)">Commercial area</span>
+        <span style="--c:var(--aff)">Residential affordable</span>
         <span style="--c:var(--sell)">Sellable area (not in the FAR math)</span>
       </div>
       <div class="sel" id="sel"></div>
@@ -337,12 +338,14 @@ const AREA_TYPES={
   // Use areas sit inside the gross outline and set the use of that part of the floor
   resArea:{label:"Residential area",short:"Residential",kind:"use",use:"residential",color:"--gross"},
   commArea:{label:"Commercial area",short:"Commercial",kind:"use",use:"commercial",color:"--comm"},
+  resAff:{label:"Residential affordable",short:"Affordable",kind:"use",use:"residential",aff:true,color:"--aff"},
   // Sellable areas are tracked for efficiency only and do not change floor area
-  sellRes:{label:"Sellable area, residential",short:"Sellable res.",kind:"sell",use:"residential",color:"--sell"},
+  sellRes:{label:"Sellable area, residential - free-market",short:"Sellable free-market",kind:"sell",use:"residential",color:"--sell"},
+  sellAff:{label:"Sellable area, residential affordable",short:"Sellable affordable",kind:"sell",use:"residential",aff:true,color:"--aff"},
   sellComm:{label:"Sellable area, commercial",short:"Sellable comm.",kind:"sell",use:"commercial",color:"--sell"}
 };
-const MENU=["gross","resArea","commArea","parking","mechanical","corridor100","corridor50","laundry","amenity","terrace","sellRes","sellComm"];
-const ORDER=["gross","resArea","commArea","terrace","amenity","parking","mechanical","corridor50","corridor100","laundry","sellRes","sellComm"];
+const MENU=["gross","resArea","resAff","commArea","parking","mechanical","corridor100","corridor50","laundry","amenity","terrace","sellRes","sellAff","sellComm"];
+const ORDER=["gross","resArea","resAff","commArea","terrace","amenity","parking","mechanical","corridor50","corridor100","laundry","sellRes","sellAff","sellComm"];
 
 const A=(type,pts)=>({id:uid(),type,pts:pts.map(p=>[p[0],p[1]])});
 const W=(a,b,t,tag)=>({id:uid(),a:[a[0],a[1]],b:[b[0],b[1]],t,tag:tag||""});
@@ -742,17 +745,17 @@ function compute(){
     const ovs={residential:[],commercial:[]};
     f.areas.forEach(a=>{const T=AREA_TYPES[a.type];if(T&&T.kind==="use"&&a.pts.length>=3)ovs[T.use].push(a);});
     const useAt=q=>ovs.residential.some(a=>pointInPoly(q,a.pts))?"residential":ovs.commercial.some(a=>pointInPoly(q,a.pts))?"commercial":f.use;
-    let gross=0,court=0,terr=0,ovRes=0,ovComm=0,amen=0,sellRes=0,sellComm=0;
+    let gross=0,court=0,terr=0,ovRes=0,ovComm=0,amen=0,sellRes=0,sellComm=0,sellAff=0,aff=0;
     const ded={residential:0,commercial:0};
     f.areas.forEach(a=>{
       if(a.pts.length<3)return;
       const T=AREA_TYPES[a.type]||AREA_TYPES.gross,ar=polyArea(a.pts),rr=rectOf(a.pts);
       const cv=cr?(rr?rectOverlap(rr,cr):(T.kind==="gross"?(cr.x1-cr.x0)*(cr.y1-cr.y0):0)):0,net=Math.max(0,ar-cv);
       if(T.kind==="gross"){gross+=net;court+=cv;}
-      else if(T.kind==="use"){if(T.use==="residential")ovRes+=net;else ovComm+=net;}
+      else if(T.kind==="use"){if(T.use==="residential")ovRes+=net;else ovComm+=net;if(T.aff)aff+=net;}
       else if(T.kind==="deduct"){ded[useAt(centroid(a.pts))==="commercial"?"commercial":"residential"]+=net*factorOf(a.type);}
       else if(T.kind==="amenity"){if(useAt(centroid(a.pts))==="residential")amen+=net;}
-      else if(T.kind==="sell"){if(T.use==="residential")sellRes+=net;else sellComm+=net;}
+      else if(T.kind==="sell"){if(T.aff)sellAff+=net;else if(T.use==="residential")sellRes+=net;else sellComm+=net;}
       else terr+=ar;
     });
     const cc=coreRectFor(f),coreInRes=cc&&ovs.residential.some(a=>pointInPoly([(cc.x0+cc.x1)/2,(cc.y0+cc.y1)/2],a.pts));
@@ -763,7 +766,7 @@ function compute(){
       else{resGross=Math.min(gross,ovRes+coreRes);commGross=gross-resGross;}
     }
     const resPreF=below?0:Math.max(0,resGross-ded.residential),commPreF=below?0:Math.max(0,commGross-ded.commercial);
-    return {i,f,gross,court,terr,below,coreRes,amen:below?0:amen,sellRes,sellComm,resGross,commGross,resPreF,commPreF};
+    return {i,f,gross,court,terr,below,coreRes,amen:below?0:amen,sellRes,sellComm,sellAff,aff:below?0:aff,resGross,commGross,resPreF,commPreF};
   });
   const resPre=rows.reduce((s,r)=>s+r.resPreF,0);
   const amenRaw=rows.reduce((s,r)=>s+r.amen,0);
@@ -788,9 +791,9 @@ function compute(){
   const grossAbove=rows.filter(r=>!r.below).reduce((s,r)=>s+r.gross,0);
   const terrTotal=rows.reduce((s,r)=>s+r.terr,0);
   const height=S.floors.filter(f=>f.use!=="cellar").reduce((s,f)=>s+f.height,0);
-  const sellRes=rows.reduce((s,r)=>s+r.sellRes,0),sellComm=rows.reduce((s,r)=>s+r.sellComm,0);
+  const sellRes=rows.reduce((s,r)=>s+r.sellRes,0),sellComm=rows.reduce((s,r)=>s+r.sellComm,0),sellAff=rows.reduce((s,r)=>s+r.sellAff,0),affT=rows.reduce((s,r)=>s+r.aff,0);
   const resGrossT=rows.reduce((s,r)=>s+r.resGross,0),commGrossT=rows.reduce((s,r)=>s+r.commGross,0);
-  return {sellRes,sellComm,resGrossT,commGrossT,rows,resPre,amenRaw,amenCap,amenAllowed,zoneGreen,resZfa,commZfa,total,allowed,resCap,commCap,grossAbove,terrTotal,height};
+  return {sellRes,sellComm,sellAff,affT,resGrossT,commGrossT,rows,resPre,amenRaw,amenCap,amenAllowed,zoneGreen,resZfa,commZfa,total,allowed,resCap,commCap,grossAbove,terrTotal,height};
 }
 
 /* ---------- totals UI ---------- */
@@ -809,9 +812,10 @@ function renderTotals(){
   const tb=$("#tbody");
   tb.innerHTML=c.rows.slice().reverse().map(r=>{
     const mixed=r.f.use!=="cellar"&&r.resGross>0.5&&r.commGross>0.5;
-    const use=(r.f.use==="cellar"?"Cellar, exempt":mixed?(r.f.use==="commercial"&&r.coreRes&&r.resGross<=r.coreRes+0.5?"Commercial, core residential":"Mixed use"):r.f.use==="commercial"?"Commercial":"Residential")+(r.court?`, light well ${fmt(r.court)} SF`:"");
-    const sell=r.sellRes+r.sellComm;
-    const sellCell=sell?`${fmt(sell)}${r.sellRes&&r.sellComm?`<small>R ${fmt(r.sellRes)} · C ${fmt(r.sellComm)}</small>`:`<small>${r.sellRes?"Residential":"Commercial"}</small>`}`:"–";
+    const use=(r.f.use==="cellar"?"Cellar, exempt":mixed?(r.f.use==="commercial"&&r.coreRes&&r.resGross<=r.coreRes+0.5?"Commercial, core residential":"Mixed use"):r.f.use==="commercial"?"Commercial":"Residential")+(r.aff?`, affordable ${fmt(r.aff)} SF`:"")+(r.court?`, light well ${fmt(r.court)} SF`:"");
+    const sell=r.sellRes+r.sellAff+r.sellComm;
+    const parts=[r.sellRes?`FM ${fmt(r.sellRes)}`:"",r.sellAff?`A ${fmt(r.sellAff)}`:"",r.sellComm?`C ${fmt(r.sellComm)}`:""].filter(Boolean);
+    const sellCell=sell?`${fmt(sell)}<small>${parts.join(" · ")}</small>`:"–";
     return `<tr data-floor="${r.i}" class="${r.i===ui.floor?"on":""}"><td>${r.f.name}<small>${use}</small></td><td>${r.resGross?`${fmt(r.resZfa)}<small>of ${fmt(r.resGross)} gross</small>`:"–"}</td><td>${r.commGross?`${fmt(r.commZfa)}<small>of ${fmt(r.commGross)} gross</small>`:"–"}</td><td>${fmt(r.gross)}</td><td>${fmt(r.dedTotal)}</td><td>${fmt(r.zfa)}</td><td>${sellCell}</td><td>${r.terr?fmt(r.terr):"–"}</td></tr>`;
   }).join("");
   const resGross=c.rows.reduce((s,r)=>s+r.resGross,0);
@@ -819,8 +823,8 @@ function renderTotals(){
   $("#tfoot").innerHTML=
     `<tr class="adj"><td>Amenity counted</td><td></td><td></td><td></td><td>${fmt(c.amenAllowed)} of ${fmt(c.amenRaw)}</td><td colspan="3" style="text-align:left">cap is ${S.rules.amenityCap.pct}% of residential, ${fmt(c.amenCap)} SF</td></tr>`+
     `<tr class="adj"><td>Zone Green</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td><td>${S.settings.zoneGreen?fmt(c.zoneGreen):"off"}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td></tr>`+
-    `<tr><td>Total above grade</td><td>${fmt(c.resZfa)}<small>of ${fmt(resGross)} gross</small></td><td>${fmt(c.commZfa)}<small>of ${fmt(commGross)} gross</small></td><td>${fmt(c.grossAbove)}</td><td>${fmt(c.grossAbove-c.total)}</td><td>${fmt(c.total)}</td><td>${fmt(c.sellRes+c.sellComm)}</td><td>${fmt(c.terrTotal)}</td></tr>`+
-    `<tr class="adj"><td>Sellable efficiency<small>sellable ÷ gross of that use</small></td><td>${c.resGrossT?Math.round(c.sellRes/c.resGrossT*100)+"%":"–"}</td><td>${c.commGrossT?Math.round(c.sellComm/c.commGrossT*100)+"%":"–"}</td><td>${c.grossAbove?Math.round((c.sellRes+c.sellComm)/c.grossAbove*100)+"%":"–"}</td><td></td><td></td><td>R ${fmt(c.sellRes)} · C ${fmt(c.sellComm)}</td><td></td></tr>`;
+    `<tr><td>Total above grade</td><td>${fmt(c.resZfa)}<small>of ${fmt(resGross)} gross</small></td><td>${fmt(c.commZfa)}<small>of ${fmt(commGross)} gross</small></td><td>${fmt(c.grossAbove)}</td><td>${fmt(c.grossAbove-c.total)}</td><td>${fmt(c.total)}</td><td>${fmt(c.sellRes+c.sellAff+c.sellComm)}</td><td>${fmt(c.terrTotal)}</td></tr>`+
+    `<tr class="adj"><td>Sellable efficiency<small>sellable ÷ gross of that use</small></td><td>${c.resGrossT?Math.round((c.sellRes+c.sellAff)/c.resGrossT*100)+"%":"–"}</td><td>${c.commGrossT?Math.round(c.sellComm/c.commGrossT*100)+"%":"–"}</td><td>${c.grossAbove?Math.round((c.sellRes+c.sellAff+c.sellComm)/c.grossAbove*100)+"%":"–"}</td><td></td><td></td><td>FM ${fmt(c.sellRes)} · A ${fmt(c.sellAff)} · C ${fmt(c.sellComm)}</td><td></td></tr>`;
 
   const cap=(label,v,max,unit)=>{
     const over=v>max+0.5;
@@ -832,8 +836,8 @@ function renderTotals(){
     (()=>{
       // market-rate residential: lot x residential FAR, plus the Zone Green 5% of residential floor area,
       // compared with the residential floor area as drawn less the affordable unit
-      const st=S.settings,base=st.lot*st.resFar,bonus=c.zoneGreen,allowed=base+bonus,built=c.resZfa+c.zoneGreen-st.affordable,over=built>allowed+0.5;
-      return `<div class="cap ${over?"over":""}"><div class="l"><span>Market-rate residential allowed<small style="display:block;color:var(--muted);font-size:11.5px">${fmt(st.lot)} SF lot × ${st.resFar} FAR = ${fmt(base)} SF${st.zoneGreen?` + ${S.rules.zoneGreen.pct}% Zone Green bonus ${fmt(bonus)} SF`:""} = ${fmt(allowed)} SF. Drawn: residential ${fmt(c.resZfa+c.zoneGreen)} SF less the ${fmt(st.affordable)} SF affordable unit</small></span><span>${fmt(built)} of ${fmt(allowed)} SF${over?", "+fmt(built-allowed)+" over":""}</span></div><div class="bar"><i class="${over?"over":""}" style="width:${Math.min(100,allowed?built/allowed*100:0)}%"></i></div></div>`;
+      const st=S.settings,base=st.lot*st.resFar,bonus=c.zoneGreen,allowed=base+bonus,affU=c.affT>0.5?c.affT:st.affordable,built=c.resZfa+c.zoneGreen-affU,over=built>allowed+0.5;
+      return `<div class="cap ${over?"over":""}"><div class="l"><span>Market-rate residential allowed<small style="display:block;color:var(--muted);font-size:11.5px">${fmt(st.lot)} SF lot × ${st.resFar} FAR = ${fmt(base)} SF${st.zoneGreen?` + ${S.rules.zoneGreen.pct}% Zone Green bonus ${fmt(bonus)} SF`:""} = ${fmt(allowed)} SF. Drawn: residential ${fmt(c.resZfa+c.zoneGreen)} SF less ${c.affT>0.5?`${fmt(c.affT)} SF of Residential affordable areas drawn`:`the ${fmt(st.affordable)} SF affordable unit (zoning input; draw Residential affordable areas to measure it)`}</small></span><span>${fmt(built)} of ${fmt(allowed)} SF${over?", "+fmt(built-allowed)+" over":""}</span></div><div class="bar"><i class="${over?"over":""}" style="width:${Math.min(100,allowed?built/allowed*100:0)}%"></i></div></div>`;
     })()+
     cap("Commercial",c.commZfa,c.commCap,"SF")+
     cap("Building height above grade",c.height,S.settings.maxHeight,"ft")+

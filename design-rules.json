@@ -91,8 +91,8 @@
       "source": "Project modeling convention"
     },
     "sellable": {
-      "label": "Sellable area, residential and commercial",
-      "meaning": "Tracked for efficiency only and not part of the floor area math. Efficiency = sellable area / gross floor area of that use, above grade.",
+      "label": "Sellable area: residential free-market, residential affordable, commercial",
+      "meaning": "Tracked for efficiency only and not part of the floor area math. Shown as FM / A / C in the table. Residential efficiency = (free-market + affordable sellable) / residential gross, above grade.",
       "source": "Project modeling convention"
     },
     "extWall": {
@@ -111,6 +111,11 @@
       "meaning": "The street wall may rise to the max base height (min 30 ft, max 65 ft); any floor that rises above it must sit at least 15 ft back from the street line on a narrow street (10 ft on a wide street; reduced 1 ft per ft the street wall is set back, never under 7 ft); max building height 85 ft. Standard (non-qualifying) R6 on a narrow street is 45 ft base and 55 ft max height. Within 100 ft of a wide street the affordable limits are 65 ft base and 95 ft max.",
       "thisBuilding": "Floors 1-6 rise to 64'-11\" at the street line; the 7th and 8th floors' street sides are 15'-0\" back, at 105'-0\" from the rear lot line.",
       "source": "NYC Zoning Resolution 23-432, 23-433"
+    },
+    "affordable": {
+      "label": "Residential affordable areas",
+      "meaning": "Drawn inside the gross outline like a Residential area; counts as residential floor area and is tracked as affordable. When any are drawn, the market-rate residential check subtracts their total instead of the affordable unit zoning input.",
+      "source": "Project modeling convention"
     }
   },
   "siteInputs246South2nd": {
