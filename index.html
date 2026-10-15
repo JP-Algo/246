@@ -1130,30 +1130,66 @@ function projSeg(p,a,b){
 }
 /* snapInfo describes the last snap: kind is end (wall or face end), corner (area or core corner),
    mid (midpoint), on (on a wall line), grid or free. */
-let snapInfo={kind:"free",line:null};
+let snapInfo={kind:"free",line:null,desc:""};
+function wallKind(w){return w.tag==="core"?"core wall":w.tag==="court"?"light well wall":w.tag==="ext"?"exterior wall":"wall";}
 function snapPt(p,exclKey){
-  if(!ui.snap){snapInfo={kind:"free",line:null};return [Math.round(p[0]*48)/48,Math.round(p[1]*48)/48];}
+  if(!ui.snap){snapInfo={kind:"free",line:null,desc:""};return [Math.round(p[0]*48)/48,Math.round(p[1]*48)/48];}
   const v=vb(),thr=Math.max(0.6,v.w/55),f=cur(),exclId=exclKey?String(exclKey).split(":")[0]:null;
-  let best=null,bd=thr,bk="grid";
-  const consider=(q,key,kind)=>{if(key===exclKey||(exclId&&key&&key.split(":")[0]===exclId&&kind==="mid"))return;const d=dist(p,q);if(d<bd-1e-9||(Math.abs(d-bd)<1e-9&&kind!=="mid")){bd=d;best=q;bk=kind;}};
+  let best=null,bd=thr,bk="grid",bdesc="";
+  const consider=(q,key,kind,desc)=>{
+    if(key===exclKey||(exclId&&key&&key.split(":")[0]===exclId&&kind==="mid"))return;
+    const d=dist(p,q);
+    if(best&&dist(best,q)<0.01){if(!bdesc.split(" · ").includes(desc))bdesc+=" · "+desc;if(kind!=="mid")bk=kind;return;}   // same spot: name both
+    if(d<bd-1e-9){bd=d;best=q;bk=kind;bdesc=desc;}
+  };
   const mid=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
+  const gross=f.areas.filter(a=>a.type==="gross"&&a.pts.length>=3);
+  // which side of a wall a face is on: inside the building envelope or outside it
+  const side=(w,j)=>{
+    if(!gross.length)return "";
+    const n=leftN(w.a,w.b),sg=j===0?1:-1,m=mid(w.a,w.b),q=[m[0]+n[0]*sg*(w.t/2+0.05),m[1]+n[1]*sg*(w.t/2+0.05)];
+    const qo=[m[0]-n[0]*sg*(w.t/2+0.05),m[1]-n[1]*sg*(w.t/2+0.05)];
+    const ins=gross.some(a=>pointInPoly(q,a.pts)),other=gross.some(a=>pointInPoly(qo,a.pts));
+    return ins&&other?"":ins?"inside":"outside";   // a partition has building on both sides: just "face"
+  };
   const lines=[];
-  cutWalls(f).forEach(w=>{
-    if(ui.snapC){consider(w.a,w.id+":a","end");consider(w.b,w.id+":b","end");if(ui.snapM)consider(mid(w.a,w.b),w.id+":m","mid");if(w.id!==exclId)lines.push([w.a,w.b]);}
-    if(ui.snapF&&w.id!==exclId)wallFaces(w).forEach((fc,j)=>{consider(fc[0],w.id+":f"+j+"a","end");consider(fc[1],w.id+":f"+j+"b","end");if(ui.snapM)consider(mid(fc[0],fc[1]),w.id+":f"+j+"m","mid");lines.push(fc);});
+  const addWall=(w,key)=>{
+    const nm=wallKind(w);
+    if(ui.snapC){
+      consider(w.a,key+":a","end",`End of ${nm} centerline`);consider(w.b,key+":b","end",`End of ${nm} centerline`);
+      if(ui.snapM)consider(mid(w.a,w.b),key+":m","mid",`Middle of ${nm}`);
+      if(w.id!==exclId)lines.push([w.a,w.b,`On ${nm} centerline`]);
+    }
+    if(ui.snapF&&(!w.id||w.id!==exclId))wallFaces(w).forEach((fc,j)=>{
+      const sd=side(w,j),face=sd?`${sd} face`:"face";
+      consider(fc[0],key+":f"+j+"a","end",sd?`${sd[0].toUpperCase()+sd.slice(1)} corner of ${nm}`:`Corner of ${nm} face`);
+      consider(fc[1],key+":f"+j+"b","end",sd?`${sd[0].toUpperCase()+sd.slice(1)} corner of ${nm}`:`Corner of ${nm} face`);
+      if(ui.snapM)consider(mid(fc[0],fc[1]),key+":f"+j+"m","mid",`Middle of ${nm} ${face}`);
+      lines.push([fc[0],fc[1],`On ${nm} ${face}`]);
+    });
+  };
+  cutWalls(f).forEach(w=>addWall(w,w.id));
+  [...coreWalls(f),...courtWalls(f)].forEach(w=>addWall(w,"x"));
+  f.areas.forEach(a=>{
+    const T=AREA_TYPES[a.type]||AREA_TYPES.gross,nm=a.type==="gross"?"building envelope":(a.name||T.short);
+    a.pts.forEach((q,i)=>{
+      consider(q,a.id+":"+i,"corner",a.type==="gross"?"Building envelope corner":`Corner of ${nm}`);
+      if(ui.snapM)consider(mid(q,a.pts[(i+1)%a.pts.length]),a.id+":m"+i,"mid",`Middle of ${nm} edge`);
+      if(a.type==="gross")lines.push([q,a.pts[(i+1)%a.pts.length],"On building envelope"]);
+    });
   });
-  [...coreWalls(f),...courtWalls(f)].forEach(w=>{
-    if(ui.snapC){consider(w.a,"x","end");consider(w.b,"x","end");if(ui.snapM)consider(mid(w.a,w.b),"x","mid");lines.push([w.a,w.b]);}
-    if(ui.snapF)wallFaces(w).forEach(fc=>{consider(fc[0],"x","end");consider(fc[1],"x","end");if(ui.snapM)consider(mid(fc[0],fc[1]),"x","mid");lines.push(fc);});
-  });
-  f.areas.forEach(a=>a.pts.forEach((q,i)=>{consider(q,a.id+":"+i,"corner");if(ui.snapM)consider(mid(q,a.pts[(i+1)%a.pts.length]),a.id+":m"+i,"mid");}));
-  if(S.core&&exclKey!=="core"){const c=coreRectFor(f);[[c.x0,c.y0],[c.x1,c.y0],[c.x1,c.y1],[c.x0,c.y1]].forEach(q=>consider(q,"core","corner"));}
-  if(best){snapInfo={kind:bk,line:null};return [best[0],best[1]];}
-  // no point close by: slide onto the nearest wall face or centerline
+  if(S.core&&exclKey!=="core"){const c=coreRectFor(f);[[c.x0,c.y0],[c.x1,c.y0],[c.x1,c.y1],[c.x0,c.y1]].forEach(q=>consider(q,"core","corner","Outside corner of core"));}
+  LOT.forEach((q,i)=>{consider(q,"lot:"+i,"corner","Lot corner");lines.push([q,LOT[(i+1)%LOT.length],"On lot line"]);});
+  if(best){snapInfo={kind:bk,line:null,desc:bdesc};return [best[0],best[1]];}
+  // no point close by: slide onto the nearest wall face, centerline, building envelope or lot line
   let lb=null,ld=thr*0.7,ll=null;
-  lines.forEach(([a,b])=>{const q=projSeg(p,a,b);if(q){const d=dist(p,q);if(d<ld){ld=d;lb=q;ll=[a,b];}}});
-  if(lb){snapInfo={kind:"on",line:ll};return [lb[0],lb[1]];}
-  snapInfo={kind:"grid",line:null};
+  lines.forEach(([a,b,desc])=>{
+    const q=projSeg(p,a,b);if(!q)return;const d=dist(p,q);
+    if(lb&&Math.abs(d-ld)<0.01&&dist(q,lb)<0.01){if(!ll[2].split(" · ").includes(desc))ll[2]+=" · "+desc;return;}
+    if(d<ld){ld=d;lb=q;ll=[a,b,desc];}
+  });
+  if(lb){snapInfo={kind:"on",line:[ll[0],ll[1]],desc:ll[2]};return [lb[0],lb[1]];}
+  snapInfo={kind:"grid",line:null,desc:"Grid"};
   const g=0.5;
   return [Math.round(p[0]/g)*g,Math.round(p[1]/g)*g];
 }
@@ -1168,7 +1204,7 @@ function placePt(from,p){
     if(!hz&&Math.abs(b[0]-a[0])>1e-6){const y=a[1]+(from[0]-a[0])*(b[1]-a[1])/(b[0]-a[0]);return [from[0],y];}
   }
   const o=orthoPt(from,q);
-  if(o[0]!==q[0]||o[1]!==q[1])snapInfo={kind:"ortho",line:null};
+  if(o[0]!==q[0]||o[1]!==q[1])snapInfo={kind:"ortho",line:null,desc:"Square to the last point"};
   return o;
 }
 function orthoPt(a,b){
@@ -1352,13 +1388,14 @@ function renderPlan(){
     }
   }
   const hv=ui.hover;
-  if(hv&&(ui.mode==="wall"||ui.mode==="area")&&["end","corner","mid","on"].includes(hv.kind)){
+  if(hv&&(ui.mode==="wall"||ui.mode==="area"||hv.drag)&&["end","corner","mid","on","grid","ortho"].includes(hv.kind)){
     const [hx,hy]=hv.pt,m=vr*1.9,sw=0.22*k,st=`fill:none;stroke:var(--sel);stroke-width:${sw}`;
     if(hv.kind==="mid")dr+=`<path d="M${hx} ${hy-m}L${hx+m*0.95} ${hy+m*0.65}L${hx-m*0.95} ${hy+m*0.65}Z" pointer-events="none" style="${st}"/>`;
     else if(hv.kind==="on")dr+=`<path d="M${hx-m*0.7} ${hy-m*0.7}L${hx+m*0.7} ${hy+m*0.7}M${hx+m*0.7} ${hy-m*0.7}L${hx-m*0.7} ${hy+m*0.7}" pointer-events="none" style="${st}"/>`;
-    else dr+=`<rect x="${hx-m*0.8}" y="${hy-m*0.8}" width="${m*1.6}" height="${m*1.6}" pointer-events="none" style="${st}"/>`;
-    const lab={end:"End",corner:"Corner",mid:"Midpoint",on:"On wall"}[hv.kind];
-    dr+=`<text x="${hx+m*1.3}" y="${hy-m*1.1}" pointer-events="none" style="fill:var(--sel);font-size:${fs*0.65}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.25}px">${lab}</text>`;
+    else if(hv.kind==="end"||hv.kind==="corner")dr+=`<rect x="${hx-m*0.8}" y="${hy-m*0.8}" width="${m*1.6}" height="${m*1.6}" pointer-events="none" style="${st}"/>`;
+    else dr+=`<circle cx="${hx}" cy="${hy}" r="${m*0.35}" pointer-events="none" style="fill:var(--sel);opacity:.6"/>`;
+    const lab=escH(hv.desc||{end:"End",corner:"Corner",mid:"Midpoint",on:"On wall"}[hv.kind]||"");
+    dr+=`<text x="${hx+m*1.3}" y="${hy-m*1.1}" pointer-events="none" style="fill:var(--sel);font-size:${fs*0.78}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.3}px;opacity:${hv.kind==="grid"||hv.kind==="ortho"?0.75:1}">${lab}</text>`;
   }
   const d=ui.draft;
   if(d&&d.kind==="wall"){
@@ -1450,7 +1487,7 @@ svg.addEventListener("pointermove",e=>{
   if(!drag){
     if(ui.mode==="wall"||ui.mode==="area"){
       const q=placePt(draftFrom(),p);
-      ui.hover={pt:q,kind:snapInfo.kind};
+      ui.hover={pt:q,kind:snapInfo.kind,desc:snapInfo.desc};
       if(ui.draft)ui.draft.cur=q;
       renderPlan();
     }
@@ -1467,9 +1504,11 @@ svg.addEventListener("pointermove",e=>{
   if(drag.k==="end"){
     const other=drag.end==="a"?o.b:o.a;
     const q=snapPt(p,o.id+":"+drag.end);
-    o[drag.end]=orthoPt(other,q);
+    o[drag.end]=["end","corner","mid"].includes(snapInfo.kind)?q:orthoPt(other,q);
+    ui.hover={pt:o[drag.end],kind:snapInfo.kind,desc:snapInfo.desc,drag:true};
   }else if(drag.k==="vert"){
     o.pts[drag.i]=snapPt(p,o.id+":"+drag.i);
+    ui.hover={pt:o.pts[drag.i],kind:snapInfo.kind,desc:snapInfo.desc,drag:true};
   }else if(drag.k==="move"){
     const g=ui.snap?0.5:0.01;
     const dx=Math.round((p[0]-drag.start[0])/g)*g,dy=Math.round((p[1]-drag.start[1])/g)*g;
@@ -1482,6 +1521,7 @@ svg.addEventListener("pointermove",e=>{
 });
 function endPointer(e){
   pointers.delete(e.pointerId);
+  if(ui.hover&&ui.hover.drag)ui.hover=null;
   if(pointers.size<2)pinch=null;
   if(drag&&drag.hist){drag=null;commit();return;}
   drag=null;
