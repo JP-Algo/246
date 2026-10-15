@@ -1005,7 +1005,7 @@ $("#dimpop").addEventListener("toggle",e=>{if(e.target.tagName==="DETAILS")ui.po
 
 /* ---------- toolbar ---------- */
 const NOTES={
-  select:"Tap a wall or area to select it. Drag its handles to reshape, drag the body to move it, or drag empty space to pan.",
+  select:"Tap a wall or area to select it. Drag its handles to reshape, drag the body to move it, or drag empty space to pan. On an area, drag a + to add a corner; click a corner and press Delete (or Alt+click it) to remove it.",
   wall:"Tap the start point, then the end point. After the first tap you can type a length, such as 5 or 5'6\", press Enter to lock it, then click to pick the direction.",
   area:"Tap each corner, then tap the first corner or Close shape. After a corner you can type a length, such as 25', press Enter to lock it, then click to pick the direction. Choose the area type first."
 };
@@ -1171,6 +1171,11 @@ function longestStair(){
 function coreFitButton(){
   const n=longestStair();if(!n)return "";
   return `<button class="btn" id="coreFit" title="Sets the stair part of the core to the longest scissor stair needed on any floor">Fit core to the stair (${fmtLen(n.lenFt)} for the ${fmtLen(n.h)} ${n.name})</button>`;
+}
+function deleteVert(o,i){
+  if(!o||!o.pts)return;
+  if(o.pts.length<=3){setSaveState("An area needs at least 3 corners","warn");return;}
+  pushHist();o.pts.splice(i,1);ui.selVert=null;commit();
 }
 function deleteSel(){
   if(!ui.sel||ui.sel.k==="core")return;
@@ -1529,7 +1534,16 @@ function renderPlan(){
   const o=findSel();
   if(o&&ui.mode==="select"){
     if(ui.sel.k==="wall"){hd+=handle(o.a,`data-k="end" data-id="${o.id}" data-end="a"`)+handle(o.b,`data-k="end" data-id="${o.id}" data-end="b"`);}
-    else if(ui.sel.k==="area")o.pts.forEach((p,i)=>{hd+=handle(p,`data-k="vert" data-id="${o.id}" data-i="${i}"`);});
+    else if(ui.sel.k==="area"){
+      o.pts.forEach((p,i)=>{
+        const q=o.pts[(i+1)%o.pts.length],m=[(p[0]+q[0])/2,(p[1]+q[1])/2],r=vr*0.9;
+        if(dist(p,q)*vb().pxPerFt>34)hd+=`<g pointer-events="none" style="stroke:var(--sel);stroke-width:${0.2*k}"><circle cx="${m[0]}" cy="${m[1]}" r="${r}" style="fill:var(--panel)"/><path d="M${m[0]-r*0.6} ${m[1]}L${m[0]+r*0.6} ${m[1]}M${m[0]} ${m[1]-r*0.6}L${m[0]} ${m[1]+r*0.6}"/></g><circle data-k="addv" data-id="${o.id}" data-i="${i}" cx="${m[0]}" cy="${m[1]}" r="${hr*0.7}" style="fill:transparent"><title>Drag to add a corner</title></circle>`;
+      });
+      o.pts.forEach((p,i)=>{
+        hd+=handle(p,`data-k="vert" data-id="${o.id}" data-i="${i}"`);
+        if(ui.selVert&&ui.selVert.id===o.id&&ui.selVert.i===i)hd+=`<circle cx="${p[0]}" cy="${p[1]}" r="${vr}" pointer-events="none" style="fill:var(--sel)"/>`;
+      });
+    }
   }
 
   let dr="";
@@ -1618,9 +1632,24 @@ svg.addEventListener("pointerdown",e=>{
   if(t){
     const k=t.dataset.k,id=t.dataset.id;
     if(k==="end")drag={k,id,end:t.dataset.end,hist:false};
-    else if(k==="vert")drag={k,id,i:+t.dataset.i,hist:false};
+    else if(k==="vert"){
+      const i=+t.dataset.i,o=findSel();
+      if(e.altKey&&o&&o.pts){deleteVert(o,i);return;}            // Alt+click removes a corner
+      ui.selVert={id,i};drag={k,id,i,hist:false};
+    }
+    else if(k==="addv"){
+      // add a corner in the middle of this edge and start dragging it
+      const o=findSel(),i=+t.dataset.i;
+      if(o&&o.pts){
+        const a=o.pts[i],b=o.pts[(i+1)%o.pts.length];
+        pushHist();o.pts.splice(i+1,0,[(a[0]+b[0])/2,(a[1]+b[1])/2]);
+        ui.selVert={id,i:i+1};drag={k:"vert",id,i:i+1,hist:true};
+        renderPlan();renderSel();
+      }
+      return;
+    }
     else{
-      ui.sel={k,id};
+      ui.sel={k,id};ui.selVert=null;
       // two clicks on the same wall within 450 ms open the wall box (the plan redraws between clicks,
       // so the browser's own dblclick never reaches the wall)
       if(k==="wall"){
@@ -2085,6 +2114,11 @@ document.addEventListener("keydown",e=>{
   if(draftFrom()&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
     if(/^[0-9.'" -]$/.test(e.key)){e.preventDefault();ui.typed+=e.key;renderTyped();return;}
     if(e.key==="Backspace"&&ui.typed){e.preventDefault();ui.typed=ui.typed.slice(0,-1);renderTyped();return;}
+    if(e.key==="Backspace"&&ui.draft&&ui.draft.kind==="area"){
+      e.preventDefault();ui.draft.pts.pop();delete ui.draft.lock;
+      if(!ui.draft.pts.length)ui.draft=null;
+      renderToolbar();renderPlan();return;
+    }
     if(e.key==="Enter"&&ui.typed){e.preventDefault();placeTyped();return;}
   }
   if(e.key==="Escape"){
@@ -2096,7 +2130,12 @@ document.addEventListener("keydown",e=>{
     if(ui.fs)setFull(false);
     return;
   }
-  else if((e.key==="Delete"||e.key==="Backspace")&&ui.sel){e.preventDefault();deleteSel();}
+  else if((e.key==="Delete"||e.key==="Backspace")&&ui.sel){
+    e.preventDefault();
+    const o=findSel();
+    if(ui.sel.k==="area"&&ui.selVert&&o&&ui.selVert.id===o.id){deleteVert(o,ui.selVert.i);return;}
+    deleteSel();
+  }
   else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="z"){e.preventDefault();undo();}
   else if(e.key==="Enter"&&ui.draft&&ui.draft.kind==="area"){finishArea();}
 });
