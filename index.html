@@ -129,7 +129,10 @@ tfoot td{font-weight:600;border-bottom:0}
 .rules td small{display:block;color:var(--muted);font-size:11.5px;font-weight:400}
 .rules input.in{width:64px;padding:2px 6px}
 .rules tbody tr{cursor:default}
-.dimpop{position:absolute;z-index:5;display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12.5px;box-shadow:0 4px 14px rgba(0,0,0,.18);max-width:calc(100% - 16px)}
+.dimpop{position:absolute;z-index:5;display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12.5px;box-shadow:0 4px 14px rgba(0,0,0,.18);max-width:min(400px,calc(100% - 16px))}
+.dimpop details{flex-basis:100%;font-size:12px;color:var(--muted)}
+.dimpop summary{cursor:pointer;color:var(--ink)}
+.dimpop details p{margin:4px 0 0;line-height:1.5}
 .dimpop[hidden]{display:none}
 .dimpop label{display:flex;align-items:center;gap:5px}
 .dimpop input.in{width:78px;padding:3px 6px}
@@ -868,21 +871,13 @@ function renderPop(){
         const help=ext
           ?`<b>Align to outside:</b> the wall's outside face stays on its line and the extra thickness goes into the building. Use this for exterior walls on the 2" offset line.<br><b>Centered:</b> the wall grows evenly on both sides.<br><b>Align to inside:</b> the inside face stays put and the wall grows outward.`
           :`<b>${sd.outLabel}:</b> the wall's ${sideA} face stays on its line and the extra thickness goes to the ${sideB}.<br><b>Centered:</b> the wall grows evenly on both sides.<br><b>${sd.inLabel}:</b> the ${sideB} face stays put and the wall grows to the ${sideA}.`;
-        return `<span class="seg" role="group" aria-label="When the width changes">${b(sd.outKey,sd.outLabel)}${b("center","Centered")}${b(sd.inKey,sd.inLabel)}</span><p class="note" style="flex-basis:100%;margin:0;line-height:1.5">${help}</p>`;})()}`:""}
-      <p class="note" style="flex-basis:100%;margin:0">Pick which end stays in place${o.w?", and which side of the wall stays on its line when the width changes":""} (shown in pink on the plan), then type a new ${o.w?"length or width":"length"}.</p>
+        return `<span class="seg" role="group" aria-label="When the width changes">${b(sd.outKey,sd.outLabel)}${b("center","Centered")}${b(sd.inKey,sd.inLabel)}</span><details${ui.popHelp?" open":""}><summary>What do these options mean?</summary><p>Pick which end stays in place${o.w?", and which side of the wall stays on its line when the width changes":""} (shown in pink on the plan), then type a new ${o.w?"length or width":"length"}.</p><p>${help}</p></details>`;})()}`:`<details${ui.popHelp?" open":""}><summary>What do these options mean?</summary><p>Pick which end stays in place (shown in pink on the plan), then type a new length.</p></details>`}
       <button class="x" id="popX" aria-label="Close">×</button>
       ${P.msg?`<p class="note" style="flex-basis:100%;margin:0;color:var(--over)">${P.msg}</p>`:""}`;
   }
   el.hidden=false;
-  const m=svg.getScreenCTM(),wr=el.parentElement.getBoundingClientRect();
-  if(m){
-    const pt=svg.createSVGPoint();pt.x=(o.ends[0][0]+o.ends[1][0])/2;pt.y=(o.ends[0][1]+o.ends[1][1])/2;
-    const sp=pt.matrixTransform(m);
-    let left=sp.x-wr.left-el.offsetWidth/2,top=sp.y-wr.top+18;
-    if(top+el.offsetHeight>wr.height-6)top=sp.y-wr.top-el.offsetHeight-18;
-    el.style.left=Math.max(6,Math.min(wr.width-el.offsetWidth-6,left))+"px";
-    el.style.top=Math.max(6,Math.min(wr.height-el.offsetHeight-6,top))+"px";
-  }
+  const wr=el.parentElement.getBoundingClientRect();
+  el.style.left=Math.max(6,wr.width-el.offsetWidth-8)+"px";el.style.top="8px";
   if(P.focus){P.focus=false;const i=$("#popLen");if(i){i.focus();i.select();}}
 }
 function applyPopLen(L){
@@ -943,6 +938,7 @@ $("#dimpop").addEventListener("change",e=>{
   }
 });
 $("#dimpop").addEventListener("pointerdown",e=>e.stopPropagation());
+$("#dimpop").addEventListener("toggle",e=>{if(e.target.tagName==="DETAILS")ui.popHelp=e.target.open;},true);
 
 /* ---------- toolbar ---------- */
 const NOTES={
@@ -1057,7 +1053,8 @@ function renderSel(){
     el.innerHTML=`<span class="k">Wall</span>
       <label class="check">Length <input class="in" id="wL" value="${attrLen(dist(o.a,o.b))}" aria-label="Wall length, feet and inches"></label>
       <label class="check">Width <input class="in" id="wT" type="number" min="2" max="36" step="0.5" value="${(o.t*12).toFixed(1)}"> in</label>
-      <button class="btn warn" id="delSel">Delete wall</button>`;
+      <button class="btn warn" id="delSel">Delete wall</button>
+      <span class="note" style="margin:0">Double-click the wall on the plan for more length and width options</span>`;
     $("#wT").addEventListener("change",e=>{const v=parseFloat(e.target.value);if(v>0){pushHist();o.t=v/12;commit();}});
     $("#wL").addEventListener("change",e=>{
       const L=parseLen(e.target.value),cl=dist(o.a,o.b);
@@ -1494,8 +1491,7 @@ svg.addEventListener("pointerdown",e=>{
     else if(k==="vert")drag={k,id,i:+t.dataset.i,hist:false};
     else{
       ui.sel={k,id};
-      ui.pop=k==="wall"?{ref:"wall",id,fixed:0}:null;
-      if(ui.pop){const w=f.walls.find(x=>x.id===id);if(w){const en=endsInfo([w.a,w.b]);if(endOnLot(en.mx,en.horiz)&&!endOnLot(en.mn,en.horiz))ui.pop.fixed=1;}}
+      if(!(ui.pop&&ui.pop.ref==="wall"&&ui.pop.id===id))ui.pop=null;   // double-click opens the wall box
       const o=findSel();
       drag={k:"move",start:p,orig:clone(o),hist:false};
     }
@@ -1507,6 +1503,11 @@ svg.addEventListener("pointerdown",e=>{
 });
 
 svg.addEventListener("mousedown",e=>{if(e.button===1)e.preventDefault();});
+svg.addEventListener("dblclick",e=>{
+  if(ui.mode!=="select")return;
+  const t=e.target.closest&&e.target.closest('[data-k="wall"]');
+  if(t){e.preventDefault();openPop("wall:"+t.dataset.id);}
+});
 svg.addEventListener("auxclick",e=>{if(e.button===1)e.preventDefault();});
 svg.addEventListener("pointermove",e=>{
   if(pointers.has(e.pointerId))pointers.set(e.pointerId,[e.clientX,e.clientY]);
