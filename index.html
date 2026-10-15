@@ -1312,7 +1312,10 @@ function snapPt(p,exclKey){
       if(ui.snapM)consider(mid(w.a,w.b),key+":m","mid",`Middle of ${nm}`);
       if(w.id!==exclId)lines.push([w.a,w.b,`On ${nm} centerline`]);
     }
-    if(ui.snapF&&(!w.id||w.id!==exclId))wallFaces(w).forEach((fc,j)=>{
+    // faces come from the wall as drawn, with its ends run on to close corners, so a face corner
+    // snap lands on the corner you see
+    const dw=DE.get(w),fw=dw?{...w,a:dw.a,b:dw.b}:w;
+    if(ui.snapF&&(!w.id||w.id!==exclId))wallFaces(fw).forEach((fc,j)=>{
       const sd=side(w,j),face=sd?`${sd} face`:"face";
       consider(fc[0],key+":f"+j+"a","end",sd?`${sd[0].toUpperCase()+sd.slice(1)} corner of ${nm}`:`Corner of ${nm} face`);
       consider(fc[1],key+":f"+j+"b","end",sd?`${sd[0].toUpperCase()+sd.slice(1)} corner of ${nm}`:`Corner of ${nm} face`);
@@ -1320,8 +1323,10 @@ function snapPt(p,exclKey){
       lines.push([fc[0],fc[1],`On ${nm} ${face}`]);
     });
   };
-  cutWalls(f).forEach(w=>addWall(w,w.id));
-  [...coreWalls(f),...courtWalls(f)].forEach(w=>addWall(w,"x"));
+  const regW=cutWalls(f),othW=[...coreWalls(f),...courtWalls(f)];
+  var DE=new Map(drawEnds([...regW,...othW]).map(d=>[d.w,d]));
+  regW.forEach(w=>addWall(w,w.id));
+  othW.forEach(w=>addWall(w,"x"));
   f.areas.forEach(a=>{
     const T=AREA_TYPES[a.type]||AREA_TYPES.gross,nm=a.type==="gross"?"building envelope":(a.name||T.short);
     a.pts.forEach((q,i)=>{
@@ -1345,7 +1350,8 @@ function snapPt(p,exclKey){
   if(cands.length){
     cands.sort((x,y)=>x.d-y.d);
     const pick=cands[(ui.snapIdx||0)%cands.length];
-    snapInfo={kind:pick.kind,line:null,desc:pick.desc+(cands.length>1?`  (${((ui.snapIdx||0)%cands.length)+1} of ${cands.length}, Tab for next)`:""),count:cands.length};
+    const parts=pick.desc.split(" · "),short=parts.slice(0,2).join(" · ")+(parts.length>2?` (+${parts.length-2} more)`:"");
+    snapInfo={kind:pick.kind,line:null,desc:short+(cands.length>1?`  (${((ui.snapIdx||0)%cands.length)+1} of ${cands.length}, Tab for next)`:""),count:cands.length};
     return [pick.q[0],pick.q[1]];
   }
   // no point close by: slide onto the nearest wall face, centerline, building envelope or lot line
