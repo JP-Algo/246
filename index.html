@@ -1160,16 +1160,21 @@ function refLine(w){const s=w.ref||0,n=leftN(w.a,w.b),h=s*w.t/2;return [[w.a[0]+
 function setWallFromRef(w,ra,rb,sd,t){const n=leftN(ra,rb),h=sd*t/2;w.a=[ra[0]-n[0]*h,ra[1]-n[1]*h];w.b=[rb[0]-n[0]*h,rb[1]-n[1]*h];w.t=t;w.ref=sd;}
 const sgn1=v=>v>0?1:-1;
 /* Outward-facing exterior walls (from Rebuild) get their outside face as the drawn line. */
+/* An exterior wall's drawn line is whichever of its lines (outside face, centerline, inside face) sits on
+   the floor's building envelope, checked at the middle of the wall. */
 function ensureWallRefs(st){
-  st.floors.forEach(f=>f.walls.forEach(w=>{
-    if(w.ref!==undefined||w.tag!=="ext")return;
-    const n=leftN(w.a,w.b),ni=inwardN(w.a,w.b,f),r=-sgn1(n[0]*ni[0]+n[1]*ni[1]),h=r*w.t/2;
-    // only when the outside face really sits on the floor outline; older centered walls keep their centerline
-    const fa=[w.a[0]+n[0]*h,w.a[1]+n[1]*h],fb=[w.b[0]+n[0]*h,w.b[1]+n[1]*h],mid=[(fa[0]+fb[0])/2,(fa[1]+fb[1])/2];
+  st.floors.forEach(f=>{
     const edges=[];f.areas.filter(x=>x.type==="gross"&&x.pts.length>=3).forEach(x=>x.pts.forEach((p,i)=>edges.push([p,x.pts[(i+1)%x.pts.length]])));
     const on=q=>edges.some(([p,q2])=>{const pr=projSeg(q,p,q2);return pr&&dist(pr,q)<0.03;});
-    w.ref=on(fa)&&on(fb)&&on(mid)?r:0;
-  }));
+    f.walls.forEach(w=>{
+      if(w.tag!=="ext"){if(w.ref===undefined)w.ref=0;return;}
+      const n=leftN(w.a,w.b),m=[(w.a[0]+w.b[0])/2,(w.a[1]+w.b[1])/2];
+      const lineOn=sd=>on([m[0]+n[0]*sd*w.t/2,m[1]+n[1]*sd*w.t/2]);
+      if(w.ref!==undefined&&lineOn(w.ref))return;
+      const hit=[1,-1,0].find(lineOn);
+      w.ref=hit!==undefined?hit:(w.ref||0);
+    });
+  });
   return st;
 }
 function inwardN(a,b,f){
