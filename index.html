@@ -1382,7 +1382,10 @@ function renderPlan(){
     const A_=polyArea(a.pts);
     if(a.type==="gross"){
       const mx=Math.min(...a.pts.map(p=>p[0])),my=Math.min(...a.pts.map(p=>p[1]));
-      lb+=`<text x="${mx+0.8*k}" y="${my+fs*1.3}" style="fill:var(--gross);font-size:${fs}px;font-weight:600">${escH(a.name||"Gross")} ${fmt(A_)} SF</text>`;
+      // the light well is open, so it comes out of the gross area shown here, as in the totals
+      const lw=courtRectFor(f),rr=rectOf(a.pts),cut=lw?(rr?rectOverlap(rr,lw):(lw.x1-lw.x0)*(lw.y1-lw.y0)):0;
+      lb+=`<text x="${mx+0.8*k}" y="${my+fs*1.3}" style="fill:var(--gross);font-size:${fs}px;font-weight:600">${escH(a.name||"Gross")} ${fmt(A_-cut)} SF</text>`;
+      if(cut>0.5)lb+=`<text x="${mx+0.8*k}" y="${my+fs*2.4}" style="fill:var(--gross);font-size:${fs*0.72}px">${fmt(A_)} SF outline − ${fmt(cut)} SF light well</text>`;
     }else{
       const cc=centroid(a.pts);
       lb+=`<text x="${cc[0]}" y="${cc[1]}" text-anchor="middle" style="fill:var(--ink);font-size:${fs*0.92}px;font-weight:600">${escH(a.name||T.short)}</text>`;
