@@ -616,7 +616,7 @@ async function connectDb(){
     if(!first&&(saveTimer||writing||drag))return;  // this view has newer edits on the way
     let o=null;try{o=JSON.parse(d.state);}catch(e){}
     if(!validState(o))return;
-    ensureCore(o);ensureRules(o);syncDerived(o);ensureLightwell(o);
+    ensureCore(o);ensureRules(o);syncDerived(o);ensureLightwell(o);ensureWallRefs(o);
     first=false;
     S=o;lastSavedJSON=d.state;
     try{localStorage.setItem(KEY,d.state);}catch(e){}
@@ -823,6 +823,29 @@ function inLot(q){
 }
 /* Which of a wall's two sides (min = top/rear on the plan, max = bottom/street) faces the outside of the
    building. Partitions with building on both sides are named by their side on the screen. */
+/* Side choices for a wall, relative to its drawn line. Exterior walls use inside/outside; partitions use
+   their side on the screen. */
+function wallSideInfo(w,horiz){
+  let nMin=leftN(w.a,w.b);if((horiz?nMin[1]:nMin[0])>0)nMin=[-nMin[0],-nMin[1]];
+  const m=[(w.a[0]+w.b[0])/2,(w.a[1]+w.b[1])/2],d=w.t/2+0.3,f=cur();
+  const qMin=[m[0]+nMin[0]*d,m[1]+nMin[1]*d],qMax=[m[0]-nMin[0]*d,m[1]-nMin[1]*d];
+  const gross=f.areas.filter(x=>x.type==="gross"&&x.pts.length>=3);
+  let iMin=gross.some(x=>pointInPoly(qMin,x.pts)),iMax=gross.some(x=>pointInPoly(qMax,x.pts));
+  if(iMin===iMax){iMin=pointInPoly(qMin,LOT)&&inLot(qMin);iMax=pointInPoly(qMax,LOT)&&inLot(qMax);}
+  if(iMin!==iMax){const nIn=iMin?nMin:[-nMin[0],-nMin[1]];return {opts:[["in","Inside the line",nIn],["center","Centered on the line",null],["out","Outside the line",[-nIn[0],-nIn[1]]]]};}
+  const minL=horiz?"Above the line":"Left of the line",maxL=horiz?"Below the line":"Right of the line";
+  return {opts:[["min",minL,nMin],["center","Centered on the line",null],["max",maxL,[-nMin[0],-nMin[1]]]]};
+}
+function wallSideNow(w,info){
+  const sd=w.ref||0;if(!sd)return "center";
+  const n=leftN(w.a,w.b),body=[-n[0]*sd,-n[1]*sd];
+  const o=info.opts.find(x=>x[2]&&body[0]*x[2][0]+body[1]*x[2][1]>0);return o?o[0]:"center";
+}
+function setWallSide(w,key,info){
+  const R=refLine(w),o=info.opts.find(x=>x[0]===key);if(!o)return;
+  if(!o[2]){setWallFromRef(w,R[0],R[1],0,w.t);return;}
+  const n=leftN(R[0],R[1]);setWallFromRef(w,R[0],R[1],-sgn1(n[0]*o[2][0]+n[1]*o[2][1]),w.t);
+}
 function wallSides(w,horiz){
   let n=leftN(w.a,w.b);if((horiz?n[1]:n[0])>0)n=[-n[0],-n[1]];   // n points to the min side
   const m=[(w.a[0]+w.b[0])/2,(w.a[1]+w.b[1])/2],d=w.t/2+0.3,f=cur();
@@ -860,18 +883,16 @@ function renderPop(){
   if(!o||ui.mode!=="select"){el.hidden=true;popKey="";return;}
   const e=endsInfo(o.ends),L=dist(o.ends[0],o.ends[1]),P=ui.pop;
   const bothLot=!o.core&&endOnLot(e.mn,e.horiz)&&endOnLot(e.mx,e.horiz);
-  const key=JSON.stringify([P.ref,P.id,P.i,P.fixed,P.wfix,P.msg||"",bothLot,L.toFixed(4),o.w?o.w.t:0]);
+  const key=JSON.stringify([P.ref,P.id,P.i,P.fixed,o.w?String(o.w.ref||0)+o.w.a.join():"",P.msg||"",bothLot,L.toFixed(4),o.w?o.w.t:0]);
   if(key!==popKey&&!el.contains(document.activeElement)){
     popKey=key;
     el.innerHTML=`<label>Length <input class="in" id="popLen" value="${attrLen(L)}" ${bothLot?"readonly":""}></label>
       ${bothLot?`<span class="note" style="margin:0">Both ends are on lot lines, so the lot sets this length</span>`:`<span class="seg" role="group" aria-label="End to keep in place"><button data-fix="0" aria-pressed="${P.fixed===0}">Keep ${e.names[0]} end</button><button data-fix="1" aria-pressed="${P.fixed===1}">Keep ${e.names[1]} end</button></span>`}
-      ${o.w?`<label>Width <input class="in" id="popW" type="number" min="1" max="36" step="0.5" value="${+(o.w.t*12).toFixed(2)}"> in</label>
-      ${(()=>{const sd=wallSides(o.w,e.horiz),b=(k,t)=>`<button data-wfix="${k}" aria-pressed="${k==="center"?(!P.wfix||P.wfix==="center"):P.wfix===k}">${t}</button>`;
-        const ext=sd.outLabel==="Align to outside",sideA=sd.outLabel.replace("Align to ",""),sideB=sd.inLabel.replace("Align to ","");
-        const help=ext
-          ?`<b>Align to outside:</b> the wall's outside face stays on its line and the extra thickness goes into the building. Use this for exterior walls on the 2" offset line.<br><b>Centered:</b> the wall grows evenly on both sides.<br><b>Align to inside:</b> the inside face stays put and the wall grows outward.`
-          :`<b>${sd.outLabel}:</b> the wall's ${sideA} face stays on its line and the extra thickness goes to the ${sideB}.<br><b>Centered:</b> the wall grows evenly on both sides.<br><b>${sd.inLabel}:</b> the ${sideB} face stays put and the wall grows to the ${sideA}.`;
-        return `<span class="seg" role="group" aria-label="When the width changes">${b(sd.outKey,sd.outLabel)}${b("center","Centered")}${b(sd.inKey,sd.inLabel)}</span><details${ui.popHelp?" open":""}><summary>What do these options mean?</summary><p>Pick which end stays in place${o.w?", and which side of the wall stays on its line when the width changes":""} (shown in pink on the plan), then type a new ${o.w?"length or width":"length"}.</p><p>${help}</p></details>`;})()}`:`<details${ui.popHelp?" open":""}><summary>What do these options mean?</summary><p>Pick which end stays in place (shown in pink on the plan), then type a new length.</p></details>`}
+      ${o.w?(()=>{const info=wallSideInfo(o.w,e.horiz),now=wallSideNow(o.w,info);
+        return `<label>Thickness <input class="in" id="popW" type="number" min="1" max="36" step="0.5" value="${+(o.w.t*12).toFixed(2)}"> in</label>
+        <span class="seg" role="group" aria-label="Wall sits">${info.opts.map(x=>`<button data-wside="${x[0]}" aria-pressed="${x[0]===now}">${x[1]}</button>`).join("")}</span>
+        <details${ui.popHelp?" open":""}><summary>What do these options mean?</summary><p>The pink line is the line you drew. It stays where it is: the thickness builds to the side you pick, inside or outside the line, or evenly on both sides. Changing the thickness never moves the line.</p><p>Keep ___ end: when you change the length, that end stays put and the other end moves.</p></details>`;})()
+      :`<details${ui.popHelp?" open":""}><summary>What do these options mean?</summary><p>Pick which end stays in place (shown in pink on the plan), then type a new length.</p></details>`}
       <button class="x" id="popX" aria-label="Close">×</button>
       ${P.msg?`<p class="note" style="flex-basis:100%;margin:0;color:var(--over)">${P.msg}</p>`:""}`;
   }
@@ -910,8 +931,15 @@ $("#dimpop").addEventListener("click",e=>{
   const b=e.target.closest("[data-fix]");
   // update the pressed state in place: the box does not rebuild while a control inside it has focus
   if(b){ui.pop.fixed=+b.dataset.fix;$("#dimpop").querySelectorAll("[data-fix]").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));renderPlan();return;}
-  const wb=e.target.closest("[data-wfix]");
-  if(wb){ui.pop.wfix=wb.dataset.wfix;$("#dimpop").querySelectorAll("[data-wfix]").forEach(x=>x.setAttribute("aria-pressed",String(x===wb)));renderPlan();return;}
+  const wb=e.target.closest("[data-wside]");
+  if(wb){
+    const o=popObj();if(!o||!o.w)return;
+    const en=endsInfo(o.ends),info=wallSideInfo(o.w,en.horiz);
+    if(wallSideNow(o.w,info)===wb.dataset.wside)return;
+    pushHist();setWallSide(o.w,wb.dataset.wside,info);
+    $("#dimpop").querySelectorAll("[data-wside]").forEach(x=>x.setAttribute("aria-pressed",String(x===wb)));
+    commit();return;
+  }
   if(e.target.closest("#popX")){ui.pop=null;renderPlan();}
 });
 $("#dimpop").addEventListener("keydown",e=>{
@@ -922,19 +950,9 @@ $("#dimpop").addEventListener("keydown",e=>{
 $("#dimpop").addEventListener("change",e=>{
   if(e.target.id==="popLen"){applyPopLen(parseLen(e.target.value));}
   else if(e.target.id==="popW"){
+    // the drawn line stays where it is; the thickness builds to the wall's side
     const o=popObj(),v=parseFloat(e.target.value);
-    if(o&&o.w&&v>0){
-      const w=o.w,nt=v/12,dt=nt-w.t,fx=ui.pop.wfix||"center";
-      pushHist();
-      if(fx!=="center"){
-        // normal pointing at the top (horizontal wall) or rear (vertical wall) face
-        let n=leftN(w.a,w.b);const horiz=Math.abs(w.b[0]-w.a[0])>=Math.abs(w.b[1]-w.a[1]);
-        if((horiz?n[1]:n[0])>0)n=[-n[0],-n[1]];
-        const sgn=fx==="min"?-1:1,sh=[n[0]*sgn*dt/2,n[1]*sgn*dt/2];
-        w.a=[w.a[0]+sh[0],w.a[1]+sh[1]];w.b=[w.b[0]+sh[0],w.b[1]+sh[1]];
-      }
-      w.t=nt;popKey="";commit();
-    }
+    if(o&&o.w&&v>0){const R=refLine(o.w);pushHist();setWallFromRef(o.w,R[0],R[1],o.w.ref||0,v/12);popKey="";commit();}
   }
 });
 $("#dimpop").addEventListener("pointerdown",e=>e.stopPropagation());
@@ -1055,7 +1073,7 @@ function renderSel(){
       <label class="check">Width <input class="in" id="wT" type="number" min="2" max="36" step="0.5" value="${(o.t*12).toFixed(1)}"> in</label>
       <button class="btn warn" id="delSel">Delete wall</button>
       <span class="note" style="margin:0">Double-click the wall on the plan for more length and width options</span>`;
-    $("#wT").addEventListener("change",e=>{const v=parseFloat(e.target.value);if(v>0){pushHist();o.t=v/12;commit();}});
+    $("#wT").addEventListener("change",e=>{const v=parseFloat(e.target.value);if(v>0){const R=refLine(o);pushHist();setWallFromRef(o,R[0],R[1],o.ref||0,v/12);commit();}});
     $("#wL").addEventListener("change",e=>{
       const L=parseLen(e.target.value),cl=dist(o.a,o.b);
       if(!(L>0)||cl<1e-6){e.target.value=fmtLen(cl);return;}
@@ -1135,8 +1153,28 @@ function wallFaces(w){
 }
 /* Turn a drawn line into a wall centerline using the chosen drawing side. */
 /* Normal of a->b that points into the building (the floor's gross outline, or the lot if none). */
-function inwardN(a,b){
-  const n=leftN(a,b),m=[(a[0]+b[0])/2,(a[1]+b[1])/2],d=0.6,f=cur();
+/* A wall keeps the line that was drawn, its thickness and which side of that line it sits on. It is stored
+   as a centerline (a, b) with thickness t and ref = -1, 0 or 1: the side of the centerline (along leftN of
+   a->b) that the drawn line is on. ref 0 means the drawn line is the centerline. */
+function refLine(w){const s=w.ref||0,n=leftN(w.a,w.b),h=s*w.t/2;return [[w.a[0]+n[0]*h,w.a[1]+n[1]*h],[w.b[0]+n[0]*h,w.b[1]+n[1]*h]];}
+function setWallFromRef(w,ra,rb,sd,t){const n=leftN(ra,rb),h=sd*t/2;w.a=[ra[0]-n[0]*h,ra[1]-n[1]*h];w.b=[rb[0]-n[0]*h,rb[1]-n[1]*h];w.t=t;w.ref=sd;}
+const sgn1=v=>v>0?1:-1;
+/* Outward-facing exterior walls (from Rebuild) get their outside face as the drawn line. */
+function ensureWallRefs(st){
+  st.floors.forEach(f=>f.walls.forEach(w=>{
+    if(w.ref!==undefined||w.tag!=="ext")return;
+    const n=leftN(w.a,w.b),ni=inwardN(w.a,w.b,f),r=-sgn1(n[0]*ni[0]+n[1]*ni[1]),h=r*w.t/2;
+    // only when the outside face really sits on the floor outline; older centered walls keep their centerline
+    const fa=[w.a[0]+n[0]*h,w.a[1]+n[1]*h],fb=[w.b[0]+n[0]*h,w.b[1]+n[1]*h],mid=[(fa[0]+fb[0])/2,(fa[1]+fb[1])/2];
+    const edges=[];f.areas.filter(x=>x.type==="gross"&&x.pts.length>=3).forEach(x=>x.pts.forEach((p,i)=>edges.push([p,x.pts[(i+1)%x.pts.length]])));
+    const on=q=>edges.some(([p,q2])=>{const pr=projSeg(q,p,q2);return pr&&dist(pr,q)<0.03;});
+    w.ref=on(fa)&&on(fb)&&on(mid)?r:0;
+  }));
+  return st;
+}
+function inwardN(a,b,f){
+  f=f||cur();
+  const n=leftN(a,b),m=[(a[0]+b[0])/2,(a[1]+b[1])/2],d=0.6;
   const gross=f.areas.filter(x=>x.type==="gross"&&x.pts.length>=3);
   const ql=[m[0]+n[0]*d,m[1]+n[1]*d],qr=[m[0]-n[0]*d,m[1]-n[1]*d];
   let pl=gross.some(x=>pointInPoly(ql,x.pts)),pr=gross.some(x=>pointInPoly(qr,x.pts));
@@ -1154,8 +1192,10 @@ function makeWall(a,b){
   // a wall drawn along the envelope, the offset line or a lot line builds inward even when Center is chosen
   let just=ui.just;
   if(just==="center"&&dist(a,b)>0.05&&onBoundary(a)&&onBoundary(b)&&onBoundary([(a[0]+b[0])/2,(a[1]+b[1])/2]))just="out";
-  const t=ui.wallT/12,n=inwardN(a,b),s=just==="out"?1:just==="in"?-1:0,h=s*t/2;
-  return W([a[0]+n[0]*h,a[1]+n[1]*h],[b[0]+n[0]*h,b[1]+n[1]*h],t);
+  const t=ui.wallT/12,n=inwardN(a,b),s=just==="out"?1:just==="in"?-1:0,h=s*t/2,l=leftN(a,b);
+  const w=W([a[0]+n[0]*h,a[1]+n[1]*h],[b[0]+n[0]*h,b[1]+n[1]*h],t);
+  w.ref=s?-s*sgn1(l[0]*n[0]+l[1]*n[1]):0;   // remember the drawn line
+  return w;
 }
 function projSeg(p,a,b){
   const dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy;if(L2<1e-9)return null;
@@ -1419,14 +1459,12 @@ function renderPlan(){
       const en=endsInfo(po.ends),kp=ui.pop.fixed===1?en.mx:en.mn,m=vr*1.6;
       dr+=`<rect x="${kp[0]-m}" y="${kp[1]-m}" width="${m*2}" height="${m*2}" pointer-events="none" style="fill:var(--sel)"/>`;
       dr+=`<text x="${kp[0]+m*1.6}" y="${kp[1]-m*1.4}" pointer-events="none" style="fill:var(--sel);font-size:${fs*0.65}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.25}px">kept end</text>`;
-      if(po.w){
-        const w=po.w,fx=ui.pop.wfix||"center";
-        let n=leftN(w.a,w.b);if((en.horiz?n[1]:n[0])>0)n=[-n[0],-n[1]];   // n points to the west (top) or rear face
-        const sg=fx==="min"?1:fx==="max"?-1:0,h=sg*w.t/2;
-        const a=[w.a[0]+n[0]*h,w.a[1]+n[1]*h],b=[w.b[0]+n[0]*h,w.b[1]+n[1]*h];
-        dr+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" pointer-events="none" style="stroke:var(--sel);stroke-width:${0.35*k};${sg?"":`stroke-dasharray:${0.8*k} ${0.5*k}`}"/>`;
-      }
     }
+  }
+  // the selected wall's drawn line
+  if(ui.sel&&ui.sel.k==="wall"&&ui.mode==="select"){
+    const w=findSel();
+    if(w){const [a,b]=refLine(w);dr+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" pointer-events="none" style="stroke:var(--sel);stroke-width:${0.3*k}"/>`;}
   }
   const hv=ui.hover;
   if(hv&&(ui.mode==="wall"||ui.mode==="area"||hv.drag)&&["end","corner","mid","on","grid","ortho"].includes(hv.kind)){
@@ -1849,6 +1887,8 @@ function rebuildExt(f){
   const t=(S.rules.extWall&&S.rules.extWall.thickIn||12)/12;
   f.walls=f.walls.filter(w=>w.tag!=="ext");
   f.areas.filter(a=>a.type==="gross"&&a.pts.length>=3).forEach(a=>f.walls.push(...ring(insetRing(a.pts,t/2),t,"ext")));
+  f.walls.forEach(w=>{if(w.tag==="ext")delete w.ref;});
+  ensureWallRefs({floors:[f]});
 }
 $("#extWalls").addEventListener("click",()=>{pushHist();rebuildExt(cur());ui.sel=null;ui.pop=null;commit();});
 $("#extWallsAll").addEventListener("click",()=>{pushHist();S.floors.forEach(rebuildExt);ui.sel=null;ui.pop=null;commit();});
@@ -1962,6 +2002,7 @@ applySplit();
 
 document.addEventListener("keyup",e=>{if(e.key==="Shift")shiftHeld=false;});
 
+ensureWallRefs(S);
 init3D();
 renderAll();
 connectDb();

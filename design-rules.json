@@ -96,7 +96,8 @@
       "label": "Exterior walls",
       "thickIn": 12,
       "meaning": "Exterior walls sit inside the building envelope with their outside face on it, so on the east and west sides the outside face is on the side offset line (2 in inside the lot line) and the thickness builds inward.",
-      "source": "Project modeling convention"
+      "source": "Project modeling convention",
+      "wallModel": "Every wall keeps the line it was drawn on, a thickness, and which side of that line it sits on (inside, centered or outside). Changing the thickness never moves the drawn line. Rebuilt exterior walls use the building envelope as their drawn line, sitting inside it."
     }
   },
   "siteInputs246South2nd": {
