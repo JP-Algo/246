@@ -444,18 +444,45 @@ function labelOf(k){
 /* Core rectangle = outside faces of its walls. With auto on, width = 2 walls + the scissor stair and
    length = 3 walls (stair end, divider, elevator end) + elevator shaft + that floor's stair length. */
 const coreWallFt=()=>((S.rules&&S.rules.core&&S.rules.core.wallIn)||6)/12;
+/* Inside face of the floor's exterior wall on the west or east side, over the x range [x0, x1]. */
+function extInnerFace(f,side,x0,x1){
+  let best=null;
+  f.walls.forEach(w=>{
+    if(w.tag!=="ext"||Math.abs(w.a[1]-w.b[1])>1e-3)return;
+    const lo=Math.min(w.a[0],w.b[0]),hi=Math.max(w.a[0],w.b[0]);if(hi<x0+0.5||lo>x1-0.5)return;
+    const y=w.a[1];
+    if(side==="west"&&y<6){const v=y+w.t/2;if(best===null||v>best)best=v;}
+    if(side==="east"&&y>19&&y<26){const v=y-w.t/2;if(best===null||v<best)best=v;}
+  });
+  return best;
+}
 function coreRectFor(f){
   const c=S.core;if(!c)return null;
-  const t=coreWallFt(),base={y0:c.y0,y1:c.y1,elevW:c.elevW,elevSide:c.elevSide};
-  if(!c.auto||!f)return {...base,x0:c.x0,x1:c.x1};
-  const q=stairReq(f.height),len=3*t+c.elevW+q.lenFt;
-  base.y1=c.y0+2*t+q.widthFt;
-  return c.elevSide==="rear"?{...base,x0:c.x0,x1:c.x0+len}:{...base,x0:c.x1-len,x1:c.x1};
+  const t=coreWallFt(),base={elevW:c.elevW,elevSide:c.elevSide};
+  let x0=c.x0,x1=c.x1,y0=c.y0,y1=c.y1;
+  const q=f?stairReq(f.height):null;
+  if(c.auto&&f){
+    const len=3*t+c.elevW+q.lenFt;
+    if(c.elevSide==="rear")x1=c.x0+len;else x0=c.x1-len;
+    y1=c.y0+2*t+q.widthFt;
+  }
+  // the exterior wall can serve as one long side of the core
+  let attach=null;
+  if(c.attach&&f){
+    const face=extInnerFace(f,c.attach,x0,x1);
+    if(face!==null){
+      const inner=c.auto?q.widthFt:(c.y1-c.y0-2*t);
+      if(c.attach==="east"){y1=face;y0=face-inner-t;}else{y0=face;y1=face+inner+t;}
+      attach=c.attach;
+    }
+  }
+  return {...base,x0,x1,y0,y1,attach};
 }
 function coreZones(c){
   const t=coreWallFt(),ew=Math.max(0,Math.min(c.elevW,c.x1-c.x0-3*t));
-  if(c.elevSide==="rear"){const eA=c.x0+t,eB=eA+ew;return {t,eA,eB,div:eB+t/2,sA:eB+t,sB:c.x1-t,iy0:c.y0+t,iy1:c.y1-t};}
-  const eB=c.x1-t,eA=eB-ew;return {t,eA,eB,div:eA-t/2,sA:c.x0+t,sB:eA-t,iy0:c.y0+t,iy1:c.y1-t};
+  const iy0=c.attach==="west"?c.y0:c.y0+t,iy1=c.attach==="east"?c.y1:c.y1-t;   // no core wall on an attached side
+  if(c.elevSide==="rear"){const eA=c.x0+t,eB=eA+ew;return {t,eA,eB,div:eB+t/2,sA:eB+t,sB:c.x1-t,iy0,iy1};}
+  const eB=c.x1-t,eA=eB-ew;return {t,eA,eB,div:eA-t/2,sA:c.x0+t,sB:eA-t,iy0,iy1};
 }
 const coreArea=f=>{const c=coreRectFor(f||cur());return c?(c.x1-c.x0)*(c.y1-c.y0):0;};
 function pointInPoly(q,pts){let ins=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const a=pts[i],b=pts[j];if((a[1]>q[1])!==(b[1]>q[1])&&q[0]<(b[0]-a[0])*(q[1]-a[1])/(b[1]-a[1])+a[0])ins=!ins;}return ins;}
@@ -542,8 +569,12 @@ function coreIssues(f){
 }
 function coreWalls(f){
   const c=coreRectFor(f||cur());if(!c)return [];
-  const z=coreZones(c),h=z.t/2;
-  return [...ring(rect(c.x0+h,c.y0+h,c.x1-h,c.y1-h),z.t,"core"),W([z.div,c.y0+h],[z.div,c.y1-h],z.t,"core")];
+  const z=coreZones(c),t=z.t,h=t/2,top=c.attach==="west",bot=c.attach==="east";
+  const ya=top?c.y0:c.y0+h,yb=bot?c.y1:c.y1-h,out=[];
+  if(!top)out.push(W([c.x0+h,c.y0+h],[c.x1-h,c.y0+h],t,"core"));
+  if(!bot)out.push(W([c.x1-h,c.y1-h],[c.x0+h,c.y1-h],t,"core"));
+  out.push(W([c.x0+h,ya],[c.x0+h,yb],t,"core"),W([c.x1-h,ya],[c.x1-h,yb],t,"core"),W([z.div,ya],[z.div,yb],t,"core"));
+  return out;
 }
 /* Hold the building off the side (east and west) lot lines. Moves every point that sits on a side
    lot line, or on the old offset line, to the new offset. Offsets are stored in feet. */
@@ -1035,6 +1066,7 @@ function renderSel(){
       :`${f("Length, rear to front","w",o.x1-o.x0)}${f("Width, across the lot","h",o.y1-o.y0)}${f("Starts from rear lot line","x",o.x0)}${f("Starts from top lot line","y",o.y0)}${f("Elevator shaft length","e",o.elevW)}`;
     el.innerHTML=`<span><span class="k">Elevator and stair core</span> ${fmt(coreArea())} SF on this floor, ${use}</span>
       <label class="check" style="flex-basis:100%"><input type="checkbox" id="coreAuto" ${o.auto?"checked":""}> Stair length follows each floor's height (long walls and elevator stay put)</label>
+      <span class="check" style="flex-basis:100%">Exterior wall as one long side of the core <span class="seg" role="group" aria-label="Exterior wall as one side"><button data-cattach="" aria-pressed="${!o.attach}">No</button><button data-cattach="west" aria-pressed="${o.attach==="west"}">West wall</button><button data-cattach="east" aria-pressed="${o.attach==="east"}">East wall</button></span></span>
       <div class="dimedit">${fields}</div>
       ${issues?`<ul style="flex-basis:100%;margin:0;padding-left:18px;color:var(--over);font-size:12.5px">${issues}</ul>`:""}
       <span class="seg" role="group" aria-label="Elevator position"><button data-eside="rear" aria-pressed="${o.elevSide==="rear"}">Elevator at rear</button><button data-eside="front" aria-pressed="${o.elevSide!=="rear"}">Elevator at front</button></span>
@@ -1054,6 +1086,10 @@ function renderSel(){
       if(o.elevSide===b.dataset.eside)return;pushHist();
       if(o.auto){const w=o.x1-o.x0;if(b.dataset.eside==="rear"){o.x0=o.x1-o.elevW;o.x1=o.x0+w;}else{o.x1=o.x0+o.elevW;o.x0=o.x1-w;}}  // keep the elevator where it is
       o.elevSide=b.dataset.eside;commit();
+    }));
+    el.querySelectorAll("[data-cattach]").forEach(b=>b.addEventListener("click",()=>{
+      const v=b.dataset.cattach||null;if((o.attach||null)===v)return;
+      pushHist();const r=coreRectFor(cur());o.y0=r.y0;o.y1=r.y1;o.attach=v;commit();   // keep the core where it is when detaching
     }));
     $("#coreAuto").addEventListener("change",e=>{
       pushHist();
@@ -1604,7 +1640,19 @@ svg.addEventListener("pointermove",e=>{
     const g=ui.snap?0.5:0.01;
     const dx=Math.round((p[0]-drag.start[0])/g)*g,dy=Math.round((p[1]-drag.start[1])/g)*g;
     if(ui.sel.k==="wall"){o.a=[drag.orig.a[0]+dx,drag.orig.a[1]+dy];o.b=[drag.orig.b[0]+dx,drag.orig.b[1]+dy];}
-    else if(ui.sel.k==="court"){o.x0=drag.orig.x0+dx;}
+    else if(ui.sel.k==="court"){
+      // slide along the building; its edges snap to wall faces, the core and area corners nearby
+      const f=cur(),cr=courtRectFor(f),len=cr?cr.len:20,thr=Math.max(0.6,vb().w/55);
+      let x0=drag.orig.x0+(p[0]-drag.start[0]),best=null,bd=thr,desc="";
+      const xs=[];
+      f.walls.forEach(w=>{if(Math.abs(w.a[0]-w.b[0])<1e-3){xs.push([w.a[0]-w.t/2,"wall face"],[w.a[0]+w.t/2,"wall face"]);}});
+      const cc=coreRectFor(f);if(cc)xs.push([cc.x0,"core"],[cc.x1,"core"]);
+      f.areas.forEach(a=>a.pts.forEach(q=>xs.push([q[0],a.type==="gross"?"building envelope":(a.name||(AREA_TYPES[a.type]||{}).short||"area")])));
+      [[x0,0],[x0+len,len]].forEach(([e,off])=>xs.forEach(([x,d])=>{const dd=Math.abs(x-e);if(dd<bd){bd=dd;best=x-off;desc=`Light well ${off?"street":"rear"} edge on ${d}`;}}));
+      if(best!==null)x0=best;
+      o.x0=ui.snap?x0:drag.orig.x0+dx;
+      ui.hover=best!==null&&ui.snap?{pt:[o.x0+(desc.includes("street")?len:0),cr?(cr.y0+cr.y1)/2:5],kind:"end",desc,drag:true}:null;
+    }
     else if(ui.sel.k==="core"){o.x0=drag.orig.x0+dx;o.x1=drag.orig.x1+dx;o.y0=drag.orig.y0+dy;o.y1=drag.orig.y1+dy;}
     else o.pts=drag.orig.pts.map(q=>[q[0]+dx,q[1]+dy]);
   }

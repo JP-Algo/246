@@ -38,11 +38,13 @@
     "core": {
       "label": "Elevator and stair core",
       "meaning": "One core stacked on every floor, sized from the stair rule. Width (outside) = core wall + stair + wall between + stair + core wall. Length = stair end wall + that floor's stair length + divider wall + elevator shaft + elevator end wall. The long walls and the elevator stay put on every floor, so only taller floors get a longer core. Counts as floor area on every floor; on commercial floors it counts as residential unless switched off for that floor.",
-      "thisBuilding": "8'-8\" wide outside (6 + 44 + 4 + 44 + 6 in), 6'-0\" elevator shaft on the street side with its outside face 80'-0\" from the rear lot line; 30'-5\" long (264 SF) on 10 ft floors, 38'-8\" (335 SF) on the 14 ft 1st floor. Counts as commercial on the 2nd floor.",
+      "thisBuilding": "Against the east exterior wall, which serves as its long east side; 6 in core walls on the other sides; stair 7'-8\" clear; 6'-0\" elevator on the street side. Length follows each floor's height.",
       "source": "Project decision",
       "elevSide": "front",
       "auto": true,
-      "wallIn": 6
+      "wallIn": 6,
+      "attach": "east",
+      "attachMeaning": "The core can use an exterior wall as one long side: it has no wall of its own there, and the stair's clear width is measured from the exterior wall's inside face."
     },
     "cellar": {
       "label": "Cellar",
@@ -75,7 +77,8 @@
       "thisBuilding": "West lot line (top edge of the plan), from the 4th floor to the roof, 20'-0\" x 10'-0\" (200 SF) on floors 4-8. The 1st floor is 13'-11\" so the 8th floor level is 74'-11\", just below 75 ft.",
       "source": "NYC Zoning Resolution 23-352",
       "measureAt": "floor",
-      "measureMeaning": "Which height decides the 75 ft threshold: 'top' of each story (stricter, the default) or the story's 'floor' level. This building uses 'floor'; a plan examiner may read the rule as the top of the story, which would put the whole 8th floor above 75 ft."
+      "measureMeaning": "Which height decides the 75 ft threshold: 'top' of each story (stricter, the default) or the story's 'floor' level. This building uses 'floor'; a plan examiner may read the rule as the top of the story, which would put the whole 8th floor above 75 ft.",
+      "walls": "Light well clear size is measured to its walls and the lot line; its walls sit outside the clear area. When moved along the building its edges snap to wall faces, the core and area corners."
     },
     "corridorDeduction": {
       "label": "Corridor floor area exclusion",
