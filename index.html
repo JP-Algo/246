@@ -1491,7 +1491,14 @@ svg.addEventListener("pointerdown",e=>{
     else if(k==="vert")drag={k,id,i:+t.dataset.i,hist:false};
     else{
       ui.sel={k,id};
-      if(!(ui.pop&&ui.pop.ref==="wall"&&ui.pop.id===id))ui.pop=null;   // double-click opens the wall box
+      // two clicks on the same wall within 450 ms open the wall box (the plan redraws between clicks,
+      // so the browser's own dblclick never reaches the wall)
+      if(k==="wall"){
+        const now=Date.now();
+        if(lastWallDown&&lastWallDown.id===id&&now-lastWallDown.t<450){lastWallDown=null;drag=null;openPop("wall:"+id);return;}
+        lastWallDown={id,t:now};
+      }
+      if(!(ui.pop&&ui.pop.ref==="wall"&&ui.pop.id===id))ui.pop=null;
       const o=findSel();
       drag={k:"move",start:p,orig:clone(o),hist:false};
     }
@@ -1503,11 +1510,7 @@ svg.addEventListener("pointerdown",e=>{
 });
 
 svg.addEventListener("mousedown",e=>{if(e.button===1)e.preventDefault();});
-svg.addEventListener("dblclick",e=>{
-  if(ui.mode!=="select")return;
-  const t=e.target.closest&&e.target.closest('[data-k="wall"]');
-  if(t){e.preventDefault();openPop("wall:"+t.dataset.id);}
-});
+let lastWallDown=null;
 svg.addEventListener("auxclick",e=>{if(e.button===1)e.preventDefault();});
 svg.addEventListener("pointermove",e=>{
   if(pointers.has(e.pointerId))pointers.set(e.pointerId,[e.clientX,e.clientY]);
