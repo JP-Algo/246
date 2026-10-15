@@ -1143,8 +1143,18 @@ function inwardN(a,b){
   if(pl===pr){pl=pointInPoly(ql,LOT);pr=pointInPoly(qr,LOT);}   // no outline here: use the lot
   return pr&&!pl?[-n[0],-n[1]]:n;
 }
+/* Is this point on the building envelope, a side offset line or a lot line? */
+function onBoundary(q){
+  const e=0.03,segs=[...offsetLines()];
+  cur().areas.filter(x=>x.type==="gross"&&x.pts.length>=3).forEach(x=>x.pts.forEach((p,i)=>segs.push([p,x.pts[(i+1)%x.pts.length]])));
+  LOT.forEach((p,i)=>segs.push([p,LOT[(i+1)%LOT.length]]));
+  return segs.some(([a,b])=>{const r=projSeg(q,a,b);return r&&dist(r,q)<e;});
+}
 function makeWall(a,b){
-  const t=ui.wallT/12,n=inwardN(a,b),s=ui.just==="out"?1:ui.just==="in"?-1:0,h=s*t/2;
+  // a wall drawn along the envelope, the offset line or a lot line builds inward even when Center is chosen
+  let just=ui.just;
+  if(just==="center"&&dist(a,b)>0.05&&onBoundary(a)&&onBoundary(b)&&onBoundary([(a[0]+b[0])/2,(a[1]+b[1])/2]))just="out";
+  const t=ui.wallT/12,n=inwardN(a,b),s=just==="out"?1:just==="in"?-1:0,h=s*t/2;
   return W([a[0]+n[0]*h,a[1]+n[1]*h],[b[0]+n[0]*h,b[1]+n[1]*h],t);
 }
 function projSeg(p,a,b){
