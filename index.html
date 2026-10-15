@@ -183,7 +183,7 @@ tfoot td{font-weight:600;border-bottom:0}
       <button class="btn" id="tAbove" aria-pressed="true">Show floors above</button>
       <button class="btn" id="tHide">Hide 3D</button>
     </div>
-    <div class="hint">Drag to orbit, pinch or scroll to zoom, tap a floor to edit it</div>
+    <div class="hint">Drag to orbit, hold the scroll wheel and drag to pan, scroll to zoom, tap a floor to edit it</div>
   </div>
 
   <div class="split" id="split" role="separator" aria-orientation="vertical" aria-label="Resize the 3D view" tabindex="0" title="Drag to resize, double-click to hide or show the 3D view"></div>
@@ -1717,6 +1717,10 @@ function init3D(){
   camera=new THREE.PerspectiveCamera(38,1,1,3000);
   camera.position.set(150,112,168);
   controls=new THREE.OrbitControls(camera,renderer.domElement);
+  // left drag orbits, middle (scroll wheel) drag pans, wheel zooms, right drag pans
+  controls.mouseButtons={LEFT:THREE.MOUSE.ROTATE,MIDDLE:THREE.MOUSE.PAN,RIGHT:THREE.MOUSE.PAN};
+  controls.screenSpacePanning=true;
+  renderer.domElement.addEventListener("mousedown",e=>{if(e.button===1)e.preventDefault();});   // no browser autoscroll
   controls.target.set(0,34,0);
   controls.enableDamping=true;
   controls.maxPolarAngle=Math.PI*0.495;
