@@ -1254,13 +1254,14 @@ function offsetLines(){
 function wallKind(w){return w.tag==="core"?"core wall":w.tag==="court"?"light well wall":w.tag==="ext"?"exterior wall":"wall";}
 function snapPt(p,exclKey){
   if(!ui.snap){snapInfo={kind:"free",line:null,desc:""};return [Math.round(p[0]*48)/48,Math.round(p[1]*48)/48];}
-  const v=vb(),thr=Math.max(0.6,v.w/55),f=cur(),exclId=exclKey?String(exclKey).split(":")[0]:null;
-  let best=null,bd=thr,bk="grid",bdesc="";
+  const v=vb(),thr=Math.max(0.6,18/Math.max(v.pxPerFt,0.01)),f=cur(),exclId=exclKey?String(exclKey).split(":")[0]:null;
+  const cands=[];   // every snap point within reach; the same spot reached twice is merged and named both ways
   const consider=(q,key,kind,desc)=>{
     if(key===exclKey||(exclId&&key&&key.split(":")[0]===exclId&&kind==="mid"))return;
-    const d=dist(p,q);
-    if(best&&dist(best,q)<0.01){if(!bdesc.split(" · ").includes(desc))bdesc+=" · "+desc;if(kind!=="mid")bk=kind;return;}   // same spot: name both
-    if(d<bd-1e-9){bd=d;best=q;bk=kind;bdesc=desc;}
+    const d=dist(p,q);if(d>thr)return;
+    const same=cands.find(c=>dist(c.q,q)<0.01);
+    if(same){if(!same.desc.split(" · ").includes(desc))same.desc+=" · "+desc;if(kind!=="mid")same.kind=kind;return;}
+    cands.push({q:[q[0],q[1]],kind,desc,d});
   };
   const mid=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
   const gross=f.areas.filter(a=>a.type==="gross"&&a.pts.length>=3);
@@ -1301,7 +1302,21 @@ function snapPt(p,exclKey){
   if(S.core&&exclKey!=="core"){const c=coreRectFor(f);[[c.x0,c.y0],[c.x1,c.y0],[c.x1,c.y1],[c.x0,c.y1]].forEach(q=>consider(q,"core","corner","Outside corner of core"));}
   LOT.forEach((q,i)=>{consider(q,"lot:"+i,"corner","Lot corner");lines.push([q,LOT[(i+1)%LOT.length],"On lot line"]);});
   offsetLines().forEach(([a,b])=>{const t=`On ${fmtLen(S.settings.sideOffset||0).replace(/^0'-/,"")} offset line`;lines.push([a,b,t]);consider(a,"off","corner",t.replace("On ","End of "));consider(b,"off","corner",t.replace("On ","End of "));});
-  if(best){snapInfo={kind:bk,line:null,desc:bdesc};return [best[0],best[1]];}
+  // where wall faces, centerlines, the envelope, the offset line and lot lines cross
+  const near=lines.filter(([a,b])=>{const q=projSeg(p,a,b);return q&&dist(q,p)<thr*1.5;});
+  for(let i=0;i<near.length;i++)for(let j=i+1;j<near.length;j++){
+    const [a,b,da]=near[i],[c,d,db]=near[j],r=[b[0]-a[0],b[1]-a[1]],sv=[d[0]-c[0],d[1]-c[1]],den=r[0]*sv[1]-r[1]*sv[0];
+    if(Math.abs(den)<1e-9)continue;
+    const t=((c[0]-a[0])*sv[1]-(c[1]-a[1])*sv[0])/den,u=((c[0]-a[0])*r[1]-(c[1]-a[1])*r[0])/den,e=0.02;
+    if(t<-e||t>1+e||u<-e||u>1+e)continue;
+    consider([a[0]+r[0]*t,a[1]+r[1]*t],"ix","corner",(t=>t[0].toUpperCase()+t.slice(1))(`${da.replace(/^On /,"")} meets ${db.replace(/^On /,"")}`));
+  }
+  if(cands.length){
+    cands.sort((x,y)=>x.d-y.d);
+    const pick=cands[(ui.snapIdx||0)%cands.length];
+    snapInfo={kind:pick.kind,line:null,desc:pick.desc+(cands.length>1?`  (${((ui.snapIdx||0)%cands.length)+1} of ${cands.length}, Tab for next)`:""),count:cands.length};
+    return [pick.q[0],pick.q[1]];
+  }
   // no point close by: slide onto the nearest wall face, centerline, building envelope or lot line
   let lb=null,ld=thr*0.7,ll=null;
   lines.forEach(([a,b,desc])=>{
@@ -1613,6 +1628,8 @@ svg.addEventListener("pointermove",e=>{
   const p=toPlan(e);
   if(!drag){
     if(ui.mode==="wall"||ui.mode==="area"){
+      if(!ui.lastP||dist(ui.lastP,p)*vb().pxPerFt>3)ui.snapIdx=0;   // a real move starts again from the nearest snap
+      ui.lastP=p;
       const q=placePt(draftFrom(),p);
       ui.hover={pt:q,kind:snapInfo.kind,desc:snapInfo.desc};
       if(ui.draft)ui.draft.cur=q;
@@ -1985,6 +2002,11 @@ document.addEventListener("keydown",e=>{
   if(tag==="input"||tag==="select"||tag==="textarea")return;
   if(e.key==="Shift"){shiftHeld=true;}
   if(e.key==="F8"){e.preventDefault();toggleOrtho();return;}
+  if(e.key==="Tab"&&(ui.mode==="wall"||ui.mode==="area")&&ui.lastP&&ui.snap){
+    // step to the next snap point near the cursor
+    e.preventDefault();ui.snapIdx=(ui.snapIdx||0)+1;
+    const q=placePt(draftFrom(),ui.lastP);ui.hover={pt:q,kind:snapInfo.kind,desc:snapInfo.desc};if(ui.draft)ui.draft.cur=q;renderPlan();return;
+  }
   const lk=e.key.length===1?e.key.toLowerCase():"";
   if((lk==="w"||lk==="a")&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
     // W draws walls, A draws areas; switch to Both if the current view hides that layer
