@@ -270,7 +270,7 @@ tfoot td{font-weight:600;border-bottom:0}
       <h2>Floor by floor</h2>
       <div class="tablewrap">
         <table>
-          <thead><tr><th>Floor</th><th>Residential gross</th><th>Commercial gross</th><th>Total gross</th><th>Deductions</th><th>Zoning floor area</th><th>Sellable</th><th>Terrace</th></tr></thead>
+          <thead><tr><th>Floor</th><th>Residential zoning floor area</th><th>Commercial zoning floor area</th><th>Total gross</th><th>Deductions</th><th>Zoning floor area</th><th>Sellable</th><th>Terrace</th></tr></thead>
           <tbody id="tbody"></tbody>
           <tfoot id="tfoot"></tfoot>
         </table>
@@ -800,14 +800,14 @@ function renderTotals(){
     const use=(r.f.use==="cellar"?"Cellar, exempt":mixed?(r.f.use==="commercial"&&r.coreRes&&r.resGross<=r.coreRes+0.5?"Commercial, core residential":"Mixed use"):r.f.use==="commercial"?"Commercial":"Residential")+(r.court?`, light well ${fmt(r.court)} SF`:"");
     const sell=r.sellRes+r.sellComm;
     const sellCell=sell?`${fmt(sell)}${r.sellRes&&r.sellComm?`<small>R ${fmt(r.sellRes)} · C ${fmt(r.sellComm)}</small>`:`<small>${r.sellRes?"Residential":"Commercial"}</small>`}`:"–";
-    return `<tr data-floor="${r.i}" class="${r.i===ui.floor?"on":""}"><td>${r.f.name}<small>${use}</small></td><td>${r.resGross?fmt(r.resGross):"–"}</td><td>${r.commGross?fmt(r.commGross):"–"}</td><td>${fmt(r.gross)}</td><td>${fmt(r.dedTotal)}</td><td>${fmt(r.zfa)}</td><td>${sellCell}</td><td>${r.terr?fmt(r.terr):"–"}</td></tr>`;
+    return `<tr data-floor="${r.i}" class="${r.i===ui.floor?"on":""}"><td>${r.f.name}<small>${use}</small></td><td>${r.resGross?`${fmt(r.resZfa)}<small>of ${fmt(r.resGross)} gross</small>`:"–"}</td><td>${r.commGross?`${fmt(r.commZfa)}<small>of ${fmt(r.commGross)} gross</small>`:"–"}</td><td>${fmt(r.gross)}</td><td>${fmt(r.dedTotal)}</td><td>${fmt(r.zfa)}</td><td>${sellCell}</td><td>${r.terr?fmt(r.terr):"–"}</td></tr>`;
   }).join("");
   const resGross=c.rows.reduce((s,r)=>s+r.resGross,0);
   const commGross=c.rows.reduce((s,r)=>s+r.commGross,0);
   $("#tfoot").innerHTML=
     `<tr class="adj"><td>Amenity counted</td><td></td><td></td><td></td><td>${fmt(c.amenAllowed)} of ${fmt(c.amenRaw)}</td><td colspan="3" style="text-align:left">cap is ${S.rules.amenityCap.pct}% of residential, ${fmt(c.amenCap)} SF</td></tr>`+
-    `<tr class="adj"><td>Zone Green</td><td></td><td></td><td></td><td>${S.settings.zoneGreen?fmt(c.zoneGreen):"off"}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td></tr>`+
-    `<tr><td>Total above grade</td><td>${fmt(resGross)}</td><td>${fmt(commGross)}</td><td>${fmt(c.grossAbove)}</td><td>${fmt(c.grossAbove-c.total)}</td><td>${fmt(c.total)}</td><td>${fmt(c.sellRes+c.sellComm)}</td><td>${fmt(c.terrTotal)}</td></tr>`+
+    `<tr class="adj"><td>Zone Green</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td><td>${S.settings.zoneGreen?fmt(c.zoneGreen):"off"}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td></tr>`+
+    `<tr><td>Total above grade</td><td>${fmt(c.resZfa)}<small>of ${fmt(resGross)} gross</small></td><td>${fmt(c.commZfa)}<small>of ${fmt(commGross)} gross</small></td><td>${fmt(c.grossAbove)}</td><td>${fmt(c.grossAbove-c.total)}</td><td>${fmt(c.total)}</td><td>${fmt(c.sellRes+c.sellComm)}</td><td>${fmt(c.terrTotal)}</td></tr>`+
     `<tr class="adj"><td>Sellable efficiency<small>sellable ÷ gross of that use</small></td><td>${c.resGrossT?Math.round(c.sellRes/c.resGrossT*100)+"%":"–"}</td><td>${c.commGrossT?Math.round(c.sellComm/c.commGrossT*100)+"%":"–"}</td><td>${c.grossAbove?Math.round((c.sellRes+c.sellComm)/c.grossAbove*100)+"%":"–"}</td><td></td><td></td><td>R ${fmt(c.sellRes)} · C ${fmt(c.sellComm)}</td><td></td></tr>`;
 
   const cap=(label,v,max,unit)=>{
