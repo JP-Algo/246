@@ -1141,9 +1141,11 @@ function renderSel(){
     el.innerHTML=`<label class="check">Name <input class="in" id="aName" style="width:170px" maxlength="60" value="${escH(o.name||"")}" placeholder="${escH(T.short)}"></label>
       <label class="check">Type <select class="in" id="aT">${MENU.map(k=>`<option value="${k}" ${k===o.type?"selected":""}>${labelOf(k)}</option>`).join("")}</select></label>
       <span>${fmt(ar)} SF${counted}</span>
-      <button class="btn warn" id="delSel">Delete area</button>${dimEditor(o)}`;
+      <button class="btn warn" id="delSel">Delete area</button>
+      ${ui.selVert&&ui.selVert.id===o.id&&o.pts[ui.selVert.i]?`<button class="btn warn" id="delVert">Delete corner ${ui.selVert.i+1}</button>`:`<span class="note" style="margin:0">Click a corner to delete it, or drag a + to add one</span>`}${dimEditor(o)}`;
     el.querySelectorAll("[data-r],[data-v]").forEach(inp=>inp.addEventListener("change",e=>applyDimEdit(o,e.target)));
     $("#aT").addEventListener("change",e=>{pushHist();o.type=e.target.value;commit();});
+    const dv=$("#delVert");if(dv)dv.addEventListener("click",()=>deleteVert(o,ui.selVert.i));
     $("#aName").addEventListener("change",e=>{const v=e.target.value.trim();if((o.name||"")===v)return;pushHist();if(v)o.name=v;else delete o.name;commit();});
     $("#aName").addEventListener("keydown",e=>{if(e.key==="Enter"||e.key==="Escape"){e.preventDefault();if(e.key==="Escape")e.target.value=o.name||"";e.target.blur();}});
   }
@@ -1641,7 +1643,7 @@ svg.addEventListener("pointerdown",e=>{
     else if(k==="vert"){
       const i=+t.dataset.i,o=findSel();
       if(e.altKey&&o&&o.pts){deleteVert(o,i);return;}            // Alt+click removes a corner
-      ui.selVert={id,i};drag={k,id,i,hist:false};
+      ui.selVert={id,i};drag={k,id,i,hist:false};renderPlan();renderSel();return;
     }
     else if(k==="addv"){
       // add a corner in the middle of this edge and start dragging it
@@ -1682,6 +1684,11 @@ svg.addEventListener("pointerdown",e=>{
 
 svg.addEventListener("mousedown",e=>{if(e.button===1)e.preventDefault();});
 let lastWallDown=null;
+// right-click a corner of the selected area to delete it
+svg.addEventListener("contextmenu",e=>{
+  const t=e.target.closest&&e.target.closest('[data-k="vert"]');if(!t)return;
+  e.preventDefault();const o=findSel();if(o&&o.pts)deleteVert(o,+t.dataset.i);
+});
 svg.addEventListener("auxclick",e=>{if(e.button===1)e.preventDefault();});
 svg.addEventListener("pointermove",e=>{
   if(pointers.has(e.pointerId))pointers.set(e.pointerId,[e.clientX,e.clientY]);
