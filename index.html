@@ -130,7 +130,7 @@ input.in{width:84px}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted);margin-top:8px}
 .legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px;background:var(--c)}
 .tablewrap{overflow-x:auto}
-table{border-collapse:collapse;width:100%;min-width:720px;font-size:13.5px}
+table{border-collapse:collapse;width:100%;min-width:800px;font-size:13.5px}
 th,td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
 th{font-weight:600;color:var(--muted);font-size:12.5px}
 th:first-child,td:first-child{text-align:left}
@@ -313,7 +313,7 @@ tfoot td{font-weight:600;border-bottom:0}
       <h2>Floor by floor</h2>
       <div class="tablewrap">
         <table>
-          <thead><tr><th>Floor</th><th>Residential zoning floor area</th><th>Commercial zoning floor area</th><th>Total gross</th><th>Deductions</th><th>Zoning floor area</th><th>Sellable</th><th>Terrace</th></tr></thead>
+          <thead><tr><th>Floor</th><th>Residential zoning floor area<small style="display:block;font-weight:400">market-rate</small></th><th>Affordable residential</th><th>Commercial zoning floor area</th><th>Total gross</th><th>Deductions</th><th>Zoning floor area</th><th>Sellable</th><th>Terrace</th></tr></thead>
           <tbody id="tbody"></tbody>
           <tfoot id="tfoot"></tfoot>
         </table>
@@ -860,15 +860,16 @@ function renderTotals(){
     const sell=r.sellRes+r.sellAff+r.sellComm;
     const parts=[r.sellRes?`FM ${fmt(r.sellRes)}`:"",r.sellAff?`A ${fmt(r.sellAff)}`:"",r.sellComm?`C ${fmt(r.sellComm)}`:""].filter(Boolean);
     const sellCell=sell?`${fmt(sell)}<small>${parts.join(" · ")}</small>`:"–";
-    return `<tr data-floor="${r.i}" class="${r.i===ui.floor?"on":""}"><td>${r.f.name}<small>${use}</small></td><td>${r.resGross?`${fmt(r.resZfa)}<small>of ${fmt(r.resGross)} gross</small>`:"–"}</td><td>${r.commGross?`${fmt(r.commZfa)}<small>of ${fmt(r.commGross)} gross</small>`:"–"}</td><td>${fmt(r.gross)}</td><td>${fmt(r.dedTotal)}</td><td>${fmt(r.zfa)}</td><td>${sellCell}</td><td>${r.terr?fmt(r.terr):"–"}</td></tr>`;
+    return `<tr data-floor="${r.i}" class="${r.i===ui.floor?"on":""}"><td>${r.f.name}<small>${use}</small></td><td>${r.resGross?`${fmt(r.resZfa-Math.min(r.aff,r.resZfa))}<small>of ${fmt(r.resGross-r.aff)} gross</small>`:"–"}</td><td>${r.aff>0.5?fmt(Math.min(r.aff,r.resZfa)):"–"}</td><td>${r.commGross?`${fmt(r.commZfa)}<small>of ${fmt(r.commGross)} gross</small>`:"–"}</td><td>${fmt(r.gross)}</td><td>${fmt(r.dedTotal)}</td><td>${fmt(r.zfa)}</td><td>${sellCell}</td><td>${r.terr?fmt(r.terr):"–"}</td></tr>`;
   }).join("");
   const resGross=c.rows.reduce((s,r)=>s+r.resGross,0);
+  const affZ=c.rows.reduce((s,r)=>s+(r.below?0:Math.min(r.aff,r.resZfa)),0);
   const commGross=c.rows.reduce((s,r)=>s+r.commGross,0);
   $("#tfoot").innerHTML=
-    `<tr class="adj"><td>Amenity counted</td><td></td><td></td><td></td><td>${fmt(c.amenAllowed)} of ${fmt(c.amenRaw)}</td><td colspan="3" style="text-align:left">cap is ${S.rules.amenityCap.pct}% of residential, ${fmt(c.amenCap)} SF</td></tr>`+
-    `<tr class="adj"><td>Zone Green</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td><td>${S.settings.zoneGreen?fmt(c.zoneGreen):"off"}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td></tr>`+
-    `<tr><td>Total above grade</td><td>${fmt(c.resZfa)}<small>of ${fmt(resGross)} gross</small></td><td>${fmt(c.commZfa)}<small>of ${fmt(commGross)} gross</small></td><td>${fmt(c.grossAbove)}</td><td>${fmt(c.grossAbove-c.total)}</td><td>${fmt(c.total)}</td><td>${fmt(c.sellRes+c.sellAff+c.sellComm)}</td><td>${fmt(c.terrTotal)}</td></tr>`+
-    `<tr class="adj"><td>Sellable efficiency<small>sellable ÷ gross of that use</small></td><td>${c.resGrossT?Math.round((c.sellRes+c.sellAff)/c.resGrossT*100)+"%":"–"}</td><td>${c.commGrossT?Math.round(c.sellComm/c.commGrossT*100)+"%":"–"}</td><td>${c.grossAbove?Math.round((c.sellRes+c.sellAff+c.sellComm)/c.grossAbove*100)+"%":"–"}</td><td></td><td></td><td>FM ${fmt(c.sellRes)} · A ${fmt(c.sellAff)} · C ${fmt(c.sellComm)}</td><td></td></tr>`;
+    `<tr class="adj"><td>Amenity counted</td><td></td><td></td><td></td><td></td><td>${fmt(c.amenAllowed)} of ${fmt(c.amenRaw)}</td><td colspan="3" style="text-align:left">cap is ${S.rules.amenityCap.pct}% of residential, ${fmt(c.amenCap)} SF</td></tr>`+
+    `<tr class="adj"><td>Zone Green</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td><td></td><td>${S.settings.zoneGreen?fmt(c.zoneGreen):"off"}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td></tr>`+
+    `<tr><td>Total above grade</td><td>${fmt(c.resZfa-affZ)}<small>of ${fmt(resGross-c.affT)} gross</small></td><td>${fmt(affZ)}${affZ>0.5?`<small>residential total ${fmt(c.resZfa)}</small>`:""}</td><td>${fmt(c.commZfa)}<small>of ${fmt(commGross)} gross</small></td><td>${fmt(c.grossAbove)}</td><td>${fmt(c.grossAbove-c.total)}</td><td>${fmt(c.total)}</td><td>${fmt(c.sellRes+c.sellAff+c.sellComm)}</td><td>${fmt(c.terrTotal)}</td></tr>`+
+    `<tr class="adj"><td>Sellable efficiency<small>sellable ÷ gross of that use</small></td><td>${c.resGrossT?Math.round((c.sellRes+c.sellAff)/c.resGrossT*100)+"%":"–"}</td><td></td><td>${c.commGrossT?Math.round(c.sellComm/c.commGrossT*100)+"%":"–"}</td><td>${c.grossAbove?Math.round((c.sellRes+c.sellAff+c.sellComm)/c.grossAbove*100)+"%":"–"}</td><td></td><td></td><td>FM ${fmt(c.sellRes)} · A ${fmt(c.sellAff)} · C ${fmt(c.sellComm)}</td><td></td></tr>`;
 
   const cap=(label,v,max,unit)=>{
     const over=v>max+0.5;
