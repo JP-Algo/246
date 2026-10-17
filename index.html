@@ -1457,7 +1457,7 @@ function offsetLines(){
   return [[[0,o],[FRONT,o]],[[20,25-o],[FRONT,25-o]],[[0,30-o],[20,30-o]]];
 }
 function wallKind(w){return w.tag==="core"?"core wall":w.tag==="court"?"light well wall":w.tag==="ext"?"exterior wall":"wall";}
-function snapPt(p,exclKey){
+function snapPt(p,exclKey,from){
   if(!ui.snap){snapInfo={kind:"free",line:null,desc:""};return [Math.round(p[0]*48)/48,Math.round(p[1]*48)/48];}
   const v=vb(),thr=Math.max(0.6,18/Math.max(v.pxPerFt,0.01)),f=cur(),exclId=exclKey?String(exclKey).split(":")[0]:null;
   const cands=[];   // every snap point within reach; the same spot reached twice is merged and named both ways
@@ -1512,9 +1512,12 @@ function snapPt(p,exclKey){
   if(S.core&&exclKey!=="core"){const c=coreRectFor(f);[[c.x0,c.y0],[c.x1,c.y0],[c.x1,c.y1],[c.x0,c.y1]].forEach(q=>consider(q,"core","corner","Outside corner of core"));}
   LOT.forEach((q,i)=>{consider(q,"lot:"+i,"corner","Lot corner");lines.push([q,LOT[(i+1)%LOT.length],"On lot line"]);});
   offsetLines().forEach(([a,b])=>{const t=`On ${fmtLen(S.settings.sideOffset||0).replace(/^0'-/,"")} offset line`;lines.push([a,b,t]);consider(a,"off","corner",t.replace("On ","End of "));consider(b,"off","corner",t.replace("On ","End of "));});
+  // with Ortho on, the lines square to the last point also cross the others; those crossings snap too
+  if(from&&orthoOn()){const L=1000,t="Square to the last point";lines.push([[from[0]-L,from[1]],[from[0]+L,from[1]],t,1],[[from[0],from[1]-L],[from[0],from[1]+L],t,1]);}
   // where wall faces, centerlines, the envelope, the offset line and lot lines cross
   const near=lines.filter(([a,b])=>{const q=projSeg(p,a,b);return q&&dist(q,p)<thr*1.5;});
   for(let i=0;i<near.length;i++)for(let j=i+1;j<near.length;j++){
+    if(near[i][3]&&near[j][3])continue;
     const [a,b,da]=near[i],[c,d,db]=near[j],r=[b[0]-a[0],b[1]-a[1]],sv=[d[0]-c[0],d[1]-c[1]],den=r[0]*sv[1]-r[1]*sv[0];
     if(Math.abs(den)<1e-9)continue;
     const t=((c[0]-a[0])*sv[1]-(c[1]-a[1])*sv[0])/den,u=((c[0]-a[0])*r[1]-(c[1]-a[1])*r[0])/den,e=0.02;
@@ -1530,7 +1533,8 @@ function snapPt(p,exclKey){
   }
   // no point close by: slide onto the nearest wall face, centerline, building envelope or lot line
   let lb=null,ld=thr*0.7,ll=null;
-  lines.forEach(([a,b,desc])=>{
+  lines.forEach(([a,b,desc,orth])=>{
+    if(orth)return;   // Ortho itself is applied by placePt
     const q=projSeg(p,a,b);if(!q)return;const d=dist(p,q);
     if(lb&&Math.abs(d-ld)<0.01&&dist(q,lb)<0.01){if(!ll[2].split(" · ").includes(desc))ll[2]+=" · "+desc;return;}
     if(d<ld){ld=d;lb=q;ll=[a,b,desc];}
@@ -1543,7 +1547,7 @@ function snapPt(p,exclKey){
 /* Next drawing point: an exact snap (end, corner, midpoint) wins over Ortho; on a wall line, Ortho
    slides along it to stay square to the previous point. */
 function placePt(from,p){
-  const q=snapPt(p);
+  const q=snapPt(p,undefined,from);
   if(!from||["end","corner","mid"].includes(snapInfo.kind))return q;
   if(snapInfo.kind==="on"&&orthoOn()){
     const [a,b]=snapInfo.line,hz=Math.abs(q[0]-from[0])>=Math.abs(q[1]-from[1]);
@@ -2042,11 +2046,11 @@ svg.addEventListener("pointermove",e=>{
   if(!drag.hist){pushHist();drag.hist=true;}
   if(drag.k==="end"){
     const other=drag.end==="a"?o.b:o.a;
-    const q=snapPt(p,o.id+":"+drag.end);
+    const q=snapPt(p,o.id+":"+drag.end,other);
     o[drag.end]=orthoOn()?orthoPt(other,q):q;   // Ortho keeps the wall square to its other end
     ui.hover={pt:o[drag.end],kind:snapInfo.kind,desc:snapInfo.desc,drag:true};
   }else if(drag.k==="vert"){
-    const q=snapPt(p,o.id+":"+drag.i);
+    const q=snapPt(p,o.id+":"+drag.i,drag.p0);
     o.pts[drag.i]=orthoOn()&&drag.p0?orthoPt(drag.p0,q):q;   // Ortho: the corner slides only across or up and down
     ui.hover={pt:o.pts[drag.i],kind:snapInfo.kind,desc:snapInfo.desc,drag:true};
   }else if(drag.k==="slab"){
