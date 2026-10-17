@@ -87,6 +87,15 @@ input.in{width:84px}
 .floorhead span{color:var(--muted);font-size:13px}
 .floorhead b{color:var(--ink);font-weight:600}
 .planrow{display:flex;gap:8px;align-items:stretch}
+.statusbar{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;padding:5px 2px 0;font-size:11.5px;color:var(--muted)}
+.statusbar .sb-group{display:inline-flex;align-items:center;gap:2px 6px;flex-wrap:wrap}
+.statusbar .sb-right{margin-left:auto}
+.statusbar button{border:0;background:none;padding:1px 4px;font:inherit;color:var(--muted);cursor:pointer;border-radius:3px}
+.statusbar button:hover{color:var(--ink);background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.statusbar button[aria-pressed="true"]{color:var(--ink);font-weight:700}
+.statusbar input.in{width:46px;padding:0 4px;font-size:11.5px;border-radius:4px}
+.statusbar #snapTo{display:inline-flex;gap:2px;padding-left:4px;border-left:1px solid var(--line)}
+.statusbar .typed{font-size:11.5px}
 .planrow .planwrap{flex:1 1 auto;min-width:0}
 .planwrap{position:relative;border:1px solid var(--line);border-radius:8px;background:var(--panel);overflow:hidden}
 .layers{flex:0 0 260px;max-height:clamp(260px,44vh,440px);display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:12.5px;min-width:0}
@@ -236,18 +245,6 @@ tfoot td{font-weight:600;border-bottom:0}
         <button class="btn" id="cancelDraft">Cancel</button>
         <button class="btn" id="undo">Undo</button>
       </div>
-      <div class="row" style="margin-bottom:10px">
-        <button class="btn" id="tOrtho" aria-pressed="true" title="Keep lines horizontal or vertical. F8 toggles, hold Shift to override for one point">Ortho</button>
-        <button class="btn" id="tSnap" aria-pressed="true" title="Snap to a 6 inch grid and to existing corners. F9 toggles">Snap</button>
-        <button class="btn" id="tDims" aria-pressed="true" title="Show dimensions on the plan">Dimensions</button>
-        <span class="seg" role="group" aria-label="Snap to walls at" id="snapTo" title="Which parts of walls to snap to"><button data-snapto="c">Wall centers</button><button data-snapto="f">Wall faces</button><button data-snapto="m" title="Snap to the middle of walls and area edges">Midpoints</button></span>
-        <span id="wallOpts" class="row" style="gap:8px">
-          <label class="check">Wall thickness <input class="in" id="wallT" type="number" min="1" max="36" step="0.5" style="width:64px"> in</label>
-          <span class="seg" role="group" aria-label="Line you draw is the wall's"><button data-just="out" title="The line you draw is the wall's outside face; the wall builds in toward the building">Outside face</button><button data-just="center">Center</button><button data-just="in" title="The line you draw is the wall's inside face; the wall builds out away from the building">Inside face</button></span>
-        </span>
-        <span class="typed" id="typed"></span>
-      </div>
-
       <div class="planrow">
       <div class="planwrap">
         <svg id="plan" role="application" aria-label="Floor plan editor" tabindex="-1"></svg>
@@ -263,6 +260,19 @@ tfoot td{font-weight:600;border-bottom:0}
         <div class="lhd">Layers on this floor<button id="lpToggle" title="Hide or show the layers list">Hide</button></div>
         <div class="lbody" id="layerList"></div>
       </aside>
+      </div>
+      <!-- drawing settings as a small status bar under the plan -->
+      <div class="statusbar" id="statusbar">
+        <span class="typed" id="typed"></span>
+        <span id="wallOpts" class="sb-group">Wall <input class="in" id="wallT" type="number" min="1" max="36" step="0.5" aria-label="Wall thickness, inches"> in
+          <span role="group" aria-label="Line you draw is the wall's"><button data-just="out" title="The line you draw is the wall's outside face; the wall builds in toward the building">Outside face</button><button data-just="center">Center</button><button data-just="in" title="The line you draw is the wall's inside face; the wall builds out away from the building">Inside face</button></span>
+        </span>
+        <span class="sb-group sb-right">
+          <button id="tOrtho" aria-pressed="true" title="Keep lines horizontal or vertical. F8 toggles, hold Shift to override for one point">Ortho</button>
+          <button id="tSnap" aria-pressed="true" title="Snap to a 6 inch grid and to existing corners. F9 toggles">Snap</button>
+          <span id="snapTo" role="group" aria-label="Snap to walls at" title="Which parts of walls to snap to"><button data-snapto="c">Centers</button><button data-snapto="f">Faces</button><button data-snapto="m" title="Snap to the middle of walls and area edges">Midpoints</button></span>
+          <button id="tDims" aria-pressed="true" title="Show dimensions on the plan">Dimensions</button>
+        </span>
       </div>
       </div>
       <div class="legend" id="legend">
