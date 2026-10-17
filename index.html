@@ -113,6 +113,12 @@ input.in{width:84px}
 .layers .sw{width:10px;height:10px;border-radius:2px;background:var(--c)}
 .layers .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .layers .sf{color:var(--muted)}
+.layers .lsize{display:grid;gap:6px}
+.layers .lopts .lsize label{display:flex;align-items:center;gap:8px;font-size:12.5px}
+.layers .lsize input[type=range]{flex:1;min-width:0}
+.layers .lsize output{min-width:3.2em;text-align:right;color:var(--muted);font-size:12px}
+.layers .lsize .seg button{font-size:11.5px;padding:3px 8px}
+.layers .lsize .btn{justify-self:start}
 .layers .lspec{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:2px 0;font-size:12px}
 .layers .lspec dt{color:var(--muted)}
 .layers .lspec dd{margin:0}
@@ -1461,6 +1467,8 @@ function renderPlan(){
   const v=vb();
   svg.setAttribute("viewBox",`${v.x.toFixed(2)} ${v.y.toFixed(2)} ${v.w.toFixed(2)} ${v.h.toFixed(2)}`);
   const f=cur(),k=v.w/130,hr=Math.max(v.w/40,22/Math.max(v.pxPerFt,0.01)),vr=v.w/115,fs=v.w/60;
+  // an item's label size: its own % of the normal size, which stays the same on screen unless locked to the drawing
+  const LF=o=>(o&&o.labLock>0?o.labLock:fs)*((o&&o.labSize)||100)/100;ui.planFs=fs;
   const showFar=ui.layers.far,showInt=ui.layers.int,showSell=ui.layers.sell;
   const areaShown=a=>(AREA_TYPES[a.type]||{}).kind==="sell"?showSell:showFar;
   let g=`<g pointer-events="none">`;
@@ -1479,15 +1487,15 @@ function renderPlan(){
   }
   offsetLines().forEach(([a,b])=>{g+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" style="stroke:var(--sel);stroke-opacity:.55;stroke-width:${0.1*k};stroke-dasharray:${0.3*k} ${0.4*k}"/>`;});
   // site labels: each can be hidden, and dragged while the lot lines are selected
-  const sx=FRONT+fs*3.2,rx=-fs*3.2,lab=key=>SI.lab[key]||[0,0];
+  const sfs=LF(SI),sx=FRONT+sfs*3.2,rx=-sfs*3.2,lab=key=>SI.lab[key]||[0,0];
   const sg=(key,inner)=>`<g data-k="sitelab" data-id="${key}" transform="translate(${lab(key)[0]} ${lab(key)[1]})"${selLot?' pointer-events="all" cursor="move"':' pointer-events="none"'}>${inner}</g>`;
   const lcol=selLot?"var(--sel)":"var(--muted)";
   let sl="";
-  if(!SI.hide.street)sl+=sg("street",`<text x="${sx}" y="15" transform="rotate(90 ${sx} 15)" text-anchor="middle" style="fill:${lcol};font-size:${fs}px">South 2nd Street</text>`);
-  if(!SI.hide.rear)sl+=sg("rear",`<text x="${rx}" y="15" transform="rotate(-90 ${rx} 15)" text-anchor="middle" style="fill:${lcol};font-size:${fs}px">Rear</text>`);
+  if(!SI.hide.street)sl+=sg("street",`<text x="${sx}" y="15" transform="rotate(90 ${sx} 15)" text-anchor="middle" style="fill:${lcol};font-size:${sfs}px">South 2nd Street</text>`);
+  if(!SI.hide.rear)sl+=sg("rear",`<text x="${rx}" y="15" transform="rotate(-90 ${rx} 15)" text-anchor="middle" style="fill:${lcol};font-size:${sfs}px">Rear</text>`);
   if(!SI.hide.sides){
-    sl+=sg("west",`<text x="10" y="${-fs*3.2}" text-anchor="middle" style="fill:${lcol};font-size:${fs*0.85}px">West lot line</text>`);
-    sl+=sg("east",`<text x="10" y="${30+fs*3.6}" text-anchor="middle" style="fill:${lcol};font-size:${fs*0.85}px">East lot line</text>`);
+    sl+=sg("west",`<text x="10" y="${-sfs*3.2}" text-anchor="middle" style="fill:${lcol};font-size:${sfs*0.85}px">West lot line</text>`);
+    sl+=sg("east",`<text x="10" y="${30+sfs*3.6}" text-anchor="middle" style="fill:${lcol};font-size:${sfs*0.85}px">East lot line</text>`);
   }
   if(ui.floor>0){
     S.floors[ui.floor-1].areas.filter(a=>a.type==="gross").forEach(a=>{
@@ -1505,6 +1513,7 @@ function renderPlan(){
     ar+=`<path data-k="area" data-id="${a.id}" d="${pathOf(a.pts)}" style="fill:${c};fill-opacity:${a.type==="gross"?0.09:T.kind==="sell"?0.05:T.kind==="use"?0.16:0.26};stroke:${sel?"var(--sel)":c};stroke-width:${(sel?0.5:0.22)*k};${dash}"/>`;
     const A_=polyArea(a.pts);
     if(a.hideLabel)return;
+    const afs=LF(a);
     // the selected area's label can be dragged; its offset is kept on the area
     const lo=a.lab||[0,0],drg=sel&&ui.mode==="select";
     lb+=`<g data-k="lab" data-id="${a.id}" transform="translate(${lo[0]} ${lo[1]})"${drg?' pointer-events="all" cursor="move"':""}>`;
@@ -1512,12 +1521,12 @@ function renderPlan(){
       const mx=Math.min(...a.pts.map(p=>p[0])),my=Math.min(...a.pts.map(p=>p[1]));
       // the light well is open, so it comes out of the gross area shown here, as in the totals
       const lw=courtRectFor(f),rr=rectOf(a.pts),cut=lw?(rr?rectOverlap(rr,lw):(lw.x1-lw.x0)*(lw.y1-lw.y0)):0;
-      lb+=`<text x="${mx+0.8*k}" y="${my+fs*1.3}" style="fill:var(--gross);font-size:${fs}px;font-weight:600">${escH(a.name||"Gross")} ${fmt(A_-cut)} SF</text>`;
-      if(cut>0.5)lb+=`<text x="${mx+0.8*k}" y="${my+fs*2.4}" style="fill:var(--gross);font-size:${fs*0.72}px">${fmt(A_)} SF outline − ${fmt(cut)} SF light well</text>`;
+      lb+=`<text x="${mx+0.8*k}" y="${my+afs*1.3}" style="fill:var(--gross);font-size:${afs}px;font-weight:600">${escH(a.name||"Gross")} ${fmt(A_-cut)} SF</text>`;
+      if(cut>0.5)lb+=`<text x="${mx+0.8*k}" y="${my+afs*2.4}" style="fill:var(--gross);font-size:${afs*0.72}px">${fmt(A_)} SF outline − ${fmt(cut)} SF light well</text>`;
     }else{
       const cc=centroid(a.pts);
-      lb+=`<text x="${cc[0]}" y="${cc[1]}" text-anchor="middle" style="fill:var(--ink);font-size:${fs*0.92}px;font-weight:600">${escH(a.name||T.short)}</text>`;
-      lb+=`<text x="${cc[0]}" y="${cc[1]+fs*1.1}" text-anchor="middle" style="fill:var(--ink);font-size:${fs*0.88}px">${fmt(A_)} SF</text>`;
+      lb+=`<text x="${cc[0]}" y="${cc[1]}" text-anchor="middle" style="fill:var(--ink);font-size:${afs*0.92}px;font-weight:600">${escH(a.name||T.short)}</text>`;
+      lb+=`<text x="${cc[0]}" y="${cc[1]+afs*1.1}" text-anchor="middle" style="fill:var(--ink);font-size:${afs*0.88}px">${fmt(A_)} SF</text>`;
     }
     lb+=`</g>`;
   });
@@ -1566,12 +1575,12 @@ function renderPlan(){
   }
   const off=S.settings.sideOffset||0;
   if(ui.dims&&off>0&&!SI.hide.offset){
-    const lx=FRONT-fs*5,txt=fmtLen(off).replace(/^0'-/,"")+" to lot line";
+    const lx=FRONT-sfs*5,txt=fmtLen(off).replace(/^0'-/,"")+" to lot line";
     [[0,1,"offW"],[25,-1,"offE"]].forEach(([line,dir,key])=>{
-      const ty=line-dir*fs*3,o2=lab(key),tx=lx+o2[0],tty=ty+o2[1];
+      const ty=line-dir*sfs*3,o2=lab(key),tx=lx+o2[0],tty=ty+o2[1];
       // the leader runs from the gap to wherever the label has been moved
-      dm+=`<path d="M${lx} ${line}L${lx} ${line+dir*off}M${lx} ${line}L${tx} ${tty+dir*fs*0.6}" style="fill:none;stroke:var(--sel);stroke-width:${0.12*k}"/>`;
-      sl+=sg(key,`<text x="${lx}" y="${ty}" text-anchor="middle" dominant-baseline="central" style="fill:var(--sel);font-size:${fs*0.75}px;font-weight:600">${txt}</text>`);
+      dm+=`<path d="M${lx} ${line}L${lx} ${line+dir*off}M${lx} ${line}L${tx} ${tty+dir*sfs*0.6}" style="fill:none;stroke:var(--sel);stroke-width:${0.12*k}"/>`;
+      sl+=sg(key,`<text x="${lx}" y="${ty}" text-anchor="middle" dominant-baseline="central" style="fill:var(--sel);font-size:${sfs*0.75}px;font-weight:600">${txt}</text>`);
     });
   }
   dm+=`</g>`;
@@ -1587,10 +1596,10 @@ function renderPlan(){
     for(let d=-chei;d<cwid;d+=1.5){const xa=Math.max(c.x0,c.x0+d),ya=c.y1-(xa-(c.x0+d)),xb=Math.min(c.x1,c.x0+d+chei),yb=c.y1-(xb-(c.x0+d));hatch+=`<path d="M${xa} ${ya}L${xb} ${yb}"/>`;}
     wl+=hatch+`</g>`;
     // label and size line can each be turned off from the layers panel
-    const LW=S.lightwell,showName=!LW.hideLabel,showSize=!LW.hideDims,yMid=c.y0+chei/2;
-    if(showName)wl+=`<text x="${c.x0+cwid/2}" y="${showSize?yMid-fs*0.45:yMid}" text-anchor="middle" dominant-baseline="${showSize?"auto":"central"}" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.8}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.3}px">Light well</text>`;
-    if(showSize)wl+=`<text x="${c.x0+cwid/2}" y="${showName?yMid+fs*0.6:yMid}" text-anchor="middle" dominant-baseline="${showName?"auto":"central"}" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.7}px;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.3}px">${fmtLen(c.len)} × ${fmtLen(c.depth)} clear, ${fmt(c.len*c.depth)} SF</text>`;
-    if(c.issues.length)wl+=`<text x="${c.x0+cwid/2}" y="${(S.lightwell.side==="west"?c.y1+fs*1.2:c.y0-fs*0.8)}" text-anchor="middle" pointer-events="none" style="fill:var(--over);font-size:${fs*0.72}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.25}px">Does not meet the court minimum: ${c.issues.join(", ")}</text>`;
+    const LW=S.lightwell,showName=!LW.hideLabel,showSize=!LW.hideDims,yMid=c.y0+chei/2;const lfs=LF(LW);
+    if(showName)wl+=`<text x="${c.x0+cwid/2}" y="${showSize?yMid-lfs*0.45:yMid}" text-anchor="middle" dominant-baseline="${showSize?"auto":"central"}" pointer-events="none" style="fill:var(--ink);font-size:${lfs*0.8}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${lfs*0.3}px">Light well</text>`;
+    if(showSize)wl+=`<text x="${c.x0+cwid/2}" y="${showName?yMid+lfs*0.6:yMid}" text-anchor="middle" dominant-baseline="${showName?"auto":"central"}" pointer-events="none" style="fill:var(--ink);font-size:${lfs*0.7}px;paint-order:stroke;stroke:var(--panel);stroke-width:${lfs*0.3}px">${fmtLen(c.len)} × ${fmtLen(c.depth)} clear, ${fmt(c.len*c.depth)} SF</text>`;
+    if(c.issues.length)wl+=`<text x="${c.x0+cwid/2}" y="${(S.lightwell.side==="west"?c.y1+lfs*1.2:c.y0-lfs*0.8)}" text-anchor="middle" pointer-events="none" style="fill:var(--over);font-size:${lfs*0.72}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${lfs*0.25}px">Does not meet the court minimum: ${c.issues.join(", ")}</text>`;
     WL.court.forEach(w=>{const d=we(w);wl+=`<line x1="${d.a[0]}" y1="${d.a[1]}" x2="${d.b[0]}" y2="${d.b[1]}" pointer-events="none" style="stroke:${csel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:butt"/>`;});
   }
   if(S.core){
@@ -1608,26 +1617,26 @@ function renderPlan(){
     const arrow=(x0,x1,y)=>{const d=x1>x0?1:-1,h=Math.min(0.9,fw/4);return `<path d="M${x0} ${y}L${x1} ${y}M${x1-d*h} ${y-h*0.7}L${x1} ${y}L${x1-d*h} ${y+h*0.7}" style="stroke:var(--ink);stroke-width:${0.14*k}"/>`;};
     if(r1>r0+1){sym+=arrow(r0+0.3,r1-0.3,(yA0+yA1)/2)+arrow(r1-0.3,r0+0.3,(yB0+yB1)/2);}
     sym+=`</g>`;
-    const CO=S.core;
+    const CO=S.core;const cfs=LF(CO);
     if(showInt){
       wl+=sym;
       if(yB0>yA1)wl+=`<line x1="${sA}" y1="${(yA1+yB0)/2}" x2="${sB}" y2="${(yA1+yB0)/2}" pointer-events="none" style="stroke:var(--ink);stroke-width:${yB0-yA1}"/>`;
       // stair length dimension under the core
-      if(!CO.hideDims){const dy=c.y1+fs*1.1,dx1=sA+sq.lenFt,col=fits?"var(--ink)":"var(--over)";
-      wl+=`<g pointer-events="none"><path d="M${sA} ${c.y1+fs*0.3}L${sA} ${dy+fs*0.3}M${dx1} ${c.y1+fs*0.3}L${dx1} ${dy+fs*0.3}M${sA} ${dy}L${dx1} ${dy}" style="fill:none;stroke:${col};stroke-width:${0.1*k}"/>`;
-      wl+=`<text x="${(sA+dx1)/2}" y="${dy+fs*0.75}" text-anchor="middle" dominant-baseline="central" style="fill:${col};font-size:${fs*0.72}px;font-weight:600">Scissor stair ${fmtLen(sq.lenFt)} × ${fmtLen(sq.widthFt)}, ${sq.risers} risers at ${sq.riserIn.toFixed(2)}"${fits?"":", does not fit the core"}</text></g>`;}
+      if(!CO.hideDims){const dy=c.y1+cfs*1.1,dx1=sA+sq.lenFt,col=fits?"var(--ink)":"var(--over)";
+      wl+=`<g pointer-events="none"><path d="M${sA} ${c.y1+cfs*0.3}L${sA} ${dy+cfs*0.3}M${dx1} ${c.y1+cfs*0.3}L${dx1} ${dy+cfs*0.3}M${sA} ${dy}L${dx1} ${dy}" style="fill:none;stroke:${col};stroke-width:${0.1*k}"/>`;
+      wl+=`<text x="${(sA+dx1)/2}" y="${dy+cfs*0.75}" text-anchor="middle" dominant-baseline="central" style="fill:${col};font-size:${cfs*0.72}px;font-weight:600">Scissor stair ${fmtLen(sq.lenFt)} × ${fmtLen(sq.widthFt)}, ${sq.risers} risers at ${sq.riserIn.toFixed(2)}"${fits?"":", does not fit the core"}</text></g>`;}
     }
     const iss=coreIssues(f);
-    if(iss.length)wl+=`<text x="${c.x0+cw/2}" y="${c.y0-fs*0.8}" text-anchor="middle" pointer-events="none" style="fill:var(--over);font-size:${fs*0.72}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.25}px">Core ${iss.join(", ")}</text>`;
+    if(iss.length)wl+=`<text x="${c.x0+cw/2}" y="${c.y0-cfs*0.8}" text-anchor="middle" pointer-events="none" style="fill:var(--over);font-size:${cfs*0.72}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${cfs*0.25}px">Core ${iss.join(", ")}</text>`;
     WL.core.forEach(w=>{const d=we(w);wl+=`<line x1="${d.a[0]}" y1="${d.a[1]}" x2="${d.b[0]}" y2="${d.b[1]}" pointer-events="none" style="stroke:${csel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:butt"/>`;});
-    const lab=(x,t)=>`<text x="${x}" y="${c.y0+ch/2}" text-anchor="middle" dominant-baseline="central" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.75}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.25}px">${t}</text>`;
+    const lab=(x,t)=>`<text x="${x}" y="${c.y0+ch/2}" text-anchor="middle" dominant-baseline="central" pointer-events="none" style="fill:var(--ink);font-size:${cfs*0.75}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${cfs*0.25}px">${t}</text>`;
     if(showInt){
       if(ew>3&&!CO.hideLabel)wl+=lab((eA+eB)/2,"Elev.");
     }else if(!CO.hideLabel||!CO.hideDims){
       const res=f.use==="residential"||(f.use==="commercial"&&f.coreRes!==false);
       const both=!CO.hideLabel&&!CO.hideDims,yC=c.y0+ch/2;
-      if(!CO.hideLabel)wl+=`<text x="${c.x0+cw/2}" y="${both?yC-fs*0.5:yC}" text-anchor="middle" dominant-baseline="${both?"auto":"central"}" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.85}px;font-weight:600">Core</text>`;
-      if(!CO.hideDims)wl+=`<text x="${c.x0+cw/2}" y="${both?yC+fs*0.6:yC}" text-anchor="middle" dominant-baseline="${both?"auto":"central"}" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.75}px">${fmt(coreArea())} SF${f.use==="cellar"?"":res?", residential":", commercial"}</text>`;
+      if(!CO.hideLabel)wl+=`<text x="${c.x0+cw/2}" y="${both?yC-cfs*0.5:yC}" text-anchor="middle" dominant-baseline="${both?"auto":"central"}" pointer-events="none" style="fill:var(--ink);font-size:${cfs*0.85}px;font-weight:600">Core</text>`;
+      if(!CO.hideDims)wl+=`<text x="${c.x0+cw/2}" y="${both?yC+cfs*0.6:yC}" text-anchor="middle" dominant-baseline="${both?"auto":"central"}" pointer-events="none" style="fill:var(--ink);font-size:${cfs*0.75}px">${fmt(coreArea())} SF${f.use==="cellar"?"":res?", residential":", commercial"}</text>`;
     }
   }
   WL.reg.forEach(w=>{
@@ -1807,12 +1816,18 @@ document.addEventListener("click",e=>{
 });
 $("#layerList").addEventListener("click",e=>{
   if(e.target.closest("[data-sitereset]")){const SI=ensureSite(S);if(Object.keys(SI.lab).length){pushHist();SI.lab={};layersKey="";commit();}return;}
+  const lk=e.target.closest("[data-llock]");
+  if(lk){const o=labTarget(lk.dataset.llock),on=lk.dataset.v==="1";
+    if(o&&on!==!!(o.labLock>0)){pushHist();if(on)o.labLock=ui.planFs;else delete o.labLock;layersKey="";commit();}return;}
+  const lz=e.target.closest("[data-lszreset]");
+  if(lz){const o=labTarget(lz.dataset.lszreset);if(o){pushHist();delete o.labSize;delete o.labLock;layersKey="";commit();}return;}
   const rb=e.target.closest("[data-lreset]");
   if(rb){const a=cur().areas.find(x=>x.id===rb.dataset.lreset);if(a&&a.lab){pushHist();delete a.lab;layersKey="";commit();}return;}
   if(e.target.closest(".lopts"))return;
   const r=e.target.closest(".lrow");if(r)selectFromLayers(r.dataset.lk,r.dataset.lid);
 });
 $("#layerList").addEventListener("change",e=>{
+  if(e.target.closest("[data-lsz]")){labSliding=false;e.target.blur();layersKey="";commit();return;}
   const nm=e.target.closest("[data-lname]");
   if(nm){const a=cur().areas.find(x=>x.id===nm.dataset.lname),v=nm.value.trim();if(a&&(a.name||"")!==v){pushHist();if(v)a.name=v;else delete a.name;nm.blur();layersKey="";commit();}return;}
   const so=e.target.closest("[data-siteopt]");
@@ -1828,6 +1843,17 @@ $("#layerList").addEventListener("change",e=>{
   pushHist();a.type=s2.value;
   const T=AREA_TYPES[a.type];if(T.kind==="sell")ui.layers.sell=true;else ui.layers.far=true;
   ui.sel={k:"area",id:a.id};s2.blur();layersKey="";savePrefs();commit();
+});
+// which object holds the label style for a layers-panel control
+function labTarget(ref){const [kind,id]=ref.split(":");
+  return kind==="area"?cur().areas.find(x=>x.id===id):kind==="core"?S.core:kind==="court"?S.lightwell:kind==="lot"?ensureSite(S):null;}
+let labSliding=false;
+$("#layerList").addEventListener("input",e=>{
+  const r=e.target.closest("[data-lsz]");if(!r)return;
+  const o=labTarget(r.dataset.lsz);if(!o)return;
+  if(!labSliding){pushHist();labSliding=true;}
+  const v=+r.value;if(v===100)delete o.labSize;else o.labSize=v;
+  r.nextElementSibling.textContent=v+"%";renderPlan();
 });
 $("#layerList").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches("[data-lname]")){e.preventDefault();e.target.blur();}});
 $("#lpToggle").addEventListener("click",()=>{
@@ -2116,13 +2142,18 @@ function renderLayers(){
   const box=$("#layerList");if(!box)return;
   const f=cur(),sel=ui.sel;
   const areas=[...f.areas].sort((a,b)=>MENU.indexOf(a.type)-MENU.indexOf(b.type));
-  const key=JSON.stringify([ui.floor,sel,ui.layers,areas.map(a=>[a.id,a.type,a.name||"",Math.round(polyArea(a.pts)),!!a.hideLabel,!!a.lab]),f.walls.map(w=>[w.id,w.tag,Math.round(w.t*12),Math.round(dist(w.a,w.b)*10)]),!!S.core,!!courtRectFor(f),JSON.stringify(ensureSite(S)),S.lightwell&&[!!S.lightwell.hideLabel,!!S.lightwell.hideDims,JSON.stringify(courtRectFor(f))],S.core&&[!!S.core.hideLabel,!!S.core.hideDims,JSON.stringify(coreRectFor(f)),S.core.elevW,S.core.elevSide,S.core.attach,S.core.auto,f.height,f.use,f.coreRes]]);
+  const key=JSON.stringify([ui.floor,sel,ui.layers,areas.map(a=>[a.id,a.type,a.name||"",Math.round(polyArea(a.pts)),!!a.hideLabel,!!a.lab,a.labSize,a.labLock]),f.walls.map(w=>[w.id,w.tag,Math.round(w.t*12),Math.round(dist(w.a,w.b)*10)]),!!S.core,!!courtRectFor(f),JSON.stringify(ensureSite(S)),S.lightwell&&[S.lightwell.labSize,S.lightwell.labLock,!!S.lightwell.hideLabel,!!S.lightwell.hideDims,JSON.stringify(courtRectFor(f))],S.core&&[S.core.labSize,S.core.labLock,!!S.core.hideLabel,!!S.core.hideDims,JSON.stringify(coreRectFor(f)),S.core.elevW,S.core.elevSide,S.core.attach,S.core.auto,f.height,f.use,f.coreRes]]);
   if(key===layersKey)return;
   if(box.contains(document.activeElement)&&/^(SELECT|INPUT)$/.test(document.activeElement.tagName))return;
   layersKey=key;
   const kindShown=k=>k==="sell"?ui.layers.sell:ui.layers.far;
   let h="";
   const grp=t=>{h+=`<div class="lgrp">${t}</div>`;};
+  // label size and zoom behaviour, shared by every item that has a label
+  const labCtl=(kind,id,o)=>{const sz=(o&&o.labSize)||100,lk=!!(o&&o.labLock>0),ref=`${kind}:${id}`;
+    return `<div class="lsize"><label>Label size<input type="range" min="40" max="300" step="10" value="${sz}" data-lsz="${ref}"><output>${sz}%</output></label>
+      <span class="seg" role="group" aria-label="Label zoom"><button data-llock="${ref}" data-v="0" aria-pressed="${!lk}" title="The label is redrawn at the same size on screen at every zoom">Same on screen</button><button data-llock="${ref}" data-v="1" aria-pressed="${lk}" title="The label keeps the size it has now on the drawing, so it grows when you zoom in and shrinks when you zoom out">Lock to drawing</button></span>
+      ${sz!==100||lk?`<button class="btn" data-lszreset="${ref}">Reset size</button>`:""}</div>`;};
   if(areas.length){
     grp("Areas");
     areas.forEach(a=>{
@@ -2132,6 +2163,7 @@ function renderLayers(){
            <label>Type<select class="in" data-ltype="${a.id}">${MENU.map(k=>`<option value="${k}" ${k===a.type?"selected":""}>${labelOf(k)}</option>`).join("")}</select></label>
            <label>Name<input class="in" data-lname="${a.id}" maxlength="60" value="${escH(a.name||"")}" placeholder="${escH(T.short)}"></label>
            <label class="ck"><input type="checkbox" data-lshow="${a.id}" ${a.hideLabel?"":"checked"}> Show label on the plan</label>
+           ${labCtl("area",a.id,a)}
            <div class="lbtns"><button class="btn" data-lreset="${a.id}" ${a.lab?"":"disabled"}>Reset label position</button></div>
            <span class="lhint">${a.hideLabel?"Label hidden":"Drag the label on the plan to move it"}</span>
          </div>`:"")+`</div>`;
@@ -2148,7 +2180,7 @@ function renderLayers(){
     const SI=ensureSite(S),on=sel&&sel.k==="lot",ck=(key,t)=>`<label class="ck"><input type="checkbox" data-siteopt="${key}" ${SI.hide[key]?"":"checked"}> ${t}</label>`;
     grp("Site");
     h+=`<div class="lrow ${on?"on":""}" data-lk="lot" data-lid="lot"><span class="sw" style="--c:var(--muted)"></span><span class="nm">Lot lines</span><span class="sf">${fmt(S.settings.lot)} SF</span>`+
-       (on?`<div class="lopts">${ck("lot","Show the lot line")}${ck("street",'Show "South 2nd Street" label')}${ck("rear",'Show "Rear" label')}${ck("sides","Show west and east lot line labels")}${ck("offset",`Show the ${fmtLen(S.settings.sideOffset||0).replace(/^0'-/,"")} offset callouts`)}
+       (on?`<div class="lopts">${ck("lot","Show the lot line")}${ck("street",'Show "South 2nd Street" label')}${ck("rear",'Show "Rear" label')}${ck("sides","Show west and east lot line labels")}${ck("offset",`Show the ${fmtLen(S.settings.sideOffset||0).replace(/^0'-/,"")} offset callouts`)}${labCtl("lot","lot",SI)}
          <div class="lbtns"><button class="btn" data-sitereset ${Object.keys(SI.lab).length?"":"disabled"}>Reset label positions</button></div>
          <span class="lhint">Drag any of these labels on the plan to move it</span></div>`:"")+`</div>`;
   }
@@ -2166,6 +2198,7 @@ function renderLayers(){
         h+=`<div class="lopts">
            <label class="ck"><input type="checkbox" data-coreopt="hideLabel" ${C.hideLabel?"":"checked"}> Show "Core" and "Elev." labels</label>
            <label class="ck"><input type="checkbox" data-coreopt="hideDims" ${C.hideDims?"":"checked"}> Show its area and the stair dimension</label>
+           ${labCtl("core","core",C)}
            ${spec([
              ["Outside size",`${fmtLen(c.x1-c.x0)} × ${fmtLen(c.y1-c.y0)}`],
              ["Area on this floor",`${fmt(coreArea(f))} SF, counts as ${use.toLowerCase()}`],
@@ -2188,6 +2221,7 @@ function renderLayers(){
          (on?`<div class="lopts">
            <label class="ck"><input type="checkbox" data-lwopt="hideLabel" ${L.hideLabel?"":"checked"}> Show "Light well" label</label>
            <label class="ck"><input type="checkbox" data-lwopt="hideDims" ${L.hideDims?"":"checked"}> Show its size</label>
+           ${labCtl("court","court",L)}
            ${(()=>{const r=S.rules.court,dim=lw.high?r.highMinDimFt:r.lowMinDimFt,ar=lw.high?r.highMinAreaSF:r.lowMinAreaSF,st=S.floors.find(x=>x.id===L.from);
              return spec([
                ["Clear size",`${fmtLen(lw.len)} × ${fmtLen(lw.depth)}`],
