@@ -1715,7 +1715,7 @@ svg.addEventListener("pointerdown",e=>{
     else if(k==="vert"){
       const i=+t.dataset.i,o=findSel();
       if(e.altKey&&o&&o.pts){deleteVert(o,i);return;}            // Alt+click removes a corner
-      ui.selVert={id,i};drag={k,id,i,hist:false};renderPlan();renderSel();return;
+      ui.selVert={id,i};drag={k,id,i,hist:false,p0:o&&o.pts?o.pts[i].slice():null};renderPlan();renderSel();return;
     }
     else if(k==="sitelab"){
       drag={k:"slab",key:id,start:p,orig:(ensureSite(S).lab[id]||[0,0]).slice(),hist:false};
@@ -1732,7 +1732,7 @@ svg.addEventListener("pointerdown",e=>{
       if(o&&o.pts){
         const a=o.pts[i],b=o.pts[(i+1)%o.pts.length];
         pushHist();o.pts.splice(i+1,0,[(a[0]+b[0])/2,(a[1]+b[1])/2]);
-        ui.selVert={id,i:i+1};drag={k:"vert",id,i:i+1,hist:true};
+        ui.selVert={id,i:i+1};drag={k:"vert",id,i:i+1,hist:true,p0:o.pts[i+1].slice()};
         renderPlan();renderSel();
       }
       return;
@@ -1833,10 +1833,11 @@ svg.addEventListener("pointermove",e=>{
   if(drag.k==="end"){
     const other=drag.end==="a"?o.b:o.a;
     const q=snapPt(p,o.id+":"+drag.end);
-    o[drag.end]=["end","corner","mid"].includes(snapInfo.kind)?q:orthoPt(other,q);
+    o[drag.end]=orthoOn()?orthoPt(other,q):q;   // Ortho keeps the wall square to its other end
     ui.hover={pt:o[drag.end],kind:snapInfo.kind,desc:snapInfo.desc,drag:true};
   }else if(drag.k==="vert"){
-    o.pts[drag.i]=snapPt(p,o.id+":"+drag.i);
+    const q=snapPt(p,o.id+":"+drag.i);
+    o.pts[drag.i]=orthoOn()&&drag.p0?orthoPt(drag.p0,q):q;   // Ortho: the corner slides only across or up and down
     ui.hover={pt:o.pts[drag.i],kind:snapInfo.kind,desc:snapInfo.desc,drag:true};
   }else if(drag.k==="slab"){
     o.lab[drag.key]=[drag.orig[0]+(p[0]-drag.start[0]),drag.orig[1]+(p[1]-drag.start[1])];
@@ -1844,7 +1845,8 @@ svg.addEventListener("pointermove",e=>{
     o.lab=[drag.orig[0]+(p[0]-drag.start[0]),drag.orig[1]+(p[1]-drag.start[1])];
   }else if(drag.k==="move"){
     const g=ui.snap?0.5:0.01;
-    const dx=Math.round((p[0]-drag.start[0])/g)*g,dy=Math.round((p[1]-drag.start[1])/g)*g;
+    let dx=Math.round((p[0]-drag.start[0])/g)*g,dy=Math.round((p[1]-drag.start[1])/g)*g;
+    if(orthoOn()){if(Math.abs(dx)>=Math.abs(dy))dy=0;else dx=0;}   // Ortho: move straight across or straight up and down
     if(ui.sel.k==="wall"){o.a=[drag.orig.a[0]+dx,drag.orig.a[1]+dy];o.b=[drag.orig.b[0]+dx,drag.orig.b[1]+dy];}
     else if(ui.sel.k==="court"){
       // slide along the building; its edges snap to wall faces, the core and area corners nearby
