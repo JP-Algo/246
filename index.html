@@ -113,6 +113,9 @@ input.in{width:84px}
 .layers .sw{width:10px;height:10px;border-radius:2px;background:var(--c)}
 .layers .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .layers .sf{color:var(--muted)}
+.layers .lspec{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:2px 0;font-size:12px}
+.layers .lspec dt{color:var(--muted)}
+.layers .lspec dd{margin:0}
 .layers .lopts{grid-column:1 / 4;display:grid;gap:6px;padding:6px 0 4px 16px;cursor:default}
 .layers .lopts label{display:grid;gap:2px;font-size:11.5px;color:var(--muted)}
 .layers .lopts label.ck{display:flex;align-items:center;gap:6px;color:var(--ink);font-size:12.5px}
@@ -1605,24 +1608,26 @@ function renderPlan(){
     const arrow=(x0,x1,y)=>{const d=x1>x0?1:-1,h=Math.min(0.9,fw/4);return `<path d="M${x0} ${y}L${x1} ${y}M${x1-d*h} ${y-h*0.7}L${x1} ${y}L${x1-d*h} ${y+h*0.7}" style="stroke:var(--ink);stroke-width:${0.14*k}"/>`;};
     if(r1>r0+1){sym+=arrow(r0+0.3,r1-0.3,(yA0+yA1)/2)+arrow(r1-0.3,r0+0.3,(yB0+yB1)/2);}
     sym+=`</g>`;
+    const CO=S.core;
     if(showInt){
       wl+=sym;
       if(yB0>yA1)wl+=`<line x1="${sA}" y1="${(yA1+yB0)/2}" x2="${sB}" y2="${(yA1+yB0)/2}" pointer-events="none" style="stroke:var(--ink);stroke-width:${yB0-yA1}"/>`;
       // stair length dimension under the core
-      const dy=c.y1+fs*1.1,dx1=sA+sq.lenFt,col=fits?"var(--ink)":"var(--over)";
+      if(!CO.hideDims){const dy=c.y1+fs*1.1,dx1=sA+sq.lenFt,col=fits?"var(--ink)":"var(--over)";
       wl+=`<g pointer-events="none"><path d="M${sA} ${c.y1+fs*0.3}L${sA} ${dy+fs*0.3}M${dx1} ${c.y1+fs*0.3}L${dx1} ${dy+fs*0.3}M${sA} ${dy}L${dx1} ${dy}" style="fill:none;stroke:${col};stroke-width:${0.1*k}"/>`;
-      wl+=`<text x="${(sA+dx1)/2}" y="${dy+fs*0.75}" text-anchor="middle" dominant-baseline="central" style="fill:${col};font-size:${fs*0.72}px;font-weight:600">Scissor stair ${fmtLen(sq.lenFt)} × ${fmtLen(sq.widthFt)}, ${sq.risers} risers at ${sq.riserIn.toFixed(2)}"${fits?"":", does not fit the core"}</text></g>`;
+      wl+=`<text x="${(sA+dx1)/2}" y="${dy+fs*0.75}" text-anchor="middle" dominant-baseline="central" style="fill:${col};font-size:${fs*0.72}px;font-weight:600">Scissor stair ${fmtLen(sq.lenFt)} × ${fmtLen(sq.widthFt)}, ${sq.risers} risers at ${sq.riserIn.toFixed(2)}"${fits?"":", does not fit the core"}</text></g>`;}
     }
     const iss=coreIssues(f);
     if(iss.length)wl+=`<text x="${c.x0+cw/2}" y="${c.y0-fs*0.8}" text-anchor="middle" pointer-events="none" style="fill:var(--over);font-size:${fs*0.72}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.25}px">Core ${iss.join(", ")}</text>`;
     WL.core.forEach(w=>{const d=we(w);wl+=`<line x1="${d.a[0]}" y1="${d.a[1]}" x2="${d.b[0]}" y2="${d.b[1]}" pointer-events="none" style="stroke:${csel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:butt"/>`;});
     const lab=(x,t)=>`<text x="${x}" y="${c.y0+ch/2}" text-anchor="middle" dominant-baseline="central" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.75}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.25}px">${t}</text>`;
     if(showInt){
-      if(ew>3)wl+=lab((eA+eB)/2,"Elev.");
-    }else{
+      if(ew>3&&!CO.hideLabel)wl+=lab((eA+eB)/2,"Elev.");
+    }else if(!CO.hideLabel||!CO.hideDims){
       const res=f.use==="residential"||(f.use==="commercial"&&f.coreRes!==false);
-      wl+=`<text x="${c.x0+cw/2}" y="${c.y0+ch/2-fs*0.5}" text-anchor="middle" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.85}px;font-weight:600">Core</text>`;
-      wl+=`<text x="${c.x0+cw/2}" y="${c.y0+ch/2+fs*0.6}" text-anchor="middle" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.75}px">${fmt(coreArea())} SF${f.use==="cellar"?"":res?", residential":", commercial"}</text>`;
+      const both=!CO.hideLabel&&!CO.hideDims,yC=c.y0+ch/2;
+      if(!CO.hideLabel)wl+=`<text x="${c.x0+cw/2}" y="${both?yC-fs*0.5:yC}" text-anchor="middle" dominant-baseline="${both?"auto":"central"}" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.85}px;font-weight:600">Core</text>`;
+      if(!CO.hideDims)wl+=`<text x="${c.x0+cw/2}" y="${both?yC+fs*0.6:yC}" text-anchor="middle" dominant-baseline="${both?"auto":"central"}" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.75}px">${fmt(coreArea())} SF${f.use==="cellar"?"":res?", residential":", commercial"}</text>`;
     }
   }
   WL.reg.forEach(w=>{
@@ -1812,6 +1817,8 @@ $("#layerList").addEventListener("change",e=>{
   if(nm){const a=cur().areas.find(x=>x.id===nm.dataset.lname),v=nm.value.trim();if(a&&(a.name||"")!==v){pushHist();if(v)a.name=v;else delete a.name;nm.blur();layersKey="";commit();}return;}
   const so=e.target.closest("[data-siteopt]");
   if(so){const SI=ensureSite(S);pushHist();if(so.checked)delete SI.hide[so.dataset.siteopt];else SI.hide[so.dataset.siteopt]=true;so.blur();layersKey="";commit();return;}
+  const co=e.target.closest("[data-coreopt]");
+  if(co&&S.core){pushHist();if(co.checked)delete S.core[co.dataset.coreopt];else S.core[co.dataset.coreopt]=true;co.blur();layersKey="";commit();return;}
   const lo=e.target.closest("[data-lwopt]");
   if(lo&&S.lightwell){pushHist();if(lo.checked)delete S.lightwell[lo.dataset.lwopt];else S.lightwell[lo.dataset.lwopt]=true;lo.blur();layersKey="";commit();return;}
   const sh=e.target.closest("[data-lshow]");
@@ -2109,7 +2116,7 @@ function renderLayers(){
   const box=$("#layerList");if(!box)return;
   const f=cur(),sel=ui.sel;
   const areas=[...f.areas].sort((a,b)=>MENU.indexOf(a.type)-MENU.indexOf(b.type));
-  const key=JSON.stringify([ui.floor,sel,ui.layers,areas.map(a=>[a.id,a.type,a.name||"",Math.round(polyArea(a.pts)),!!a.hideLabel,!!a.lab]),f.walls.map(w=>[w.id,w.tag,Math.round(w.t*12),Math.round(dist(w.a,w.b)*10)]),!!S.core,!!courtRectFor(f),JSON.stringify(ensureSite(S)),S.lightwell&&[!!S.lightwell.hideLabel,!!S.lightwell.hideDims]]);
+  const key=JSON.stringify([ui.floor,sel,ui.layers,areas.map(a=>[a.id,a.type,a.name||"",Math.round(polyArea(a.pts)),!!a.hideLabel,!!a.lab]),f.walls.map(w=>[w.id,w.tag,Math.round(w.t*12),Math.round(dist(w.a,w.b)*10)]),!!S.core,!!courtRectFor(f),JSON.stringify(ensureSite(S)),S.lightwell&&[!!S.lightwell.hideLabel,!!S.lightwell.hideDims,JSON.stringify(courtRectFor(f))],S.core&&[!!S.core.hideLabel,!!S.core.hideDims,JSON.stringify(coreRectFor(f)),S.core.elevW,S.core.elevSide,S.core.attach,S.core.auto,f.height,f.use,f.coreRes]]);
   if(key===layersKey)return;
   if(box.contains(document.activeElement)&&/^(SELECT|INPUT)$/.test(document.activeElement.tagName))return;
   layersKey=key;
@@ -2148,13 +2155,49 @@ function renderLayers(){
   const lw=courtRectFor(f);
   if(S.core||lw){
     grp("Building elements");
-    if(S.core)h+=`<div class="lrow ${sel&&sel.k==="core"?"on":""}" data-lk="core" data-lid="core"><span class="sw" style="--c:var(--core)"></span><span class="nm">Elevator and stair core</span><span class="sf">${fmt(coreArea(f))} SF</span></div>`;
+    const spec=rows=>`<dl class="lspec">${rows.filter(Boolean).map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>`;
+    if(S.core){
+      const on=sel&&sel.k==="core",C=S.core;
+      h+=`<div class="lrow ${on?"on":""}" data-lk="core" data-lid="core"><span class="sw" style="--c:var(--core)"></span><span class="nm">Elevator and stair core</span><span class="sf">${fmt(coreArea(f))} SF</span>`;
+      if(on){
+        const c=coreRectFor(f),z=coreZones(c),sq=stairReq(f.height),sr=S.rules.stair,iss=coreIssues(f);
+        const fits=sq.lenFt<=z.sB-z.sA+1e-6&&sq.widthFt<=z.iy1-z.iy0+1e-6;
+        const use=f.use==="cellar"?"Exempt (cellar)":f.use==="residential"||f.coreRes!==false?"Residential":"Commercial";
+        h+=`<div class="lopts">
+           <label class="ck"><input type="checkbox" data-coreopt="hideLabel" ${C.hideLabel?"":"checked"}> Show "Core" and "Elev." labels</label>
+           <label class="ck"><input type="checkbox" data-coreopt="hideDims" ${C.hideDims?"":"checked"}> Show its area and the stair dimension</label>
+           ${spec([
+             ["Outside size",`${fmtLen(c.x1-c.x0)} × ${fmtLen(c.y1-c.y0)}`],
+             ["Area on this floor",`${fmt(coreArea(f))} SF, counts as ${use.toLowerCase()}`],
+             ["Placement",`${fmtLen(c.x0)} from rear lot line${C.attach?`, ${C.attach} exterior wall as one side`:""}`],
+             ["Elevator",`${fmtLen(C.elevW)} shaft at the ${C.elevSide==="rear"?"rear":"front"}`],
+             ["Scissor stair",`${fmtLen(sq.lenFt)} × ${fmtLen(sq.widthFt)}${fits?"":", does not fit"}`],
+             ["Risers",`${sq.risers} at ${sq.riserIn.toFixed(2)}" for a ${fmtLen(f.height)} floor`],
+             ["Each flight",`${sr.widthIn}" wide, ${sr.sepIn}" separation`],
+             ["Stair length",C.auto?"Follows each floor's height":"Fixed"],
+             iss.length?["Check",`<span style="color:var(--over)">${iss.join(", ")}</span>`]:null
+           ])}
+           <span class="lhint">Change the core in the panel below the plan</span>
+         </div>`;
+      }
+      h+=`</div>`;
+    }
     if(lw){
       const on=sel&&sel.k==="court",L=S.lightwell;
       h+=`<div class="lrow ${on?"on":""}" data-lk="court" data-lid="court"><span class="sw" style="--c:var(--terrace)"></span><span class="nm">Light well</span><span class="sf">${fmt(lw.len*lw.depth)} SF</span>`+
          (on?`<div class="lopts">
            <label class="ck"><input type="checkbox" data-lwopt="hideLabel" ${L.hideLabel?"":"checked"}> Show "Light well" label</label>
            <label class="ck"><input type="checkbox" data-lwopt="hideDims" ${L.hideDims?"":"checked"}> Show its size</label>
+           ${(()=>{const r=S.rules.court,dim=lw.high?r.highMinDimFt:r.lowMinDimFt,ar=lw.high?r.highMinAreaSF:r.lowMinAreaSF,st=S.floors.find(x=>x.id===L.from);
+             return spec([
+               ["Clear size",`${fmtLen(lw.len)} × ${fmtLen(lw.depth)}`],
+               ["Area",`${fmt(lw.len*lw.depth)} SF, not floor area`],
+               ["Placement",`${L.side==="east"?"East":"West"} lot line, ${fmtLen(lw.x0)} from rear lot line`],
+               ["Starts on",st?st.name:"–"],
+               ["Minimum here",`${fmtLen(dim)} each side and ${fmt(ar)} SF${lw.high?`, above ${r.highAboveFt} ft`:""}`],
+               ["Size",lw.custom?"Set for this floor":"Code minimum"],
+               lw.issues.length?["Check",`<span style="color:var(--over)">${lw.issues.join(", ")}</span>`]:null
+             ]);})()}
            <span class="lhint">More light well settings are in the panel below the plan</span>
          </div>`:"")+`</div>`;
     }
