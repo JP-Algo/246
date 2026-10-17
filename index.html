@@ -177,6 +177,9 @@ tfoot td{font-weight:600;border-bottom:0}
 .editor.fs .planwrap{flex:1 1 auto;min-height:240px;display:flex}
 .editor.fs #plan{height:auto;flex:1 1 auto}
 .zoom svg{display:block;width:14px;height:14px}
+.info{display:inline-grid;place-items:center;width:15px;height:15px;margin-left:4px;padding:0;border:1px solid var(--muted);border-radius:50%;background:transparent;color:var(--muted);font:600 10px/1 Georgia,serif;font-style:italic;cursor:pointer;vertical-align:1px}
+.info:hover,.info[aria-expanded="true"]{border-color:var(--ink);color:var(--ink)}
+.tipbox{position:fixed;z-index:60;max-width:300px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font-size:12.5px;line-height:1.45;box-shadow:0 6px 18px rgba(0,0,0,.18);text-align:left;white-space:normal}
 .dimedit{flex-basis:100%;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px 12px}
 .dimedit label{display:grid;gap:3px;font-size:12px;color:var(--muted)}
 .dimedit input.in{width:100%;color:var(--ink)}
@@ -866,8 +869,8 @@ function renderTotals(){
   const affZ=c.rows.reduce((s,r)=>s+(r.below?0:Math.min(r.aff,r.resZfa)),0);
   const commGross=c.rows.reduce((s,r)=>s+r.commGross,0);
   $("#tfoot").innerHTML=
-    `<tr class="adj" title="Amenity space you draw (gym, lounge, shared laundry, etc.) is taken out of zoning floor area, but only up to ${S.rules.amenityCap.pct}% of the residential floor area. Any amenity area above that cap still counts as floor area."><td>Amenity deduction<small>amenity space taken out of floor area</small></td><td></td><td></td><td></td><td></td><td>${fmt(c.amenAllowed)} SF<small>of ${fmt(c.amenRaw)} SF amenity drawn</small></td><td colspan="3" style="text-align:left">${c.amenRaw>c.amenCap+0.5?`${fmt(c.amenRaw-c.amenAllowed)} SF over the cap still counts. `:""}Cap: ${S.rules.amenityCap.pct}% of residential floor area = ${fmt(c.amenCap)} SF</td></tr>`+
-    `<tr class="adj" title="The ${S.rules.zoneGreen.pct}% floor area bonus (exclusion) for a qualifying ultra-low energy building, taken off the residential floor area."><td>Zone Green<small>${S.rules.zoneGreen.pct}% of the gross building</small></td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td><td></td><td>${S.settings.zoneGreen?fmt(c.zoneGreen):"off"}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td></tr>`+
+    `<tr class="adj"><td>Amenity deduction ${infoTip(`Amenity space you draw (gym, lounge, shared laundry, etc.) is taken out of zoning floor area, up to ${S.rules.amenityCap.pct}% of the residential floor area (${fmt(c.amenCap)} SF here). ${fmt(c.amenRaw)} SF of amenity is drawn and ${fmt(c.amenAllowed)} SF is deducted.${c.amenRaw>c.amenCap+0.5?` ${fmt(c.amenRaw-c.amenAllowed)} SF over the cap still counts as floor area.`:""}`)}</td><td></td><td></td><td></td><td></td><td>${fmt(c.amenAllowed)}</td><td></td><td></td><td></td></tr>`+
+    `<tr class="adj"><td>Zone Green ${infoTip(`${S.rules.zoneGreen.pct}% of the building's gross floor area above grade (${fmt(c.grossAbove)} SF), the floor area exclusion for a qualifying ultra-low energy building. It is taken off the residential floor area.`)}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td><td></td><td>${S.settings.zoneGreen?fmt(c.zoneGreen):"off"}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td></tr>`+
     `<tr><td>Total above grade</td><td>${fmt(c.resZfa-affZ)}<small>of ${fmt(resGross-c.affT)} gross</small></td><td>${fmt(affZ)}${affZ>0.5?`<small>residential total ${fmt(c.resZfa)}</small>`:""}</td><td>${fmt(c.commZfa)}<small>of ${fmt(commGross)} gross</small></td><td>${fmt(c.grossAbove)}</td><td>${fmt(c.grossAbove-c.total)}</td><td>${fmt(c.total)}</td><td>${fmt(c.sellRes+c.sellAff+c.sellComm)}</td><td>${fmt(c.terrTotal)}</td></tr>`+
     `<tr class="adj"><td>Sellable efficiency<small>sellable ÷ gross of that use</small></td><td>${c.resGrossT?Math.round((c.sellRes+c.sellAff)/c.resGrossT*100)+"%":"–"}</td><td></td><td>${c.commGrossT?Math.round(c.sellComm/c.commGrossT*100)+"%":"–"}</td><td>${c.grossAbove?Math.round((c.sellRes+c.sellAff+c.sellComm)/c.grossAbove*100)+"%":"–"}</td><td></td><td></td><td>FM ${fmt(c.sellRes)} · A ${fmt(c.sellAff)} · C ${fmt(c.sellComm)}</td><td></td></tr>`;
 
@@ -1766,6 +1769,19 @@ svg.addEventListener("pointerdown",e=>{
 
 svg.addEventListener("mousedown",e=>{if(e.button===1)e.preventDefault();});
 let lastWallDown=null;
+// (i) buttons: click to show their note, click again or anywhere else to hide it
+document.addEventListener("click",e=>{
+  const b=e.target.closest&&e.target.closest(".info");
+  const old=document.querySelector(".tipbox"),wasFor=old&&old.dataset.for;
+  if(old){old.remove();document.querySelectorAll('.info[aria-expanded="true"]').forEach(x=>x.setAttribute("aria-expanded","false"));}
+  if(!b||(wasFor&&wasFor===b.dataset.tip))return;
+  e.stopPropagation();
+  const t=document.createElement("div");t.className="tipbox";t.textContent=b.dataset.tip;t.dataset.for=b.dataset.tip;document.body.appendChild(t);
+  const r=b.getBoundingClientRect(),w=t.offsetWidth,h=t.offsetHeight;
+  t.style.left=Math.max(8,Math.min(innerWidth-w-8,r.left))+"px";
+  t.style.top=(r.bottom+6+h>innerHeight?r.top-h-6:r.bottom+6)+"px";
+  b.setAttribute("aria-expanded","true");
+});
 $("#layerList").addEventListener("click",e=>{
   if(e.target.closest("[data-sitereset]")){const SI=ensureSite(S);if(Object.keys(SI.lab).length){pushHist();SI.lab={};layersKey="";commit();}return;}
   const rb=e.target.closest("[data-lreset]");
@@ -2136,6 +2152,7 @@ function selectFromLayers(k,id){
   ui.pop=k==="wall"?{ref:"wall",id,fixed:0}:null;
   savePrefs();renderAll();
 }
+function infoTip(text){return `<button class="info" type="button" data-tip="${escH(text)}" aria-label="What this means">i</button>`;}
 function renderAll(){fillAreaTypes();renderRules();renderTabs();renderToolbar();renderPlan();renderSel();renderTotals();build3D();syncSettings();renderLayers();}
 function syncSettings(){
   document.querySelectorAll("[data-set]").forEach(i=>{if(document.activeElement!==i)i.value=S.settings[i.dataset.set];});
