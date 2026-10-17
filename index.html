@@ -2209,6 +2209,33 @@ function build3D(){
         m.position.set((lw.x0+lw.x1)/2-CX,y+(h+0.8)/2+0.02,(lw.y0+lw.y1)/2-CZ);m.userData.floor=i;root.add(m);
       }
     }
+    // placed stairs: solid steps and landings rising from this floor to the one above
+    if(blocksOf(f).length){
+      const base=y+0.8,top=(i+1<S.floors.length?elev[i+1]:y+f.height)+0.8,smat=new THREE.MeshStandardMaterial({color:C("--core").lerp(wallCol,0.45),roughness:0.8,metalness:0});
+      const smatSel=new THREE.MeshStandardMaterial({color:C("--sel").lerp(wallCol,0.3),roughness:0.8,metalness:0});
+      blocksOf(f).forEach(b=>{
+        const g=stairGeom(b,f.height),r=(top-base)/g.R,isB=ui.sel&&ui.sel.k==="block"&&ui.sel.id===b.id&&isSel;
+        const box=(rc,hgt)=>{   // a local rectangle as a solid from the floor up to hgt above it
+          const c=[[rc[0],rc[1]],[rc[2],rc[3]]].map(q=>stairMap(b,q)),x0=Math.min(c[0][0],c[1][0]),x1=Math.max(c[0][0],c[1][0]),z0=Math.min(c[0][1],c[1][1]),z1=Math.max(c[0][1],c[1][1]),hh=Math.max(0.08,hgt);
+          if(x1-x0<1e-3||z1-z0<1e-3)return;
+          const geo=new THREE.BoxGeometry(x1-x0,hh,z1-z0),m=new THREE.Mesh(geo,isB?smatSel:smat);
+          m.position.set((x0+x1)/2-CX,base+hh/2,(z0+z1)/2-CZ);m.userData.floor=i;
+          m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),lmat));root.add(m);pickables.push(m);
+        };
+        let lv=0;
+        g.P.forEach(q=>{
+          if(q.t==="land"){box(q.r,b.kind==="scissor"?0.08:lv);return;}
+          const [u0,v0,u1,v1]=q.r,n=q.n,start=b.kind==="scissor"?0:lv;
+          for(let j=1;j<=n;j++){
+            const a0=(j-1)*g.T,a1=j*g.T,h2=start+j*r;
+            const rc=q.dir==="+u"?[u0+a0,v0,u0+a1,v1]:q.dir==="-u"?[u1-a1,v0,u1-a0,v1]:[u0,v0+a0,u1,v0+a1];
+            box(rc,h2);
+          }
+          if(b.kind!=="scissor")lv=start+(n+1)*r;
+        });
+        g.walls.forEach(rc=>box(rc,top-base));
+      });
+    }
     (!ui.layers.int?[]:drawEnds([...cutWalls(f),...coreWalls(f),...courtWalls(f)])).forEach(d=>{
       const w=d.w,dx=d.b[0]-d.a[0],dz=d.b[1]-d.a[1],L=Math.hypot(dx,dz);
       if(L<0.05)return;
