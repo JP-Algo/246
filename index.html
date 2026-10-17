@@ -87,15 +87,16 @@ input.in{width:84px}
 .floorhead span{color:var(--muted);font-size:13px}
 .floorhead b{color:var(--ink);font-weight:600}
 .planrow{display:flex;gap:8px;align-items:stretch}
-.statusbar{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;padding:5px 2px 0;font-size:11.5px;color:var(--muted)}
+.statusbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;text-align:center;gap:4px 14px;padding:5px 2px 0;font-size:11.5px;color:var(--muted)}
 .statusbar .sb-group{display:inline-flex;align-items:center;gap:2px 6px;flex-wrap:wrap}
-.statusbar .sb-right{margin-left:auto}
+.statusbar .sb-right{margin-left:0}
 .statusbar button{border:0;background:none;padding:1px 4px;font:inherit;color:var(--muted);cursor:pointer;border-radius:3px}
 .statusbar button:hover{color:var(--ink);background:color-mix(in srgb,var(--ink) 6%,transparent)}
 .statusbar button[aria-pressed="true"]{color:var(--ink);font-weight:700}
 .statusbar input.in{width:46px;padding:0 4px;font-size:11.5px;border-radius:4px}
 .statusbar #snapTo{display:inline-flex;gap:2px;padding-left:4px;border-left:1px solid var(--line)}
 .statusbar .typed{font-size:11.5px}
+.statusbar .typed:empty{display:none}
 .planrow .planwrap{flex:1 1 auto;min-width:0}
 .planwrap{position:relative;border:1px solid var(--line);border-radius:8px;background:var(--panel);overflow:hidden}
 .layers{flex:0 0 260px;max-height:clamp(260px,44vh,440px);display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:12.5px;min-width:0}
