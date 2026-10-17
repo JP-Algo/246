@@ -1540,8 +1540,10 @@ function renderPlan(){
     let hatch=`<g pointer-events="none" style="stroke:var(--terrace);stroke-opacity:.45;stroke-width:${0.1*k}">`;
     for(let d=-chei;d<cwid;d+=1.5){const xa=Math.max(c.x0,c.x0+d),ya=c.y1-(xa-(c.x0+d)),xb=Math.min(c.x1,c.x0+d+chei),yb=c.y1-(xb-(c.x0+d));hatch+=`<path d="M${xa} ${ya}L${xb} ${yb}"/>`;}
     wl+=hatch+`</g>`;
-    wl+=`<text x="${c.x0+cwid/2}" y="${c.y0+chei/2-fs*0.45}" text-anchor="middle" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.8}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.3}px">Light well</text>`;
-    wl+=`<text x="${c.x0+cwid/2}" y="${c.y0+chei/2+fs*0.6}" text-anchor="middle" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.7}px;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.3}px">${fmtLen(c.len)} × ${fmtLen(c.depth)} clear, ${fmt(c.len*c.depth)} SF, not floor area</text>`;
+    // label and size line can each be turned off from the layers panel
+    const LW=S.lightwell,showName=!LW.hideLabel,showSize=!LW.hideDims,yMid=c.y0+chei/2;
+    if(showName)wl+=`<text x="${c.x0+cwid/2}" y="${showSize?yMid-fs*0.45:yMid}" text-anchor="middle" dominant-baseline="${showSize?"auto":"central"}" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.8}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.3}px">Light well</text>`;
+    if(showSize)wl+=`<text x="${c.x0+cwid/2}" y="${showName?yMid+fs*0.6:yMid}" text-anchor="middle" dominant-baseline="${showName?"auto":"central"}" pointer-events="none" style="fill:var(--ink);font-size:${fs*0.7}px;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.3}px">${fmtLen(c.len)} × ${fmtLen(c.depth)} clear, ${fmt(c.len*c.depth)} SF</text>`;
     if(c.issues.length)wl+=`<text x="${c.x0+cwid/2}" y="${(S.lightwell.side==="west"?c.y1+fs*1.2:c.y0-fs*0.8)}" text-anchor="middle" pointer-events="none" style="fill:var(--over);font-size:${fs*0.72}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${fs*0.25}px">Does not meet the court minimum: ${c.issues.join(", ")}</text>`;
     WL.court.forEach(w=>{const d=we(w);wl+=`<line x1="${d.a[0]}" y1="${d.a[1]}" x2="${d.b[0]}" y2="${d.b[1]}" pointer-events="none" style="stroke:${csel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:butt"/>`;});
   }
@@ -1747,6 +1749,8 @@ $("#layerList").addEventListener("click",e=>{
 $("#layerList").addEventListener("change",e=>{
   const nm=e.target.closest("[data-lname]");
   if(nm){const a=cur().areas.find(x=>x.id===nm.dataset.lname),v=nm.value.trim();if(a&&(a.name||"")!==v){pushHist();if(v)a.name=v;else delete a.name;nm.blur();layersKey="";commit();}return;}
+  const lo=e.target.closest("[data-lwopt]");
+  if(lo&&S.lightwell){pushHist();if(lo.checked)delete S.lightwell[lo.dataset.lwopt];else S.lightwell[lo.dataset.lwopt]=true;lo.blur();layersKey="";commit();return;}
   const sh=e.target.closest("[data-lshow]");
   if(sh){const a=cur().areas.find(x=>x.id===sh.dataset.lshow);if(a){pushHist();if(sh.checked)delete a.hideLabel;else a.hideLabel=true;sh.blur();layersKey="";commit();}return;}
   const s2=e.target.closest("[data-ltype]");if(!s2)return;
@@ -2036,7 +2040,7 @@ function renderLayers(){
   const box=$("#layerList");if(!box)return;
   const f=cur(),sel=ui.sel;
   const areas=[...f.areas].sort((a,b)=>MENU.indexOf(a.type)-MENU.indexOf(b.type));
-  const key=JSON.stringify([ui.floor,sel,ui.layers,areas.map(a=>[a.id,a.type,a.name||"",Math.round(polyArea(a.pts)),!!a.hideLabel,!!a.lab]),f.walls.map(w=>[w.id,w.tag,Math.round(w.t*12),Math.round(dist(w.a,w.b)*10)]),!!S.core,!!courtRectFor(f)]);
+  const key=JSON.stringify([ui.floor,sel,ui.layers,areas.map(a=>[a.id,a.type,a.name||"",Math.round(polyArea(a.pts)),!!a.hideLabel,!!a.lab]),f.walls.map(w=>[w.id,w.tag,Math.round(w.t*12),Math.round(dist(w.a,w.b)*10)]),!!S.core,!!courtRectFor(f),S.lightwell&&[!!S.lightwell.hideLabel,!!S.lightwell.hideDims]]);
   if(key===layersKey)return;
   if(box.contains(document.activeElement)&&/^(SELECT|INPUT)$/.test(document.activeElement.tagName))return;
   layersKey=key;
@@ -2068,7 +2072,15 @@ function renderLayers(){
   if(S.core||lw){
     grp("Building elements");
     if(S.core)h+=`<div class="lrow ${sel&&sel.k==="core"?"on":""}" data-lk="core" data-lid="core"><span class="sw" style="--c:var(--core)"></span><span class="nm">Elevator and stair core</span><span class="sf">${fmt(coreArea(f))} SF</span></div>`;
-    if(lw)h+=`<div class="lrow ${sel&&sel.k==="court"?"on":""}" data-lk="court" data-lid="court"><span class="sw" style="--c:var(--terrace)"></span><span class="nm">Light well</span><span class="sf">${fmt(lw.len*lw.depth)} SF</span></div>`;
+    if(lw){
+      const on=sel&&sel.k==="court",L=S.lightwell;
+      h+=`<div class="lrow ${on?"on":""}" data-lk="court" data-lid="court"><span class="sw" style="--c:var(--terrace)"></span><span class="nm">Light well</span><span class="sf">${fmt(lw.len*lw.depth)} SF</span>`+
+         (on?`<div class="lopts">
+           <label class="ck"><input type="checkbox" data-lwopt="hideLabel" ${L.hideLabel?"":"checked"}> Show "Light well" label</label>
+           <label class="ck"><input type="checkbox" data-lwopt="hideDims" ${L.hideDims?"":"checked"}> Show its size</label>
+           <span class="lhint">More light well settings are in the panel below the plan</span>
+         </div>`:"")+`</div>`;
+    }
   }
   box.innerHTML=h||`<div class="lgrp">Nothing drawn on this floor yet</div>`;
   const onRow=box.querySelector(".lrow.on");if(onRow)onRow.scrollIntoView({block:"nearest"});
