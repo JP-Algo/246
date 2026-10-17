@@ -868,13 +868,21 @@ function renderTotals(){
   }).join("");
   const resGross=c.rows.reduce((s,r)=>s+r.resGross,0);
   const affZ=c.rows.reduce((s,r)=>s+(r.below?0:Math.min(r.aff,r.resZfa)),0);
+  // how the market-rate residential total gets from gross to zoning floor area
+  const mrGross=resGross-c.affT,mrZfa=c.resZfa-affZ,mrDed=Math.max(0,mrGross-c.amenAllowed-c.zoneGreen-mrZfa);
+  const mrTip=infoTip(`Market-rate residential zoning floor area above grade: ${fmt(resGross)} SF residential gross`+
+    (c.affT>0.5?` less ${fmt(c.affT)} SF affordable = ${fmt(mrGross)} SF market-rate gross`:"")+
+    `, less ${fmt(mrDed)} SF of floor area deductions (walls, core, corridors and other deductions drawn)`+
+    (c.amenAllowed>0.5?`, less ${fmt(c.amenAllowed)} SF amenity deduction`:"")+
+    (c.zoneGreen>0.5?`, less ${fmt(c.zoneGreen)} SF Zone Green`:"")+
+    ` = ${fmt(mrZfa)} SF.`);
   const commGross=c.rows.reduce((s,r)=>s+r.commGross,0);
   $("#tfoot").innerHTML=
     (()=>{const t=infoTip(`Amenity space you draw (gym, lounge, shared laundry, etc.) is taken out of zoning floor area, up to ${S.rules.amenityCap.pct}% of the residential floor area (${fmt(c.amenCap)} SF here). ${fmt(c.amenRaw)} SF of amenity is drawn and ${fmt(c.amenAllowed)} SF is deducted.${c.amenRaw>c.amenCap+0.5?` ${fmt(c.amenRaw-c.amenAllowed)} SF over the cap still counts as floor area.`:""}`);
       return `<tr class="adj"><td>Amenity deduction${t}</td><td></td><td></td><td></td><td></td><td>${fmt(c.amenAllowed)}${t}</td><td></td><td></td><td></td></tr>`;})()+
     (()=>{const t=infoTip(`${S.rules.zoneGreen.pct}% of the zoning floor area above grade (${fmt(c.zgBase)} SF, residential plus commercial, before this exclusion), the floor area exclusion for a qualifying ultra-low energy building. It is taken off the residential floor area.`);
       return `<tr class="adj"><td>Zone Green${t}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td><td></td><td>${S.settings.zoneGreen?fmt(c.zoneGreen)+t:"off"}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td></tr>`;})()+
-    `<tr><td>Total above grade</td><td>${fmt(c.resZfa-affZ)}<small>of ${fmt(resGross-c.affT)} gross</small></td><td>${fmt(affZ)}${affZ>0.5?`<small>residential total ${fmt(c.resZfa)}</small>`:""}</td><td>${fmt(c.commZfa)}<small>of ${fmt(commGross)} gross</small></td><td>${fmt(c.grossAbove)}</td><td>${fmt(c.grossAbove-c.total)}</td><td>${fmt(c.total)}</td><td>${fmt(c.sellRes+c.sellAff+c.sellComm)}</td><td>${fmt(c.terrTotal)}</td></tr>`+
+    `<tr><td>Total above grade</td><td>${fmt(c.resZfa-affZ)}<small>of ${fmt(resGross-c.affT)} gross${mrTip}</small></td><td>${fmt(affZ)}${affZ>0.5?`<small>residential total ${fmt(c.resZfa)}</small>`:""}</td><td>${fmt(c.commZfa)}<small>of ${fmt(commGross)} gross</small></td><td>${fmt(c.grossAbove)}</td><td>${fmt(c.grossAbove-c.total)}</td><td>${fmt(c.total)}</td><td>${fmt(c.sellRes+c.sellAff+c.sellComm)}</td><td>${fmt(c.terrTotal)}</td></tr>`+
     `<tr class="adj"><td>Sellable efficiency<small>sellable ÷ gross of that use</small></td><td>${c.resGrossT?Math.round((c.sellRes+c.sellAff)/c.resGrossT*100)+"%":"–"}</td><td></td><td>${c.commGrossT?Math.round(c.sellComm/c.commGrossT*100)+"%":"–"}</td><td>${c.grossAbove?Math.round((c.sellRes+c.sellAff+c.sellComm)/c.grossAbove*100)+"%":"–"}</td><td></td><td></td><td>FM ${fmt(c.sellRes)} · A ${fmt(c.sellAff)} · C ${fmt(c.sellComm)}</td><td></td></tr>`;
 
   const cap=(label,v,max,unit)=>{
