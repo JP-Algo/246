@@ -23,8 +23,8 @@
     "zoneGreen": {
       "label": "Zone Green deduction",
       "pct": 5,
-      "meaning": "When on for a building, deduct this % of the building's gross floor area above grade, taken off the residential floor area (capped at the residential floor area). Shown as a bonus on the market-rate residential allowance.",
-      "source": "Project owner: 5% of the gross square footage of the building; confirm with the zoning analysis"
+      "meaning": "When on for a building, deduct this % of the zoning floor area above grade (residential plus commercial, before this exclusion), taken off the residential floor area (capped at the residential floor area). Shown as a bonus on the market-rate residential allowance.",
+      "source": "ZR 12-10 (City of Yes for Carbon Neutrality) excludes 5% of the floor area of a qualifying building; project owner set the base as the zoning floor area above grade. Confirm with the zoning analysis"
     },
     "deductions": {
       "label": "Floor area deductions, % of each area deducted",
