@@ -69,13 +69,24 @@ h2{margin:0 0 10px;font-size:15px;font-weight:600}
 .btn{border:1px solid var(--line);background:var(--panel);padding:6px 11px;border-radius:7px;font-size:13px;cursor:pointer;line-height:1.3}
 .btn:hover{border-color:var(--muted)}
 /* plan tools: icon buttons in grouped strips, centered over the plan */
-.toolbar{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 8px}
+.toolbar{position:relative;display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 8px}
 .tgroup{display:flex;gap:1px;border:1px solid var(--line);border-radius:7px;background:var(--line);overflow:hidden}
 .tgroup:not(:has(.tool:not([style*="none"]))){display:none}
 .tool{display:flex;align-items:center;gap:6px;padding:4px 10px;border:0;color:var(--ink);font-size:12.5px;line-height:1.2;cursor:pointer;background:var(--panel)}
 .tool svg{width:14px;height:14px;flex:none}
 .tool:hover{background:color-mix(in srgb,var(--ink) 7%,var(--panel))}
 .tool[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.blockmenu{position:absolute;top:calc(100% + 4px);z-index:40;width:290px;padding:6px;border:1px solid var(--line);border-radius:9px;background:var(--panel);box-shadow:0 8px 22px rgba(0,0,0,.18)}
+.blockmenu .bmhead{display:flex;align-items:center;gap:6px;padding:4px 6px 6px;font-size:12px;font-weight:600;color:var(--muted)}
+.blockmenu button{display:flex;align-items:center;gap:10px;width:100%;padding:7px 8px;border:0;border-radius:6px;background:transparent;color:var(--ink);text-align:left;font-size:13px;cursor:pointer}
+.blockmenu button:hover,.blockmenu button:focus-visible{background:color-mix(in srgb,var(--ink) 7%,var(--panel));outline:none}
+.blockmenu .bmhead button{width:auto;padding:2px 6px;font-size:12px;color:var(--muted)}
+.blockmenu .thumb{flex:none;width:46px;height:30px;color:var(--ink)}
+.blockmenu .bmt{display:grid;gap:1px;min-width:0}
+.blockmenu small{color:var(--muted);font-size:11.5px;line-height:1.3}
+.blockmenu .sugg{color:var(--terrace);font-weight:600}
+.blockmenu .warnt{color:var(--over)}
+.blockmenu .more{margin-left:auto;color:var(--muted)}
 .tool:disabled{color:color-mix(in srgb,var(--ink) 35%,var(--panel));cursor:default;background:var(--panel)}
 .btn[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .btn:disabled{opacity:.45;cursor:default}
@@ -265,7 +276,9 @@ tfoot td{font-weight:600;border-bottom:0}
           <button class="tool" data-mode="select" title="Select and move (Esc)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2.5v13l3.4-3.2 2.4 5.2 2.2-1-2.4-5.1H15z" fill="currentColor"/></svg><span>Select</span></button>
           <button class="tool" data-mode="wall" title="Draw wall (W)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 15.5L17 4.5" stroke="currentColor" stroke-width="3.2" stroke-linecap="square"/></svg><span>Wall</span></button>
           <button class="tool" data-mode="area" title="Draw area (A)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 6.5L10 3l6.5 4-1.5 9.5H5z" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg><span>Area</span></button>
+          <button class="tool" id="blockBtn" title="Place a block: stairs, the light well or the core" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 16.5h4v-4h4v-4h4v-4h2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M3 16.5h14v-12" fill="none" stroke="currentColor" stroke-width="1" opacity=".5"/></svg><span>Block</span></button>
         </div>
+        <div class="blockmenu" id="blockMenu" role="menu" hidden></div>
         <select class="in" id="areaType" aria-label="Area type"></select>
         <div class="tgroup">
           <button class="tool" id="closeShape" title="Close the shape you are drawing"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 15V5l7-2 5 5-3 7z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.5 9.5l2 2 3.5-4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span>Close shape</span></button>
@@ -478,6 +491,7 @@ const DEFAULT_RULES={
   extWall:{thickIn:12},
   // Height and setback (R6, narrow street, qualifying affordable housing): ZR 23-432, 23-433. Max height is the zoning input.
   envelope:{baseFt:65,setbackFt:15},                               // exterior walls: outside face on the building envelope
+  stairBlock:{cellarKind:"straight",defaultKind:"u",minWidthIn:36},   // placed stairs: the cellar stair is a direct straight run; 36 in min width (BC 1011.2, under 50 occupants)
   court:{lowMinDimFt:10,lowMinAreaSF:200,highMinDimFt:15,highMinAreaSF:300,highAboveFt:75,wallIn:8,measureAt:"top"}   // measureAt: "top" of each story (stricter) or its "floor" level
 };
 function stairReq(h){
@@ -486,6 +500,55 @@ function stairReq(h){
   const treads=Math.max(0,risers-flights),runIn=treads*r.treadIn,landingIn=Math.min(r.widthIn,r.landingMaxIn);
   return {risers,riserIn:rise/risers,treads,flights,runFt:runIn/12,landingFt:landingIn/12,lenFt:(runIn+(flights+1)*landingIn)/12,widthFt:(2*r.widthIn+r.sepIn)/12};
 }
+/* Stair blocks placed on a floor; each one rises from its floor to the floor above.
+   Local coordinates: u along the first flight, v across it; (0,0) is the bottom corner where you start up. */
+const STAIR_KINDS={
+  straight:{name:"Straight run",desc:"One flight, a direct stair. Up to 12 ft of rise."},
+  straight2:{name:"Straight with landing",desc:"Two flights in line with a landing between them."},
+  l:{name:"L-shaped",desc:"Two flights at a right angle, with a corner landing."},
+  u:{name:"U-shaped (switchback)",desc:"Two flights side by side, turning back at a full-width landing."},
+  scissor:{name:"Scissor",desc:"Two interlocking stairs in one enclosure, as in the core."}
+};
+function stairGeom(b,h){
+  const r=S.rules.stair,W=(b.widthIn||r.widthIn)/12,T=r.treadIn/12,rise=h*12,sep=r.sepIn/12;
+  const R=Math.max(2,Math.ceil(rise/r.maxRiserIn-1e-9)),Ld=Math.min(W,r.landingMaxIn/12);
+  const r1=Math.ceil(R/2),r2=R-r1,t1=r1-1,t2=Math.max(0,r2-1);
+  const P=[],walls=[],issues=[];let flights=2,treads=t1+t2;
+  const land=(u0,v0,u1,v1)=>P.push({t:"land",r:[u0,v0,u1,v1]});
+  const run=(u0,v0,u1,v1,dir,n)=>P.push({t:"run",r:[u0,v0,u1,v1],dir,n});
+  const oneFlight=()=>{if(rise>r.maxFlightRiseFt*12+1e-6)issues.push(`one flight can rise at most ${r.maxFlightRiseFt} ft and this floor is ${fmtLen(h)}; use a type with a landing`);};
+  if(b.kind==="straight"){
+    const t=R-1,L=t*T;flights=1;treads=t;
+    land(0,0,Ld,W);run(Ld,0,Ld+L,W,"+u",t);land(Ld+L,0,2*Ld+L,W);oneFlight();
+  }else if(b.kind==="straight2"){
+    const L1=t1*T,L2=t2*T;
+    land(0,0,Ld,W);run(Ld,0,Ld+L1,W,"+u",t1);land(Ld+L1,0,2*Ld+L1,W);run(2*Ld+L1,0,2*Ld+L1+L2,W,"+u",t2);land(2*Ld+L1+L2,0,3*Ld+L1+L2,W);
+  }else if(b.kind==="l"){
+    const L1=t1*T,L2=t2*T,ue=Ld+L1;
+    land(0,0,Ld,W);run(Ld,0,ue,W,"+u",t1);land(ue,0,ue+W,W);run(ue,W,ue+W,W+L2,"+v",t2);land(ue,W+L2,ue+W,W+L2+Ld);
+  }else if(b.kind==="scissor"){
+    const t=R-1,L=t*T,Ly=2*W+sep;flights=1;treads=t;
+    land(0,0,Ld,Ly);run(Ld,0,Ld+L,W,"+u",t);run(Ld,W+sep,Ld+L,Ly,"-u",t);land(Ld+L,0,2*Ld+L,Ly);
+    if(sep>0)walls.push([Ld,W,Ld+L,W+sep]);oneFlight();
+  }else{
+    // U-shaped: up one flight, turn at a landing as deep as the stair is wide, back up the second flight
+    const L1=t1*T,L2=t2*T,ue=Ld+L1,Ly=2*W+sep;
+    land(0,0,Ld,W);run(Ld,0,ue,W,"+u",t1);land(ue,0,ue+W,Ly);run(ue-L2,W+sep,ue,Ly,"-u",t2);land(ue-L2-Ld,W+sep,ue-L2,Ly);
+    if(sep>0)walls.push([Math.min(Ld,ue-L2),W,ue,W+sep]);
+  }
+  if(W*12<S.rules.stairBlock.minWidthIn-1e-6)issues.push(`narrower than the ${S.rules.stairBlock.minWidthIn} in minimum stair width`);
+  let u0=Infinity,v0=Infinity,u1=-Infinity,v1=-Infinity;
+  P.concat(walls.map(r=>({r}))).forEach(q=>{u0=Math.min(u0,q.r[0]);v0=Math.min(v0,q.r[1]);u1=Math.max(u1,q.r[2]);v1=Math.max(v1,q.r[3]);});
+  const area=P.reduce((s,q)=>s+(q.r[2]-q.r[0])*(q.r[3]-q.r[1]),0)+walls.reduce((s,q)=>s+(q[2]-q[0])*(q[3]-q[1]),0);
+  return {P,walls,R,riserIn:rise/R,treads,flights,W,T,issues,bb:{u0,v0,u1,v1,w:u1-u0,h:v1-v0},area};
+}
+// local stair coordinates to the plan: flip across, turn in 90 degree steps, then move to the bottom corner
+function stairMap(b,q){
+  const u=q[0],v=b.flip?-q[1]:q[1],rt=((b.rot||0)%360+360)%360;
+  const [x,y]=rt===90?[-v,u]:rt===180?[-u,-v]:rt===270?[v,-u]:[u,v];
+  return [b.x+x,b.y+y];
+}
+const blocksOf=f=>(f&&f.blocks)||[];
 function ensureRules(st){
   if(!st.rules)st.rules=JSON.parse(JSON.stringify(DEFAULT_RULES));
   const r=st.rules;
@@ -1105,11 +1168,14 @@ $("#dimpop").addEventListener("toggle",e=>{if(e.target.tagName==="DETAILS")ui.po
 const NOTES={
   select:"Tap a wall or area to select it. Drag its handles to reshape, drag the body to move it, or drag empty space to pan. On an area, drag a + to add a corner; click a corner and press Delete (or Alt+click it) to remove it.",
   wall:"Tap the start point, then the end point. After the first tap you can type a length, such as 5 or 5'6\", press Enter to lock it, then click to pick the direction.",
+  block:"Click to place the stair by its bottom corner, where you start up. Press R to turn it 90°. It rises from this floor to the floor above, which shows it dashed. Esc to cancel.",
   area:"Tap each corner, then tap the first corner or Close shape. After a corner you can type a length, such as 25', press Enter to lock it, then click to pick the direction. Choose the area type first."
 };
 function renderToolbar(){
   document.querySelectorAll("[data-mode]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mode===ui.mode)));
   $("#areaType").style.display=ui.mode==="area"?"":"none";
+  $("#blockBtn").setAttribute("aria-pressed",String(ui.mode==="block"));
+  $("#blockBtn").disabled=false;
   $("#areaType").value=ui.areaType;
   const d=ui.draft;
   $("#closeShape").style.display=ui.mode==="area"?"":"none";
@@ -1141,6 +1207,7 @@ function findSel(){
   if(ui.sel.k==="core")return S.core||null;
   if(ui.sel.k==="court")return courtRectFor(cur())?S.lightwell:null;
   if(ui.sel.k==="lot")return ensureSite(S);
+  if(ui.sel.k==="block")return blocksOf(f).find(b=>b.id===ui.sel.id)||null;
   return ui.sel.k==="wall"?f.walls.find(w=>w.id===ui.sel.id):f.areas.find(a=>a.id===ui.sel.id);
 }
 function renderSel(){
@@ -1148,6 +1215,21 @@ function renderSel(){
   const el=$("#sel"),o=findSel();
   if(!o){el.innerHTML=`<span class="k">Nothing selected</span>`;return;}
   if(ui.sel.k==="lot"){el.innerHTML=`<span><span class="k">Lot lines</span> Drag any lot line label on the plan to move it. Show or hide them in the layers panel.</span>`;return;}
+  if(ui.sel.k==="block"){
+    const b=o,f=cur(),i=S.floors.indexOf(f),up=S.floors[i+1],g=stairGeom(b,f.height),sr=S.rules.stair;
+    el.innerHTML=`<span><span class="k">Stair, ${STAIR_KINDS[b.kind].name}</span> ${up?`from the ${f.name.toLowerCase()} up to the ${up.name.toLowerCase()}`:"no floor above this one"}: ${g.R} risers at ${g.riserIn.toFixed(2)}", ${g.treads} treads at ${sr.treadIn}", ${g.flights} flight${g.flights>1?"s":""}, footprint ${fmtLen(g.bb.w)} × ${fmtLen(g.bb.h)}</span>
+      <div class="dimedit"><label>Type<select class="in" id="bKind">${Object.keys(STAIR_KINDS).map(k=>`<option value="${k}" ${k===b.kind?"selected":""}>${STAIR_KINDS[k].name}</option>`).join("")}</select></label><label>Width of each flight, in<input class="in" id="bW" value="${b.widthIn||sr.widthIn}"></label><label>Bottom corner from rear lot line<input class="in" data-bpos="x" value="${attrLen(b.x)}"></label><label>Bottom corner from top lot line<input class="in" data-bpos="y" value="${attrLen(b.y)}"></label></div>
+      ${g.issues.length?`<p class="note" style="flex-basis:100%;margin:0;color:var(--over)">Check: ${g.issues.join("; ")}.</p>`:""}
+      <button class="btn" id="bRot">Turn 90° (R)</button><button class="btn" id="bFlip">Flip</button>
+      <button class="btn warn" id="bDel">Remove stair</button>`;
+    $("#bKind").addEventListener("change",e=>{pushHist();b.kind=e.target.value;commit();});
+    $("#bW").addEventListener("change",e=>{const v=parseFloat(e.target.value);if(!(v>0)){renderSel();return;}pushHist();if(Math.abs(v-sr.widthIn)<1e-6)delete b.widthIn;else b.widthIn=v;commit();});
+    el.querySelectorAll("[data-bpos]").forEach(inp=>inp.addEventListener("change",e=>{const v=parseLen(e.target.value);if(!isFinite(v)){renderSel();return;}pushHist();b[e.target.dataset.bpos]=v;commit();}));
+    $("#bRot").addEventListener("click",()=>{pushHist();b.rot=((b.rot||0)+90)%360;commit();});
+    $("#bFlip").addEventListener("click",()=>{pushHist();b.flip=!b.flip;if(!b.flip)delete b.flip;commit();});
+    $("#bDel").addEventListener("click",deleteSel);
+    return;
+  }
   if(ui.sel.k==="court"){
     const L=o,c=courtRectFor(cur()),r=S.rules.court;
     const opts=S.floors.filter(f=>f.use!=="cellar").map(f=>`<option value="${f.id}" ${f.id===L.from?"selected":""}>${f.name}</option>`).join("");
@@ -1283,6 +1365,7 @@ function deleteVert(o,i){
 function deleteSel(){
   if(!ui.sel||ui.sel.k==="core"||ui.sel.k==="lot")return;
   if(ui.sel.k==="court"){pushHist();S.lightwell=null;ui.sel=null;commit();return;}
+  if(ui.sel.k==="block"){pushHist();const f=cur();f.blocks=blocksOf(f).filter(b=>b.id!==ui.sel.id);ui.sel=null;commit();return;}
   pushHist();
   const f=cur();
   if(ui.sel.k==="wall")f.walls=f.walls.filter(w=>w.id!==ui.sel.id);else f.areas=f.areas.filter(a=>a.id!==ui.sel.id);
@@ -1652,6 +1735,40 @@ function renderPlan(){
       if(!CO.hideDims)wl+=`<text x="${c.x0+cw/2}" y="${both?yC+cfs*0.6:yC}" text-anchor="middle" dominant-baseline="${both?"auto":"central"}" pointer-events="none" style="fill:var(--ink);font-size:${cfs*0.75}px">${fmt(coreArea())} SF${f.use==="cellar"?"":res?", residential":", commercial"}</text>`;
     }
   }
+  // stair blocks: this floor's stairs going up, and the floor below's arriving here (dashed, DN)
+  const stairSvg=(b,h,how)=>{
+    const g=stairGeom(b,h),M=q=>stairMap(b,q),poly=r=>{const c=[[r[0],r[1]],[r[2],r[1]],[r[2],r[3]],[r[0],r[3]]].map(M);return "M"+c.map(q=>q[0].toFixed(3)+" "+q[1].toFixed(3)).join("L")+"Z";};
+    const sel=how==="sel",ghost=how==="ghost",below=how==="below",col=sel||ghost?"var(--sel)":"var(--ink)",sw=(sel?0.3:0.16)*k;
+    const dash=below||ghost?`stroke-dasharray:${0.9*k} ${0.6*k};`:"";
+    let o=`<g pointer-events="none" style="fill:none;stroke:${col};stroke-width:${sw};${dash}">`;
+    g.P.forEach(q=>{o+=`<path d="${poly(q.r)}" style="fill:${q.t==="land"?"var(--core)":"none"};fill-opacity:.1"/>`;});
+    g.walls.forEach(r=>{o+=`<path d="${poly(r)}" style="fill:${col};stroke:none"/>`;});
+    if(!below){
+      g.P.forEach(q=>{if(q.t!=="run")return;const [u0,v0,u1,v1]=q.r,along=q.dir.endsWith("v");
+        for(let j=1;j<q.n+1;j++){const a=along?[u0,v0+j*g.T]:[u0+j*g.T,v0],c=along?[u1,v0+j*g.T]:[u0+j*g.T,v1];if((along?a[1]:a[0])>(along?v1:u1)-1e-6)break;const A2=M(a),B2=M(c);o+=`<path d="M${A2[0]} ${A2[1]}L${B2[0]} ${B2[1]}" style="stroke-width:${sw*0.7}"/>`;}
+      });
+      // the walking line: up each flight, in order
+      const pts=[];g.P.forEach(q=>{if(q.t!=="run")return;const [u0,v0,u1,v1]=q.r,m=(v0+v1)/2,n=(u0+u1)/2;
+        if(q.dir==="+u")pts.push([u0+0.2,m],[u1,m]);else if(q.dir==="-u")pts.push([u1-0.2,m],[u0,m]);else pts.push([n,v0+0.2],[n,v1]);});
+      if(b.kind==="scissor"){pts.length=2;}
+      if(pts.length>=2){const mp=pts.map(M),e2=mp[mp.length-1],e1=mp[mp.length-2],L=Math.hypot(e2[0]-e1[0],e2[1]-e1[1])||1,ux=(e2[0]-e1[0])/L,uy=(e2[1]-e1[1])/L,hh=Math.min(0.9,g.W/4);
+        o+=`<path d="M${mp.map(q=>q[0].toFixed(3)+" "+q[1].toFixed(3)).join("L")}M${e2[0]-ux*hh-uy*hh*0.7} ${e2[1]-uy*hh+ux*hh*0.7}L${e2[0]} ${e2[1]}L${e2[0]-ux*hh+uy*hh*0.7} ${e2[1]-uy*hh-ux*hh*0.7}" style="stroke:${col};stroke-width:${0.14*k};stroke-dasharray:none"/>`;}
+    }
+    o+=`</g>`;
+    if(!ghost)g.P.forEach(q=>{o+=`<path data-k="block" data-id="${b.id}" d="${poly(q.r)}" pointer-events="${below?"none":"all"}" style="fill:transparent;stroke:none"/>`;});
+    if(!b.hideLabel||ghost){
+      const f2=LF(b),r1=(g.P.find(q=>q.t==="run")||{r:[g.bb.u0,g.bb.v0,g.bb.u1,g.bb.v1]}).r,cc=M([(r1[0]+r1[2])/2,(r1[1]+r1[3])/2]),st=`text-anchor="middle" pointer-events="none" style="fill:${col};paint-order:stroke;stroke:var(--panel);stroke-width:${f2*0.25}px;`;
+      const t1=below?"DN":ghost?STAIR_KINDS[b.kind].name:"UP";
+      o+=`<text x="${cc[0]}" y="${cc[1]-f2*0.15}" ${st}font-size:${f2*0.8}px;font-weight:700">${t1}</text>`;
+      if(!below)o+=`<text x="${cc[0]}" y="${cc[1]+f2*0.85}" ${st}font-size:${f2*0.66}px">${g.R} R at ${g.riserIn.toFixed(2)}"</text>`;
+    }
+    return o;
+  };
+  if(showInt){
+    const fi=S.floors.indexOf(f),fb=S.floors[fi-1];
+    if(fb)blocksOf(fb).forEach(b=>{wl+=stairSvg(b,fb.height,"below");});
+    blocksOf(f).forEach(b=>{wl+=stairSvg(b,f.height,ui.sel&&ui.sel.k==="block"&&ui.sel.id===b.id?"sel":"");});
+  }
   WL.reg.forEach(w=>{
     const sel=ui.sel&&ui.sel.id===w.id,d=we(w);
     wl+=`<line x1="${d.a[0]}" y1="${d.a[1]}" x2="${d.b[0]}" y2="${d.b[1]}" pointer-events="none" style="stroke:${sel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:butt"/>`;
@@ -1691,7 +1808,7 @@ function renderPlan(){
     if(w){const [a,b]=refLine(w);dr+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" pointer-events="none" style="stroke:var(--ink);stroke-width:2px;vector-effect:non-scaling-stroke"/>`;}   // the drawn (vector) line, thin black over the pink wall
   }
   const hv=ui.hover;
-  if(hv&&(ui.mode==="wall"||ui.mode==="area"||hv.drag)&&["end","corner","mid","on","grid","ortho"].includes(hv.kind)){
+  if(hv&&(ui.mode==="wall"||ui.mode==="area"||ui.mode==="block"||hv.drag)&&["end","corner","mid","on","grid","ortho"].includes(hv.kind)){
     const [hx,hy]=hv.pt,m=vr*1.9,sw=0.22*k,st=`fill:none;stroke:var(--sel);stroke-width:${sw}`;
     if(hv.kind==="mid")dr+=`<path d="M${hx} ${hy-m}L${hx+m*0.95} ${hy+m*0.65}L${hx-m*0.95} ${hy+m*0.65}Z" pointer-events="none" style="${st}"/>`;
     else if(hv.kind==="on")dr+=`<path d="M${hx-m*0.7} ${hy-m*0.7}L${hx+m*0.7} ${hy+m*0.7}M${hx+m*0.7} ${hy-m*0.7}L${hx-m*0.7} ${hy+m*0.7}" pointer-events="none" style="${st}"/>`;
@@ -1716,6 +1833,7 @@ function renderPlan(){
     d.pts.forEach((p,i)=>{dr+=`<circle cx="${p[0]}" cy="${p[1]}" r="${i===0?vr*1.6:vr}" pointer-events="none" style="fill:${i===0?"var(--panel)":"var(--sel)"};stroke:var(--sel);stroke-width:${0.25*k}"/>`;});
     if(pts.length>=3)dr+=`<text x="${centroid(pts)[0]}" y="${centroid(pts)[1]}" text-anchor="middle" pointer-events="none" style="fill:var(--sel);font-size:${fs}px;font-weight:600">${fmt(polyArea(pts))} SF</text>`;
   }
+  if(ui.mode==="block"&&ui.ghost)dr+=stairSvg({id:"ghost",kind:ui.blockKind||"u",x:ui.ghost[0],y:ui.ghost[1],rot:ui.blockRot||0},f.height,"ghost");
   svg.innerHTML=g+ar+wl+lb+dm+sl+hd+dr;
   renderPop();
 }
@@ -1748,6 +1866,12 @@ svg.addEventListener("pointerdown",e=>{
       ui.draft=null;
     }
     renderPlan();renderToolbar();return;
+  }
+  if(ui.mode==="block"){
+    const q=placePt(null,p),fl=cur();pushHist();
+    const b={id:uid(),type:"stair",kind:ui.blockKind||"u",x:q[0],y:q[1],rot:ui.blockRot||0};
+    fl.blocks=blocksOf(fl).concat([b]);ui.sel={k:"block",id:b.id};ui.mode="select";ui.ghost=null;ui.hover=null;
+    renderToolbar();commit();return;
   }
   if(ui.mode==="area"){
     const q0=placePt(null,p);
@@ -1849,6 +1973,10 @@ $("#layerList").addEventListener("change",e=>{
   if(co&&S.core){pushHist();if(co.checked)delete S.core[co.dataset.coreopt];else S.core[co.dataset.coreopt]=true;co.blur();layersKey="";commit();return;}
   const lo=e.target.closest("[data-lwopt]");
   if(lo&&S.lightwell){pushHist();if(lo.checked)delete S.lightwell[lo.dataset.lwopt];else S.lightwell[lo.dataset.lwopt]=true;lo.blur();layersKey="";commit();return;}
+  const bk=e.target.closest("[data-bkind]");
+  if(bk){const b=blocksOf(cur()).find(x=>x.id===bk.dataset.bkind);if(b&&b.kind!==bk.value){pushHist();b.kind=bk.value;bk.blur();layersKey="";commit();}return;}
+  const bs=e.target.closest("[data-bshow]");
+  if(bs){const b=blocksOf(cur()).find(x=>x.id===bs.dataset.bshow);if(b){pushHist();if(bs.checked)delete b.hideLabel;else b.hideLabel=true;bs.blur();layersKey="";commit();}return;}
   const sh=e.target.closest("[data-lshow]");
   if(sh){const a=cur().areas.find(x=>x.id===sh.dataset.lshow);if(a){pushHist();if(sh.checked)delete a.hideLabel;else a.hideLabel=true;sh.blur();layersKey="";commit();}return;}
   const s2=e.target.closest("[data-ltype]");if(!s2)return;
@@ -1859,7 +1987,7 @@ $("#layerList").addEventListener("change",e=>{
 });
 // which object holds the label style for a layers-panel control
 function labTarget(ref){const [kind,id]=ref.split(":");
-  return kind==="area"?cur().areas.find(x=>x.id===id):kind==="core"?S.core:kind==="court"?S.lightwell:kind==="lot"?ensureSite(S):null;}
+  return kind==="block"?blocksOf(cur()).find(x=>x.id===id):kind==="area"?cur().areas.find(x=>x.id===id):kind==="core"?S.core:kind==="court"?S.lightwell:kind==="lot"?ensureSite(S):null;}
 let labSliding=false;
 $("#layerList").addEventListener("input",e=>{
   const r=e.target.closest("[data-lsz]");if(!r)return;
@@ -1892,6 +2020,7 @@ svg.addEventListener("pointermove",e=>{
   shiftHeld=e.shiftKey;
   const p=toPlan(e);
   if(!drag){
+    if(ui.mode==="block"){const q=placePt(null,p);ui.ghost=q;ui.hover={pt:q,kind:snapInfo.kind,desc:snapInfo.desc};renderPlan();return;}
     if(ui.mode==="wall"||ui.mode==="area"){
       if(!ui.lastP||dist(ui.lastP,p)*vb().pxPerFt>3){ui.snapIdx=0;if(ui.lastPlace&&dist(ui.lastPlace.p,p)*vb().pxPerFt>4)ui.lastPlace=null;}   // a real move starts again from the nearest snap
       ui.lastP=p;
@@ -1942,6 +2071,7 @@ svg.addEventListener("pointermove",e=>{
       o.x0=ui.snap?x0:drag.orig.x0+dx;
       ui.hover=best!==null&&ui.snap?{pt:[o.x0+(desc.includes("street")?len:0),cr?(cr.y0+cr.y1)/2:5],kind:"end",desc,drag:true}:null;
     }
+    else if(ui.sel.k==="block"){o.x=drag.orig.x+dx;o.y=drag.orig.y+dy;}
     else if(ui.sel.k==="core"){o.x0=drag.orig.x0+dx;o.x1=drag.orig.x1+dx;o.y0=drag.orig.y0+dy;o.y1=drag.orig.y1+dy;}
     else o.pts=drag.orig.pts.map(q=>[q[0]+dx,q[1]+dy]);
   }
@@ -2155,7 +2285,7 @@ function renderLayers(){
   const box=$("#layerList");if(!box)return;
   const f=cur(),sel=ui.sel;
   const areas=[...f.areas].sort((a,b)=>MENU.indexOf(a.type)-MENU.indexOf(b.type));
-  const key=JSON.stringify([ui.floor,sel,ui.layers,areas.map(a=>[a.id,a.type,a.name||"",Math.round(polyArea(a.pts)),!!a.hideLabel,!!a.lab,a.labSize,a.labLock]),f.walls.map(w=>[w.id,w.tag,Math.round(w.t*12),Math.round(dist(w.a,w.b)*10)]),!!S.core,!!courtRectFor(f),JSON.stringify(ensureSite(S)),S.lightwell&&[S.lightwell.labSize,S.lightwell.labLock,!!S.lightwell.hideLabel,!!S.lightwell.hideDims,JSON.stringify(courtRectFor(f))],S.core&&[S.core.labSize,S.core.labLock,!!S.core.hideLabel,!!S.core.hideDims,JSON.stringify(coreRectFor(f)),S.core.elevW,S.core.elevSide,S.core.attach,S.core.auto,f.height,f.use,f.coreRes]]);
+  const key=JSON.stringify([ui.floor,sel,ui.layers,areas.map(a=>[a.id,a.type,a.name||"",Math.round(polyArea(a.pts)),!!a.hideLabel,!!a.lab,a.labSize,a.labLock]),JSON.stringify(f.blocks||[]),f.height,f.walls.map(w=>[w.id,w.tag,Math.round(w.t*12),Math.round(dist(w.a,w.b)*10)]),!!S.core,!!courtRectFor(f),JSON.stringify(ensureSite(S)),S.lightwell&&[S.lightwell.labSize,S.lightwell.labLock,!!S.lightwell.hideLabel,!!S.lightwell.hideDims,JSON.stringify(courtRectFor(f))],S.core&&[S.core.labSize,S.core.labLock,!!S.core.hideLabel,!!S.core.hideDims,JSON.stringify(coreRectFor(f)),S.core.elevW,S.core.elevSide,S.core.attach,S.core.auto,f.height,f.use,f.coreRes]]);
   if(key===layersKey)return;
   if(box.contains(document.activeElement)&&/^(SELECT|INPUT)$/.test(document.activeElement.tagName))return;
   layersKey=key;
@@ -2196,6 +2326,29 @@ function renderLayers(){
        (on?`<div class="lopts">${ck("lot","Show the lot line")}${ck("street",'Show "South 2nd Street" label')}${ck("rear",'Show "Rear" label')}${ck("sides","Show west and east lot line labels")}${ck("offset",`Show the ${fmtLen(S.settings.sideOffset||0).replace(/^0'-/,"")} offset callouts`)}${labCtl("lot","lot",SI)}
          <div class="lbtns"><button class="btn" data-sitereset ${Object.keys(SI.lab).length?"":"disabled"}>Reset label positions</button></div>
          <span class="lhint">Drag any of these labels on the plan to move it</span></div>`:"")+`</div>`;
+  }
+  if(blocksOf(f).length){
+    grp("Stairs");
+    const up=S.floors[S.floors.indexOf(f)+1];
+    blocksOf(f).forEach(b=>{
+      const on=sel&&sel.k==="block"&&sel.id===b.id,g=stairGeom(b,f.height);
+      h+=`<div class="lrow ${on?"on":""} ${ui.layers.int?"":"hid"}" data-lk="block" data-lid="${b.id}"><span class="sw" style="--c:var(--core)"></span><span class="nm">Stair, ${STAIR_KINDS[b.kind].name.toLowerCase()}</span><span class="sf">${fmt(g.area)} SF</span>`;
+      if(on)h+=`<div class="lopts">
+           <label>Type<select class="in" data-bkind="${b.id}">${Object.keys(STAIR_KINDS).map(k=>`<option value="${k}" ${k===b.kind?"selected":""}>${STAIR_KINDS[k].name}</option>`).join("")}</select></label>
+           <label class="ck"><input type="checkbox" data-bshow="${b.id}" ${b.hideLabel?"":"checked"}> Show "UP" and riser label</label>
+           ${labCtl("block",b.id,b)}
+           <dl class="lspec">${[
+             ["Goes",up?`${f.name} up to ${up.name}`:"No floor above"],
+             ["Risers",`${g.R} at ${g.riserIn.toFixed(2)}" (${fmtLen(f.height)} rise)`],
+             ["Treads",`${g.treads} at ${S.rules.stair.treadIn}", ${g.flights} flight${g.flights>1?"s":""}`],
+             ["Width",`${b.widthIn||S.rules.stair.widthIn}" each flight`],
+             ["Footprint",`${fmtLen(g.bb.w)} × ${fmtLen(g.bb.h)}, ${fmt(g.area)} SF`],
+             g.issues.length?["Check",`<span style="color:var(--over)">${g.issues.join("; ")}</span>`]:null
+           ].filter(Boolean).map(([k2,v])=>`<dt>${k2}</dt><dd>${v}</dd>`).join("")}</dl>
+           <span class="lhint">Drag it on the plan to move it; press R to turn it</span>
+         </div>`;
+      h+=`</div>`;
+    });
   }
   const lw=courtRectFor(f);
   if(S.core||lw){
@@ -2254,7 +2407,7 @@ function renderLayers(){
 }
 function selectFromLayers(k,id){
   // turn on the layer the item lives on, then select it
-  if(k==="wall"&&!ui.layers.int)ui.layers.int=true;
+  if((k==="wall"||k==="block")&&!ui.layers.int)ui.layers.int=true;
   if(k==="area"){const a=cur().areas.find(x=>x.id===id),T=a&&AREA_TYPES[a.type];if(T){if(T.kind==="sell")ui.layers.sell=true;else ui.layers.far=true;}}
   ui.mode="select";ui.draft=null;ui.selVert=null;ui.sel={k,id};
   ui.pop=k==="wall"?{ref:"wall",id,fixed:0}:null;
@@ -2281,13 +2434,58 @@ function fillAreaTypes(){
 $("#areaType").addEventListener("change",e=>{ui.areaType=e.target.value;});
 document.querySelectorAll("[data-layer]").forEach(b=>b.addEventListener("click",()=>{
   const L=b.dataset.layer;ui.layers[L]=!ui.layers[L];   // each layer button turns on and off
-  if((ui.mode==="wall"&&!ui.layers.int)||(ui.mode==="area"&&!ui.layers.far&&!ui.layers.sell))ui.mode="select";
+  if(((ui.mode==="wall"||ui.mode==="block")&&!ui.layers.int)||(ui.mode==="area"&&!ui.layers.far&&!ui.layers.sell))ui.mode="select";
   if(ui.sel){
     const o=findSel(),kind=ui.sel.k==="area"&&o?(AREA_TYPES[o.type]||{}).kind:null;
     if((ui.sel.k==="wall"&&!ui.layers.int)||(ui.sel.k==="area"&&(kind==="sell"?!ui.layers.sell:!ui.layers.far)))ui.sel=null;
   }
   ui.draft=null;ui.pop=null;savePrefs();renderAll();
 }));
+/* Block menu: Stairs (with its types), Light well, Core */
+function stairThumb(kind){
+  const b={kind,x:0,y:0,rot:0},g=stairGeom(b,10),sc=Math.min(42/g.bb.w,26/g.bb.h),ox=(46-g.bb.w*sc)/2-g.bb.u0*sc,oy=(30-g.bb.h*sc)/2-g.bb.v0*sc;
+  const R=r=>`<rect x="${(ox+r[0]*sc).toFixed(1)}" y="${(oy+r[1]*sc).toFixed(1)}" width="${((r[2]-r[0])*sc).toFixed(1)}" height="${((r[3]-r[1])*sc).toFixed(1)}"`;
+  let o=`<svg class="thumb" viewBox="0 0 46 30" aria-hidden="true">`;
+  g.P.forEach(q=>{o+=R(q.r)+` fill="${q.t==="land"?"currentColor":"none"}" fill-opacity=".12" stroke="currentColor" stroke-width=".8"/>`;
+    if(q.t==="run"){const [u0,v0,u1,v1]=q.r,al=q.dir.endsWith("v");for(let j=1;j<q.n;j+=2){const x=al?null:ox+(u0+j*g.T)*sc,y=al?oy+(v0+j*g.T)*sc:null;o+=al?`<path d="M${ox+u0*sc} ${y}H${ox+u1*sc}" stroke="currentColor" stroke-width=".4"/>`:`<path d="M${x} ${oy+v0*sc}V${oy+v1*sc}" stroke="currentColor" stroke-width=".4"/>`;}}});
+  g.walls.forEach(r=>{o+=R(r)+` fill="currentColor"/>`;});
+  return o+`</svg>`;
+}
+function renderBlockMenu(level){
+  const m=$("#blockMenu"),f=cur(),i=S.floors.indexOf(f),up=S.floors[i+1],sb=S.rules.stairBlock;
+  if(level==="stairs"){
+    const sug=f.use==="cellar"?sb.cellarKind:null;
+    m.innerHTML=`<div class="bmhead"><button data-bm="root" aria-label="Back">‹ Back</button>Stairs from the ${f.name.toLowerCase()}${up?` up to the ${up.name.toLowerCase()}`:""}</div>`+
+      Object.keys(STAIR_KINDS).map(k=>{const g=stairGeom({kind:k,x:0,y:0},f.height);
+        return `<button role="menuitem" data-bm="kind:${k}">${stairThumb(k)}<span class="bmt"><span>${STAIR_KINDS[k].name}${k===sug?` <small class="sugg">suggested for the cellar</small>`:""}</span><small>${STAIR_KINDS[k].desc}</small><small${g.issues.length?' class="warnt"':""}>${fmtLen(g.bb.w)} × ${fmtLen(g.bb.h)}, ${g.R} risers${g.issues.length?", too tall for one flight here":""}</small></span></button>`;}).join("");
+  }else{
+    m.innerHTML=`<button role="menuitem" data-bm="stairs">${stairThumb(f.use==="cellar"?sb.cellarKind:sb.defaultKind)}<span class="bmt"><span>Stairs</span><small>Straight, L-shaped, U-shaped or scissor</small></span><span class="more">›</span></button>
+      <button role="menuitem" data-bm="lightwell"><svg class="thumb" viewBox="0 0 46 30" aria-hidden="true"><rect x="6" y="5" width="34" height="20" fill="var(--terrace)" fill-opacity=".2" stroke="currentColor" stroke-width=".8"/><path d="M6 25L26 5M16 25L36 5M26 25L40 11M6 15L16 5" stroke="var(--terrace)" stroke-width=".6"/></svg><span class="bmt"><span>Light well</span><small>${S.lightwell?"Select the light well":"Add a light well at the code minimum"}</small></span></button>
+      <button role="menuitem" data-bm="core"><svg class="thumb" viewBox="0 0 46 30" aria-hidden="true"><rect x="4" y="5" width="38" height="20" fill="var(--core)" fill-opacity=".2" stroke="currentColor" stroke-width=".8"/><path d="M33 5V25M33 5L42 25M42 5L33 25" stroke="currentColor" stroke-width=".6"/></svg><span class="bmt"><span>Elevator and stair core</span><small>Select the core</small></span></button>`;
+  }
+  const bt=$("#blockBtn");m.style.left=Math.max(0,bt.offsetLeft)+"px";
+}
+function openBlockMenu(level){renderBlockMenu(level||"root");$("#blockMenu").hidden=false;$("#blockBtn").setAttribute("aria-expanded","true");}
+function closeBlockMenu(){$("#blockMenu").hidden=true;$("#blockBtn").setAttribute("aria-expanded","false");}
+$("#blockBtn").addEventListener("click",e=>{e.stopPropagation();if($("#blockMenu").hidden)openBlockMenu();else closeBlockMenu();});
+$("#blockMenu").addEventListener("click",e=>{
+  e.stopPropagation();
+  const it=e.target.closest("[data-bm]");if(!it)return;const v=it.dataset.bm;
+  if(v==="root"||v==="stairs"){renderBlockMenu(v);return;}
+  closeBlockMenu();
+  if(v.startsWith("kind:")){
+    ui.blockKind=v.slice(5);ui.mode="block";ui.draft=null;ui.sel=null;ui.pop=null;ui.ghost=null;
+    if(!ui.layers.int){ui.layers.int=true;savePrefs();}
+    renderAll();return;
+  }
+  if(v==="core"){selectFromLayers("core","core");return;}
+  if(v==="lightwell"){
+    if(!S.lightwell){const f=cur(),first=f.use==="cellar"?S.floors.find(x=>x.use!=="cellar"):f;pushHist();S.lightwell={x0:80,side:"west",from:first.id};}
+    if(!courtRectFor(cur())){const j=S.floors.findIndex(x=>x.id===S.lightwell.from);if(j>=0)ui.floor=j;}
+    ui.mode="select";ui.sel={k:"court",id:"court"};commit();
+  }
+});
+document.addEventListener("click",e=>{if(!$("#blockMenu").hidden&&!e.target.closest("#blockMenu")&&!e.target.closest("#blockBtn"))closeBlockMenu();});
 document.querySelectorAll("[data-mode]").forEach(b=>b.addEventListener("click",()=>{ui.mode=b.dataset.mode;ui.draft=null;renderToolbar();renderPlan();}));
 $("#closeShape").addEventListener("click",finishArea);
 $("#cancelDraft").addEventListener("click",()=>{ui.draft=null;renderToolbar();renderPlan();});
@@ -2352,7 +2550,7 @@ $("#rulesBody").addEventListener("change",e=>{
 $("#copyBelow").addEventListener("click",()=>{
   if(ui.floor===0)return;pushHist();
   const src=reId(clone(S.floors[ui.floor-1]));
-  cur().walls=src.walls;cur().areas=src.areas;ui.sel=null;commit();
+  cur().walls=src.walls;cur().areas=src.areas;cur().blocks=src.blocks||[];ui.sel=null;commit();
 });
 /* Exterior walls sit inside the gross outline, outside face on it, so they never cross the offset line. */
 function insetRing(pts,d){
@@ -2428,6 +2626,11 @@ document.addEventListener("keydown",e=>{
     const q=placePt(draftFrom(),ui.lastP);ui.hover={pt:q,kind:snapInfo.kind,desc:snapInfo.desc};if(d)d.cur=q;renderPlan();return;
   }
   const lk=e.key.length===1?e.key.toLowerCase():"";
+  if(lk==="r"&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&(ui.mode==="block"||(ui.sel&&ui.sel.k==="block"))){
+    e.preventDefault();
+    if(ui.mode==="block"){ui.blockRot=((ui.blockRot||0)+90)%360;renderPlan();return;}
+    const b=findSel();if(b){pushHist();b.rot=((b.rot||0)+90)%360;commit();}return;
+  }
   if((lk==="w"||lk==="a")&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
     // W draws walls, A draws areas; switch to Both if the current view hides that layer
     e.preventDefault();
@@ -2447,6 +2650,7 @@ document.addEventListener("keydown",e=>{
     }
     if(e.key==="Enter"&&ui.typed){e.preventDefault();placeTyped();return;}
   }
+  if(e.key==="Escape"&&!$("#blockMenu").hidden){closeBlockMenu();return;}
   if(e.key==="Escape"){
     // Escape cancels what is in progress and returns to Select and move; once there, it leaves full screen
     if(ui.draft&&ui.draft.lock){delete ui.draft.lock;renderToolbar();renderPlan();return;}   // first unlock a typed length

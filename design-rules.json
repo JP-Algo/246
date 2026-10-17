@@ -64,6 +64,17 @@
       "notes": "36 in stairs are allowed if the stair serves only Group R-2, the building is 125 ft or less and the stair serves 30 or fewer occupants per floor (1011.2 exc. 1.2), or 50 or fewer occupants in total (exc. 1.1). In R-2, scissor stairs can count as two exits when enclosed and separated by 2-hour masonry and the exit doors are at least 15 ft apart (1007.1.1 exc. 3). A 4 in wall between the stairs may not give the 2-hour masonry separation that exception needs; confirm with the architect.",
       "source": "NYC Building Code 2022 §1011.2, 1011.5.2, 1011.6, 1011.8, 1007.1.1"
     },
+    "stairBlock": {
+      "label": "Placed stairs (Block > Stairs)",
+      "cellarKind": "straight",
+      "defaultKind": "u",
+      "minWidthIn": 36,
+      "kinds": "straight (one flight, direct), straight2 (two flights in line with a landing), l (L-shaped, corner landing), u (U-shaped switchback, full-width turn landing), scissor (two interlocking stairs)",
+      "meaning": "A stair placed on a floor rises from that floor to the floor above, using the stair rule (max riser, tread, landing, max 12 ft per flight). The stair from the cellar to the 1st floor is a direct straight run, not a scissor stair. Each flight defaults to the stair rule width; under 36 in is flagged.",
+      "sizing": "risers = ceil(floor height / max riser); straight: treads = risers - 1, length = treads x tread + 2 landings; two-flight types split the risers evenly, each flight has risers - 1 treads; landing = min(width, 48 in); turn landings are as deep as the stair is wide",
+      "thisBuilding": "Cellar (12 ft) to 1st floor: straight run, 21 risers at 6.86 in, 20 treads at 11 in, 25'-8\" x 3'-8\" at 44 in wide including a landing at each end",
+      "source": "NYC Building Code 2022 §1011.2, 1011.5.2, 1011.6, 1011.8; project owner: direct stair from the cellar"
+    },
     "court": {
       "label": "Light well (small inner court with no legally required windows facing it)",
       "lowMinDimFt": 10,
