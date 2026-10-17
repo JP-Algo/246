@@ -1096,12 +1096,14 @@ function findSel(){
   const f=cur();
   if(ui.sel.k==="core")return S.core||null;
   if(ui.sel.k==="court")return courtRectFor(cur())?S.lightwell:null;
+  if(ui.sel.k==="lot")return ensureSite(S);
   return ui.sel.k==="wall"?f.walls.find(w=>w.id===ui.sel.id):f.areas.find(a=>a.id===ui.sel.id);
 }
 function renderSel(){
   setTimeout(renderLayers,0);
   const el=$("#sel"),o=findSel();
   if(!o){el.innerHTML=`<span class="k">Nothing selected</span>`;return;}
+  if(ui.sel.k==="lot"){el.innerHTML=`<span><span class="k">Lot lines</span> Drag any lot line label on the plan to move it. Show or hide them in the layers panel.</span>`;return;}
   if(ui.sel.k==="court"){
     const L=o,c=courtRectFor(cur()),r=S.rules.court;
     const opts=S.floors.filter(f=>f.use!=="cellar").map(f=>`<option value="${f.id}" ${f.id===L.from?"selected":""}>${f.name}</option>`).join("");
@@ -1235,7 +1237,7 @@ function deleteVert(o,i){
   pushHist();o.pts.splice(i,1);ui.selVert=null;commit();
 }
 function deleteSel(){
-  if(!ui.sel||ui.sel.k==="core")return;
+  if(!ui.sel||ui.sel.k==="core"||ui.sel.k==="lot")return;
   if(ui.sel.k==="court"){pushHist();S.lightwell=null;ui.sel=null;commit();return;}
   pushHist();
   const f=cur();
@@ -1440,7 +1442,8 @@ function renderPlan(){
   const x0=Math.floor(v.x/5)*5,y0=Math.floor(v.y/5)*5;
   for(let x=x0;x<=v.x+v.w;x+=5)g+=`<line x1="${x}" y1="${v.y}" x2="${x}" y2="${v.y+v.h}" style="stroke:var(--grid);stroke-width:${(x%25===0?0.2:0.08)*k}"/>`;
   for(let y=y0;y<=v.y+v.h;y+=5)g+=`<line x1="${v.x}" y1="${y}" x2="${v.x+v.w}" y2="${y}" style="stroke:var(--grid);stroke-width:${(y%25===0?0.2:0.08)*k}"/>`;
-  g+=`<path d="${pathOf(LOT)}" style="fill:none;stroke:var(--muted);stroke-width:${0.22*k};stroke-dasharray:${1.4*k} ${0.9*k}"/>`;
+  const SI=ensureSite(S),selLot=ui.sel&&ui.sel.k==="lot"&&ui.mode==="select";
+  if(!SI.hide.lot)g+=`<path d="${pathOf(LOT)}" style="fill:none;stroke:${selLot?"var(--sel)":"var(--muted)"};stroke-width:${(selLot?0.35:0.22)*k};stroke-dasharray:${1.4*k} ${0.9*k}"/>`;
   {
     const i=S.floors.indexOf(f);
     if(f.use!=="cellar"&&floorTop(i)>S.rules.envelope.baseFt+1e-6){
@@ -1450,11 +1453,17 @@ function renderPlan(){
     }
   }
   offsetLines().forEach(([a,b])=>{g+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" style="stroke:var(--sel);stroke-opacity:.55;stroke-width:${0.1*k};stroke-dasharray:${0.3*k} ${0.4*k}"/>`;});
-  const sx=FRONT+fs*3.2,rx=-fs*3.2;
-  g+=`<text x="${sx}" y="15" transform="rotate(90 ${sx} 15)" text-anchor="middle" style="fill:var(--muted);font-size:${fs}px">South 2nd Street</text>`;
-  g+=`<text x="${rx}" y="15" transform="rotate(-90 ${rx} 15)" text-anchor="middle" style="fill:var(--muted);font-size:${fs}px">Rear</text>`;
-  g+=`<text x="10" y="${-fs*3.2}" text-anchor="middle" style="fill:var(--muted);font-size:${fs*0.85}px">West lot line</text>`;
-  g+=`<text x="10" y="${30+fs*3.6}" text-anchor="middle" style="fill:var(--muted);font-size:${fs*0.85}px">East lot line</text>`;
+  // site labels: each can be hidden, and dragged while the lot lines are selected
+  const sx=FRONT+fs*3.2,rx=-fs*3.2,lab=key=>SI.lab[key]||[0,0];
+  const sg=(key,inner)=>`<g data-k="sitelab" data-id="${key}" transform="translate(${lab(key)[0]} ${lab(key)[1]})"${selLot?' pointer-events="all" cursor="move"':' pointer-events="none"'}>${inner}</g>`;
+  const lcol=selLot?"var(--sel)":"var(--muted)";
+  let sl="";
+  if(!SI.hide.street)sl+=sg("street",`<text x="${sx}" y="15" transform="rotate(90 ${sx} 15)" text-anchor="middle" style="fill:${lcol};font-size:${fs}px">South 2nd Street</text>`);
+  if(!SI.hide.rear)sl+=sg("rear",`<text x="${rx}" y="15" transform="rotate(-90 ${rx} 15)" text-anchor="middle" style="fill:${lcol};font-size:${fs}px">Rear</text>`);
+  if(!SI.hide.sides){
+    sl+=sg("west",`<text x="10" y="${-fs*3.2}" text-anchor="middle" style="fill:${lcol};font-size:${fs*0.85}px">West lot line</text>`);
+    sl+=sg("east",`<text x="10" y="${30+fs*3.6}" text-anchor="middle" style="fill:${lcol};font-size:${fs*0.85}px">East lot line</text>`);
+  }
   if(ui.floor>0){
     S.floors[ui.floor-1].areas.filter(a=>a.type==="gross").forEach(a=>{
       g+=`<path d="${pathOf(a.pts)}" style="fill:none;stroke:var(--muted);stroke-width:${0.16*k};stroke-dasharray:${0.5*k} ${0.5*k};opacity:.75"/>`;
@@ -1531,12 +1540,13 @@ function renderPlan(){
     }
   }
   const off=S.settings.sideOffset||0;
-  if(ui.dims&&off>0){
+  if(ui.dims&&off>0&&!SI.hide.offset){
     const lx=FRONT-fs*5,txt=fmtLen(off).replace(/^0'-/,"")+" to lot line";
-    [[0,1],[25,-1]].forEach(([line,dir])=>{
-      const ty=line-dir*fs*3;
-      dm+=`<path d="M${lx} ${line}L${lx} ${line+dir*off}M${lx} ${line}L${lx} ${ty+dir*fs*0.6}" style="fill:none;stroke:var(--sel);stroke-width:${0.12*k}"/>`;
-      dm+=`<text x="${lx}" y="${ty}" text-anchor="middle" dominant-baseline="central" style="fill:var(--sel);font-size:${fs*0.75}px;font-weight:600">${txt}</text>`;
+    [[0,1,"offW"],[25,-1,"offE"]].forEach(([line,dir,key])=>{
+      const ty=line-dir*fs*3,o2=lab(key),tx=lx+o2[0],tty=ty+o2[1];
+      // the leader runs from the gap to wherever the label has been moved
+      dm+=`<path d="M${lx} ${line}L${lx} ${line+dir*off}M${lx} ${line}L${tx} ${tty+dir*fs*0.6}" style="fill:none;stroke:var(--sel);stroke-width:${0.12*k}"/>`;
+      sl+=sg(key,`<text x="${lx}" y="${ty}" text-anchor="middle" dominant-baseline="central" style="fill:var(--sel);font-size:${fs*0.75}px;font-weight:600">${txt}</text>`);
     });
   }
   dm+=`</g>`;
@@ -1657,7 +1667,7 @@ function renderPlan(){
     d.pts.forEach((p,i)=>{dr+=`<circle cx="${p[0]}" cy="${p[1]}" r="${i===0?vr*1.6:vr}" pointer-events="none" style="fill:${i===0?"var(--panel)":"var(--sel)"};stroke:var(--sel);stroke-width:${0.25*k}"/>`;});
     if(pts.length>=3)dr+=`<text x="${centroid(pts)[0]}" y="${centroid(pts)[1]}" text-anchor="middle" pointer-events="none" style="fill:var(--sel);font-size:${fs}px;font-weight:600">${fmt(polyArea(pts))} SF</text>`;
   }
-  svg.innerHTML=g+ar+wl+lb+dm+hd+dr;
+  svg.innerHTML=g+ar+wl+lb+dm+sl+hd+dr;
   renderPop();
 }
 
@@ -1707,6 +1717,10 @@ svg.addEventListener("pointerdown",e=>{
       if(e.altKey&&o&&o.pts){deleteVert(o,i);return;}            // Alt+click removes a corner
       ui.selVert={id,i};drag={k,id,i,hist:false};renderPlan();renderSel();return;
     }
+    else if(k==="sitelab"){
+      drag={k:"slab",key:id,start:p,orig:(ensureSite(S).lab[id]||[0,0]).slice(),hist:false};
+      return;
+    }
     else if(k==="lab"){
       const a=cur().areas.find(x=>x.id===id);
       if(a){drag={k:"lab",id,start:p,orig:(a.lab||[0,0]).slice(),hist:false};}
@@ -1752,6 +1766,7 @@ svg.addEventListener("pointerdown",e=>{
 svg.addEventListener("mousedown",e=>{if(e.button===1)e.preventDefault();});
 let lastWallDown=null;
 $("#layerList").addEventListener("click",e=>{
+  if(e.target.closest("[data-sitereset]")){const SI=ensureSite(S);if(Object.keys(SI.lab).length){pushHist();SI.lab={};layersKey="";commit();}return;}
   const rb=e.target.closest("[data-lreset]");
   if(rb){const a=cur().areas.find(x=>x.id===rb.dataset.lreset);if(a&&a.lab){pushHist();delete a.lab;layersKey="";commit();}return;}
   if(e.target.closest(".lopts"))return;
@@ -1760,6 +1775,8 @@ $("#layerList").addEventListener("click",e=>{
 $("#layerList").addEventListener("change",e=>{
   const nm=e.target.closest("[data-lname]");
   if(nm){const a=cur().areas.find(x=>x.id===nm.dataset.lname),v=nm.value.trim();if(a&&(a.name||"")!==v){pushHist();if(v)a.name=v;else delete a.name;nm.blur();layersKey="";commit();}return;}
+  const so=e.target.closest("[data-siteopt]");
+  if(so){const SI=ensureSite(S);pushHist();if(so.checked)delete SI.hide[so.dataset.siteopt];else SI.hide[so.dataset.siteopt]=true;so.blur();layersKey="";commit();return;}
   const lo=e.target.closest("[data-lwopt]");
   if(lo&&S.lightwell){pushHist();if(lo.checked)delete S.lightwell[lo.dataset.lwopt];else S.lightwell[lo.dataset.lwopt]=true;lo.blur();layersKey="";commit();return;}
   const sh=e.target.closest("[data-lshow]");
@@ -1821,6 +1838,8 @@ svg.addEventListener("pointermove",e=>{
   }else if(drag.k==="vert"){
     o.pts[drag.i]=snapPt(p,o.id+":"+drag.i);
     ui.hover={pt:o.pts[drag.i],kind:snapInfo.kind,desc:snapInfo.desc,drag:true};
+  }else if(drag.k==="slab"){
+    o.lab[drag.key]=[drag.orig[0]+(p[0]-drag.start[0]),drag.orig[1]+(p[1]-drag.start[1])];
   }else if(drag.k==="lab"){
     o.lab=[drag.orig[0]+(p[0]-drag.start[0]),drag.orig[1]+(p[1]-drag.start[1])];
   }else if(drag.k==="move"){
@@ -2047,11 +2066,13 @@ function renderRules(){
 /* Layers panel: every area, wall, the core and the light well on this floor. Click a row to select it;
    change an area's type from its list. */
 let layersKey="";
+/* Lot lines and their labels: which to show and where each label has been dragged. */
+function ensureSite(st){if(!st.site)st.site={};st.site.hide=st.site.hide||{};st.site.lab=st.site.lab||{};return st.site;}
 function renderLayers(){
   const box=$("#layerList");if(!box)return;
   const f=cur(),sel=ui.sel;
   const areas=[...f.areas].sort((a,b)=>MENU.indexOf(a.type)-MENU.indexOf(b.type));
-  const key=JSON.stringify([ui.floor,sel,ui.layers,areas.map(a=>[a.id,a.type,a.name||"",Math.round(polyArea(a.pts)),!!a.hideLabel,!!a.lab]),f.walls.map(w=>[w.id,w.tag,Math.round(w.t*12),Math.round(dist(w.a,w.b)*10)]),!!S.core,!!courtRectFor(f),S.lightwell&&[!!S.lightwell.hideLabel,!!S.lightwell.hideDims]]);
+  const key=JSON.stringify([ui.floor,sel,ui.layers,areas.map(a=>[a.id,a.type,a.name||"",Math.round(polyArea(a.pts)),!!a.hideLabel,!!a.lab]),f.walls.map(w=>[w.id,w.tag,Math.round(w.t*12),Math.round(dist(w.a,w.b)*10)]),!!S.core,!!courtRectFor(f),JSON.stringify(ensureSite(S)),S.lightwell&&[!!S.lightwell.hideLabel,!!S.lightwell.hideDims]]);
   if(key===layersKey)return;
   if(box.contains(document.activeElement)&&/^(SELECT|INPUT)$/.test(document.activeElement.tagName))return;
   layersKey=key;
@@ -2078,6 +2099,14 @@ function renderLayers(){
       const on=sel&&sel.k==="wall"&&sel.id===w.id;
       h+=`<div class="lrow ${on?"on":""} ${ui.layers.int?"":"hid"}" data-lk="wall" data-lid="${w.id}"><span class="sw" style="--c:var(--ink)"></span><span class="nm">${w.tag==="ext"?"Exterior wall":"Wall"} ${+(w.t*12).toFixed(1)} in</span><span class="sf">${fmtLen(dist(w.a,w.b))}</span></div>`;
     });
+  }
+  {
+    const SI=ensureSite(S),on=sel&&sel.k==="lot",ck=(key,t)=>`<label class="ck"><input type="checkbox" data-siteopt="${key}" ${SI.hide[key]?"":"checked"}> ${t}</label>`;
+    grp("Site");
+    h+=`<div class="lrow ${on?"on":""}" data-lk="lot" data-lid="lot"><span class="sw" style="--c:var(--muted)"></span><span class="nm">Lot lines</span><span class="sf">${fmt(S.settings.lot)} SF</span>`+
+       (on?`<div class="lopts">${ck("lot","Show the lot line")}${ck("street",'Show "South 2nd Street" label')}${ck("rear",'Show "Rear" label')}${ck("sides","Show west and east lot line labels")}${ck("offset",`Show the ${fmtLen(S.settings.sideOffset||0).replace(/^0'-/,"")} offset callouts`)}
+         <div class="lbtns"><button class="btn" data-sitereset ${Object.keys(SI.lab).length?"":"disabled"}>Reset label positions</button></div>
+         <span class="lhint">Drag any of these labels on the plan to move it</span></div>`:"")+`</div>`;
   }
   const lw=courtRectFor(f);
   if(S.core||lw){
