@@ -141,6 +141,10 @@
     "communityFacilityFAR": 4.8,
     "communityFacilityNote": "Placeholder: the pre-City of Yes R6 community facility FAR (ZR 24-11). Confirm against the current text. Community facility areas, floors and sellable areas are tracked separately; the total FAR still caps all uses together.",
     "heightLimitFt": 85,
+    "landCostUSD": 4000000,
+    "hardCostPSF": 450,
+    "hardCostBasis": "Project owner, per gross SF; confirm whether it is per gross above grade or including the cellar",
+    "affordableTenure": "For sale (affordable homeownership), valued at affordable pricing, not market comps",
     "orientation": "Plan top edge (y = 0) is the west lot line, bottom edge is the east lot line, right edge is South 2nd Street",
     "floorHeights": "Cellar 12'-0\", 1st 13'-11\", 2nd 11'-0\", 3rd-8th 10'-0\"; roof at 84'-11\" above grade"
   }
