@@ -64,6 +64,15 @@
       "notes": "36 in stairs are allowed if the stair serves only Group R-2, the building is 125 ft or less and the stair serves 30 or fewer occupants per floor (1011.2 exc. 1.2), or 50 or fewer occupants in total (exc. 1.1). In R-2, scissor stairs can count as two exits when enclosed and separated by 2-hour masonry and the exit doors are at least 15 ft apart (1007.1.1 exc. 3). A 4 in wall between the stairs may not give the 2-hour masonry separation that exception needs; confirm with the architect.",
       "source": "NYC Building Code 2022 §1011.2, 1011.5.2, 1011.6, 1011.8, 1007.1.1"
     },
+    "roof": {
+      "label": "Roof level",
+      "bulkheadFt": 10,
+      "elevatorStops": false,
+      "isPrivate": true,
+      "meaning": "A roof level sits over the top floor. Its outline (the top floor's footprint) is private outdoor space, not floor area, and it does not add to the building height. The core continues as a bulkhead: the elevator overruns without a stop at the roof, and the stair reaches the roof.",
+      "notes": "Elevator and stair bulkheads are permitted obstructions above the height limit within limits (ZR 23-62); NYC BC 1011.12 generally needs a stair to the roof on buildings four or more stories, so confirm how a private roof squares with roof access for the other units and the FDNY.",
+      "source": "Project owner: private roof, elevator goes up but does not open; confirm with the architect"
+    },
     "stairBlock": {
       "label": "Placed stairs (Block > Stairs)",
       "cellarKind": "straight",

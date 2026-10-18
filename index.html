@@ -340,6 +340,7 @@ tfoot td{font-weight:600;border-bottom:0}
             <option value="commercial">Commercial</option>
             <option value="cf">Community facility</option>
             <option value="residential">Residential</option>
+            <option value="roof">Roof (private, not floor area)</option>
           </select>
         </label>
         <label class="check">Floor-to-floor <input class="in" id="fHeight" aria-label="Floor-to-floor height, feet and inches"></label>
@@ -349,6 +350,7 @@ tfoot td{font-weight:600;border-bottom:0}
         <button class="btn" id="copyBelow">Copy floor below</button>
         <span class="row" style="gap:6px"><button class="btn" id="extWalls" title="Replaces this floor's exterior walls with walls whose outside face sits on the gross outline">Rebuild exterior walls</button><button class="btn" id="extWallsAll">on every floor</button><label class="check">thickness <input class="in" id="extT" type="number" min="4" max="24" step="1" style="width:56px"> in</label></span>
         <button class="btn" id="addFloor">Add floor on top</button>
+        <button class="btn" id="addRoof" title="Adds a private roof level over the top floor; the core continues as a bulkhead">Add roof</button>
         <button class="btn" id="removeFloor">Remove top floor</button>
       </div>
     </section>
@@ -498,6 +500,7 @@ const DEFAULT_RULES={
   extWall:{thickIn:12},
   // Height and setback (R6, narrow street, qualifying affordable housing): ZR 23-432, 23-433. Max height is the zoning input.
   envelope:{baseFt:65,setbackFt:15},                               // exterior walls: outside face on the building envelope
+  roof:{bulkheadFt:10,elevatorStops:false,isPrivate:true},   // roof level: private outdoor space; the core rises as a bulkhead, the elevator overruns without a stop
   stairBlock:{cellarKind:"straight",defaultKind:"u",minWidthIn:36},   // placed stairs: the cellar stair is a direct straight run; 36 in min width (BC 1011.2, under 50 occupants)
   court:{lowMinDimFt:10,lowMinAreaSF:200,highMinDimFt:15,highMinAreaSF:300,highAboveFt:75,wallIn:8,measureAt:"top"}   // measureAt: "top" of each story (stricter) or its "floor" level
 };
@@ -565,7 +568,7 @@ function ensureRules(st){
   if(!(r.version>=2)){r.stair.sepIn=4;r.version=2;}   // 6 in walls + 2 x 44 in stairs + 4 in between
   return st;
 }
-const heightOf=st=>st.floors.filter(f=>f.use!=="cellar").reduce((s,f)=>s+f.height,0);
+const heightOf=st=>st.floors.filter(f=>f.use!=="cellar"&&f.use!=="roof").reduce((s,f)=>s+f.height,0);
 function sideOffsetRaw(st){return heightOf(st)*12/st.rules.sideOffset.ratio;}
 function sideOffsetIn(st){
   const r=st.rules.sideOffset,v=Math.max(r.minIn,sideOffsetRaw(st));
@@ -640,11 +643,11 @@ function ensureLightwell(st){
   }
   return st;
 }
-function floorTop(i){let t=0;for(let j=0;j<=i;j++)if(S.floors[j].use!=="cellar")t+=S.floors[j].height;return t;}
+function floorTop(i){let t=0;for(let j=0;j<=i;j++)if(S.floors[j].use!=="cellar"&&S.floors[j].use!=="roof")t+=S.floors[j].height;return t;}
 function courtRectFor(f){
   const L=S.lightwell;if(!L||!f)return null;
   const i=S.floors.indexOf(f),from=S.floors.findIndex(x=>x.id===L.from);
-  if(from<0||i<from||f.use==="cellar")return null;
+  if(from<0||i<from||f.use==="cellar"||f.use==="roof")return null;
   const r=S.rules.court,lvl=r.measureAt==="floor"?floorTop(i)-f.height:floorTop(i),high=lvl>r.highAboveFt+1e-6;
   const dim=high?r.highMinDimFt:r.lowMinDimFt,area=high?r.highMinAreaSF:r.lowMinAreaSF;
   const ov=(L.sizes||{})[f.id];
@@ -702,7 +705,7 @@ function drawEnds(list){
    setbackFt back from the street line. */
 function setbackLimit(){return FRONT-S.rules.envelope.setbackFt;}
 function setbackIssue(f){
-  const i=S.floors.indexOf(f);if(i<0||f.use==="cellar")return null;
+  const i=S.floors.indexOf(f);if(i<0||f.use==="cellar"||f.use==="roof")return null;
   if(floorTop(i)<=S.rules.envelope.baseFt+1e-6)return null;
   const g=f.areas.filter(a=>a.type==="gross"&&a.pts.length>=3);if(!g.length)return null;
   const mx=Math.max(...g.flatMap(a=>a.pts.map(q=>q[0]))),lim=setbackLimit();
@@ -880,7 +883,7 @@ function elevations(){
 function compute(){
   const st=S.settings;
   const rows=S.floors.map((f,i)=>{
-    const below=f.use==="cellar",cr=courtRectFor(f);
+    const below=f.use==="cellar"||f.use==="roof",cr=courtRectFor(f);   // cellar and roof: no zoning floor area
     // Residential and Commercial areas set the use of the part of the floor they cover
     const ovs={residential:[],commercial:[],cf:[]};
     f.areas.forEach(a=>{const T=AREA_TYPES[a.type];if(T&&T.kind==="use"&&a.pts.length>=3)ovs[T.use].push(a);});
@@ -934,7 +937,7 @@ function compute(){
   const commCap=st.lot*st.commFar,cfCap=st.lot*(st.cfFar||0);
   const grossAbove=rows.filter(r=>!r.below).reduce((s,r)=>s+r.gross,0);
   const terrTotal=rows.reduce((s,r)=>s+r.terr,0);
-  const height=S.floors.filter(f=>f.use!=="cellar").reduce((s,f)=>s+f.height,0);
+  const height=S.floors.filter(f=>f.use!=="cellar"&&f.use!=="roof").reduce((s,f)=>s+f.height,0);
   const sellRes=rows.reduce((s,r)=>s+r.sellRes,0),sellComm=rows.reduce((s,r)=>s+r.sellComm,0),sellAff=rows.reduce((s,r)=>s+r.sellAff,0),sellCf=rows.reduce((s,r)=>s+r.sellCf,0),affT=rows.reduce((s,r)=>s+r.aff,0);
   const resGrossT=rows.reduce((s,r)=>s+r.resGross,0),commGrossT=rows.reduce((s,r)=>s+r.commGross,0),cfGrossT=rows.reduce((s,r)=>s+r.cfGross,0);
   return {sellRes,sellComm,sellAff,sellCf,affT,resGrossT,commGrossT,cfGrossT,cfZfa,cfCap,rows,resPre,amenRaw,amenCap,amenAllowed,zoneGreen,zgBase,resZfa,commZfa,total,allowed,resCap,commCap,grossAbove,terrTotal,height};
@@ -956,7 +959,7 @@ function renderTotals(){
   const tb=$("#tbody");
   tb.innerHTML=c.rows.slice().reverse().map(r=>{
     const mixed=r.f.use!=="cellar"&&[r.resGross,r.commGross,r.cfGross].filter(v=>v>0.5).length>1,own=r.f.use==="commercial"?"Commercial":r.f.use==="cf"?"Community facility":"Residential";
-    const use=(r.f.use==="cellar"?"Cellar, exempt":mixed?(r.f.use!=="residential"&&r.coreRes&&r.resGross<=r.coreRes+0.5&&[r.commGross,r.cfGross].filter(v=>v>0.5).length===1?own+", core residential":"Mixed use"):own)+(r.aff?`, affordable ${fmt(r.aff)} SF`:"")+(r.court?`, light well ${fmt(r.court)} SF`:"");
+    const use=(r.f.use==="roof"?"Roof, private (not floor area)":r.f.use==="cellar"?"Cellar, exempt":mixed?(r.f.use!=="residential"&&r.coreRes&&r.resGross<=r.coreRes+0.5&&[r.commGross,r.cfGross].filter(v=>v>0.5).length===1?own+", core residential":"Mixed use"):own)+(r.aff?`, affordable ${fmt(r.aff)} SF`:"")+(r.court?`, light well ${fmt(r.court)} SF`:"");
     const sell=r.sellRes+r.sellAff+r.sellComm+r.sellCf;
     const parts=[r.sellRes?`FM ${fmt(r.sellRes)}`:"",r.sellAff?`A ${fmt(r.sellAff)}`:"",r.sellComm?`C ${fmt(r.sellComm)}`:"",r.sellCf?`CF ${fmt(r.sellCf)}`:""].filter(Boolean);
     const sellCell=sell?`${fmt(sell)}<small>${parts.join(" · ")}</small>`:"–";
@@ -1018,6 +1021,7 @@ function renderTabs(){
   $("#coreResWrap").style.display=(cur().use==="commercial"||cur().use==="cf")&&S.core?"":"none";
   $("#fCoreRes").checked=cur().coreRes!==false;
   $("#copyBelow").disabled=ui.floor===0;
+  $("#addRoof").disabled=S.floors.some(f=>f.use==="roof");
   $("#removeFloor").disabled=S.floors.length<=2;
 }
 function selectFloor(i){ui.floor=Math.max(0,Math.min(S.floors.length-1,i));ui.sel=null;ui.pop=null;ui.draft=null;renderAll();}
@@ -1243,7 +1247,7 @@ function renderSel(){
   }
   if(ui.sel.k==="court"){
     const L=o,c=courtRectFor(cur()),r=S.rules.court;
-    const opts=S.floors.filter(f=>f.use!=="cellar").map(f=>`<option value="${f.id}" ${f.id===L.from?"selected":""}>${f.name}</option>`).join("");
+    const opts=S.floors.filter(f=>f.use!=="cellar"&&f.use!=="roof").map(f=>`<option value="${f.id}" ${f.id===L.from?"selected":""}>${f.name}</option>`).join("");
     const per=S.floors.map(f=>{const q=courtRectFor(f);return q?`${f.name} ${fmtLen(q.len)} × ${fmtLen(q.depth)} (${fmt(q.len*q.depth)} SF${q.high?", above 75 ft":""})`:"";}).filter(Boolean).join("; ");
     el.innerHTML=`<span><span class="k">Light well, clear inside the walls, not floor area</span> ${fmtLen(c.len)} × ${fmtLen(c.depth)} = ${fmt(c.len*c.depth)} SF on this floor</span>
       <div class="dimedit"><label>Starts on<select class="in" id="lwFrom">${opts}</select></label><label>Starts from rear lot line<input class="in" id="lwX" value="${attrLen(L.x0)}"></label><label>Length on this floor<input class="in" data-lws="len" value="${attrLen(c.len)}"></label><label>Width on this floor<input class="in" data-lws="depth" value="${attrLen(c.depth)}"></label></div>
@@ -1266,7 +1270,7 @@ function renderSel(){
   }
   if(ui.sel.k==="core"){
     const f=(lab,key,v)=>`<label>${lab}<input class="in" data-core="${key}" value="${attrLen(v)}"></label>`;
-    const use=cur().use==="cellar"?"exempt on the cellar":cur().use==="residential"||cur().coreRes!==false?"counts as residential on this floor":cur().use==="cf"?"counts as community facility on this floor":"counts as commercial on this floor";
+    const use=cur().use==="roof"?"the bulkhead on the roof, not floor area; the elevator does not stop here":cur().use==="cellar"?"exempt on the cellar":cur().use==="residential"||cur().coreRes!==false?"counts as residential on this floor":cur().use==="cf"?"counts as community facility on this floor":"counts as commercial on this floor";
     const cr=coreRectFor(cur()),front=o.elevSide!=="rear";
     const issues=S.floors.map(fl=>{const i=coreIssues(fl);return i.length?`<li>${fl.name}: core ${i.join(", ")}</li>`:"";}).join("");
     const fields=o.auto
@@ -1729,7 +1733,8 @@ function renderPlan(){
     if(r1>r0+1){sym+=arrow(r0+0.3,r1-0.3,(yA0+yA1)/2)+arrow(r1-0.3,r0+0.3,(yB0+yB1)/2);}
     sym+=`</g>`;
     const CO=S.core;const cfs=LF(CO);
-    if(showInt){
+    const onRoof=f.use==="roof";
+    if(showInt&&!onRoof){
       wl+=sym;
       if(yB0>yA1)wl+=`<line x1="${sA}" y1="${(yA1+yB0)/2}" x2="${sB}" y2="${(yA1+yB0)/2}" pointer-events="none" style="stroke:var(--ink);stroke-width:${yB0-yA1}"/>`;
       // stair length dimension under the core
@@ -1742,7 +1747,12 @@ function renderPlan(){
     WL.core.forEach(w=>{const d=we(w);wl+=`<line x1="${d.a[0]}" y1="${d.a[1]}" x2="${d.b[0]}" y2="${d.b[1]}" pointer-events="none" style="stroke:${csel?"var(--sel)":"var(--ink)"};stroke-width:${w.t};stroke-linecap:butt"/>`;});
     const lab=(x,t)=>`<text x="${x}" y="${c.y0+ch/2}" text-anchor="middle" dominant-baseline="central" pointer-events="none" style="fill:var(--ink);font-size:${cfs*0.75}px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:${cfs*0.25}px">${t}</text>`;
     if(showInt){
-      if(ew>3&&!CO.hideLabel)wl+=lab((eA+eB)/2,"Elev.");
+      if(onRoof&&!CO.hideLabel){
+        if(ew>3)wl+=lab((eA+eB)/2,"Elev. overrun");
+        wl+=lab((sA+sB)/2,"Stair bulkhead");
+        wl+=`<text x="${c.x0+cw/2}" y="${c.y1+cfs*1.2}" text-anchor="middle" pointer-events="none" style="fill:var(--muted);font-size:${cfs*0.7}px">Elevator does not open to the roof</text>`;
+      }
+      else if(ew>3&&!CO.hideLabel)wl+=lab((eA+eB)/2,"Elev.");
     }else if(!CO.hideLabel||!CO.hideDims){
       const res=f.use==="residential"||((f.use==="commercial"||f.use==="cf")&&f.coreRes!==false);
       const both=!CO.hideLabel&&!CO.hideDims,yC=c.y0+ch/2;
@@ -2222,6 +2232,13 @@ function build3D(){
         m.position.y=y+(T.kind==="terrace"?0.05:0.86);m.userData.floor=i;root.add(m);pickables.push(m);
       }
     });
+    if(f.use==="roof"&&i>0){
+      S.floors[i-1].areas.filter(a=>a.type==="gross"&&a.pts.length>=3).forEach(a=>{
+        const geo=new THREE.ExtrudeGeometry(toShape(a.pts),{depth:0.8,bevelEnabled:false});geo.rotateX(-Math.PI/2);
+        const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:isSel?selCol:slabCol,roughness:0.9,metalness:0}));
+        m.position.y=y;m.userData.floor=i;root.add(m);pickables.push(m);
+      });
+    }
     const wmat=new THREE.MeshStandardMaterial({color:isSel?selCol.clone().lerp(wallCol,0.55):wallCol,roughness:0.85,metalness:0});
     const lmat=new THREE.LineBasicMaterial({color:ink,transparent:true,opacity:isSel?0.7:0.35});
     const h=Math.max(1,f.height-0.8);
@@ -2417,7 +2434,7 @@ function renderLayers(){
       if(on){
         const c=coreRectFor(f),z=coreZones(c),sq=stairReq(f.height),sr=S.rules.stair,iss=coreIssues(f);
         const fits=sq.lenFt<=z.sB-z.sA+1e-6&&sq.widthFt<=z.iy1-z.iy0+1e-6;
-        const use=f.use==="cellar"?"Exempt (cellar)":f.use==="residential"||f.coreRes!==false?"Residential":"Commercial";
+        const use=f.use==="roof"?"Bulkhead (roof)":f.use==="cellar"?"Exempt (cellar)":f.use==="residential"||f.coreRes!==false?"Residential":"Commercial";
         h+=`<div class="lopts">
            <label class="ck"><input type="checkbox" data-coreopt="hideLabel" ${C.hideLabel?"":"checked"}> Show "Core" and "Elev." labels</label>
            <label class="ck"><input type="checkbox" data-coreopt="hideDims" ${C.hideDims?"":"checked"}> Show its area and the stair dimension</label>
@@ -2632,10 +2649,19 @@ $("#extWallsAll").addEventListener("click",()=>{pushHist();S.floors.forEach(rebu
 $("#extT").addEventListener("change",e=>{const v=parseFloat(e.target.value);if(v>=4&&v<=24){pushHist();S.rules.extWall={thickIn:v};commit();}else syncSettings();});
 $("#addFloor").addEventListener("click",()=>{
   pushHist();
-  const top=S.floors[S.floors.length-1];
-  const n=S.floors.filter(f=>f.use!=="cellar").length+1;
+  // a new floor copies the top occupied floor and goes under the roof, if there is one
+  const ri=S.floors.findIndex(f=>f.use==="roof"),at=ri>=0?ri:S.floors.length,top=S.floors[at-1];
+  const n=S.floors.filter(f=>f.use!=="cellar"&&f.use!=="roof").length+1;
   const nf=reId(clone(top));nf.id=uid();nf.name=ord(n)+" floor";
-  S.floors.push(nf);ui.floor=S.floors.length-1;ui.sel=null;commit();
+  S.floors.splice(at,0,nf);ui.floor=at;ui.sel=null;commit();
+});
+$("#addRoof").addEventListener("click",()=>{
+  if(S.floors.some(f=>f.use==="roof"))return;pushHist();
+  const top=S.floors[S.floors.length-1],R=S.rules.roof;
+  // the private roof covers the top floor's outline; it is outdoor space, not floor area
+  const areas=top.areas.filter(a=>a.type==="gross"&&a.pts.length>=3).map(a=>Object.assign(A("terrace",a.pts),{name:"Private roof"}));
+  S.floors.push({id:uid(),name:"Roof",use:"roof",height:R.bulkheadFt,areas,walls:[],coreRes:false});
+  ui.floor=S.floors.length-1;ui.sel=null;commit();
 });
 $("#removeFloor").addEventListener("click",()=>{
   if(S.floors.length<=2)return;pushHist();
