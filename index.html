@@ -136,6 +136,8 @@ input.in{width:84px}
 .layers .lsize{display:grid;gap:6px}
 .layers .lopts .lsize label{display:flex;align-items:center;gap:8px;font-size:12.5px}
 .layers .lsize input[type=range]{flex:1;min-width:0}
+.layers .lsize .fontpt{width:64px;flex:none}
+.layers .lsize small{color:var(--muted);font-size:11.5px}
 .layers .lsize output{min-width:3.2em;text-align:right;color:var(--muted);font-size:12px}
 .layers .lsize .seg button{font-size:11.5px;padding:3px 8px}
 .layers .lsize .btn{justify-self:start}
@@ -1978,6 +1980,15 @@ $("#layerList").addEventListener("click",e=>{
 });
 $("#layerList").addEventListener("change",e=>{
   if(e.target.closest("[data-lsz]")){labSliding=false;e.target.blur();layersKey="";commit();return;}
+  const lf=e.target.closest("[data-lfont]");
+  if(lf){
+    // a typed font size: a locked label is locked at that size at this zoom; otherwise it becomes the % of the normal size
+    const o=labTarget(lf.dataset.lfont),pt=parseFloat(lf.value);if(!o||!(pt>0)){layersKey="";renderLayers();return;}
+    const ft=pt/0.75/vb().pxPerFt/labMain(lf.dataset.lfont.split(":")[0],o);pushHist();
+    if(o.labLock>0){o.labLock=ft;delete o.labSize;}
+    else{const v=Math.max(10,Math.round(ft/(ui.planFs||1)*100));if(v===100)delete o.labSize;else o.labSize=v;}
+    lf.blur();layersKey="";commit();return;
+  }
   const nm=e.target.closest("[data-lname]");
   if(nm){const a=cur().areas.find(x=>x.id===nm.dataset.lname),v=nm.value.trim();if(a&&(a.name||"")!==v){pushHist();if(v)a.name=v;else delete a.name;nm.blur();layersKey="";commit();}return;}
   const so=e.target.closest("[data-siteopt]");
@@ -1998,6 +2009,10 @@ $("#layerList").addEventListener("change",e=>{
   const T=AREA_TYPES[a.type];if(T.kind==="sell")ui.layers.sell=true;else ui.layers.far=true;
   ui.sel={k:"area",id:a.id};s2.blur();layersKey="";savePrefs();commit();
 });
+// label font size in points as seen on screen now: the main label line, at 96 px per inch
+// each item's main label line is drawn at this share of its label size
+function labMain(kind,o){return kind==="area"?(o&&o.type==="gross"?1:0.92):kind==="court"||kind==="block"?0.8:kind==="core"?0.85:1;}
+function labPt(o,kind){const fs=ui.planFs||1,ft=(o&&o.labLock>0?o.labLock:fs)*((o&&o.labSize)||100)/100*labMain(kind,o);return Math.round(ft*vb().pxPerFt*0.75*2)/2;}
 // which object holds the label style for a layers-panel control
 function labTarget(ref){const [kind,id]=ref.split(":");
   return kind==="block"?blocksOf(cur()).find(x=>x.id===id):kind==="area"?cur().areas.find(x=>x.id===id):kind==="core"?S.core:kind==="court"?S.lightwell:kind==="lot"?ensureSite(S):null;}
@@ -2008,6 +2023,7 @@ $("#layerList").addEventListener("input",e=>{
   if(!labSliding){pushHist();labSliding=true;}
   const v=+r.value;if(v===100)delete o.labSize;else o.labSize=v;
   r.nextElementSibling.textContent=v+"%";renderPlan();
+  const fp=r.closest(".lsize").querySelector("[data-lfont]");if(fp)fp.value=labPt(o,r.dataset.lsz.split(":")[0]);
 });
 $("#layerList").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches("[data-lname]")){e.preventDefault();e.target.blur();}});
 $("#lpToggle").addEventListener("click",()=>{
@@ -2334,7 +2350,8 @@ function renderLayers(){
   const grp=t=>{h+=`<div class="lgrp">${t}</div>`;};
   // label size and zoom behaviour, shared by every item that has a label
   const labCtl=(kind,id,o)=>{const sz=(o&&o.labSize)||100,lk=!!(o&&o.labLock>0),ref=`${kind}:${id}`;
-    return `<div class="lsize"><label>Label size<input type="range" min="40" max="300" step="10" value="${sz}" data-lsz="${ref}"><output>${sz}%</output></label>
+    return `<div class="lsize"><label>Label size<input type="range" min="40" max="300" step="10" value="${Math.max(40,Math.min(300,sz))}" data-lsz="${ref}"><output>${sz}%</output></label>
+      <label>Font size<input class="in fontpt" type="number" min="3" max="96" step="0.5" value="${labPt(o,kind)}" data-lfont="${ref}"> pt <small>${lk?"at this zoom":"on screen"}</small></label>
       <span class="seg" role="group" aria-label="Label zoom"><button data-llock="${ref}" data-v="0" aria-pressed="${!lk}" title="The label is redrawn at the same size on screen at every zoom">Same on screen</button><button data-llock="${ref}" data-v="1" aria-pressed="${lk}" title="The label keeps the size it has now on the drawing, so it grows when you zoom in and shrinks when you zoom out">Lock to drawing</button></span>
       ${sz!==100||lk?`<button class="btn" data-lszreset="${ref}">Reset size</button>`:""}</div>`;};
   if(areas.length){
