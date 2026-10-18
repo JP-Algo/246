@@ -64,6 +64,15 @@
       "notes": "36 in stairs are allowed if the stair serves only Group R-2, the building is 125 ft or less and the stair serves 30 or fewer occupants per floor (1011.2 exc. 1.2), or 50 or fewer occupants in total (exc. 1.1). In R-2, scissor stairs can count as two exits when enclosed and separated by 2-hour masonry and the exit doors are at least 15 ft apart (1007.1.1 exc. 3). A 4 in wall between the stairs may not give the 2-hour masonry separation that exception needs; confirm with the architect.",
       "source": "NYC Building Code 2022 §1011.2, 1011.5.2, 1011.6, 1011.8, 1007.1.1"
     },
+    "units": {
+      "label": "Units (condo) and how they are measured",
+      "measure": "offering",
+      "minSF": {"0": 400, "1": 575, "2": 775, "3": 1000},
+      "meaning": "A unit is a record (number, tenure, bedrooms, bathrooms, extra rooms, AMI for affordable, notes) with one drawn part on each floor it occupies, so duplexes and penthouses span floors. Sellable SF is drawn to the outside face of exterior walls and the centerline of demising and corridor walls (offering plan convention), less any light well. Interior SF subtracts the walls inside it (approximate). Terraces tied to a unit are its private outdoor space. Exposure comes from which unit edges face the street, the rear, the light well or a side yard.",
+      "checks": "Affordable units: interior SF at least minSF for the bedroom count. Residential units: at least one street or rear exposure, since the light well cannot provide legally required windows.",
+      "numbering": "New units are numbered by floor and letter (3A, 3B ...); copying a floor makes new units with that floor's numbers.",
+      "source": "Project owner: offering plan measurement, units can span floors; minimum sizes from the HPD design guidelines, confirm"
+    },
     "roof": {
       "label": "Roof level",
       "bulkheadFt": 10,

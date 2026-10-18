@@ -213,6 +213,14 @@ tfoot td{font-weight:600;border-bottom:0}
 .info svg{display:block;width:11px;height:11px}
 .info:hover,.info[aria-expanded="true"]{color:var(--ink)}
 .tipbox{position:fixed;z-index:60;max-width:300px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font-size:12.5px;line-height:1.45;box-shadow:0 6px 18px rgba(0,0,0,.18);text-align:left;white-space:normal}
+.unitedit{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px 12px}
+.unitedit label{display:grid;gap:3px;font-size:12.5px;color:var(--muted)}
+.unitedit .wide{grid-column:1 / -1}
+.units-mix{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:0 0 12px}
+.units-mix div{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--panel)}
+.units-mix b{display:block;font-size:18px}
+.units-mix small{color:var(--muted)}
+#unitBody tr{cursor:pointer}
 .dimedit{flex-basis:100%;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px 12px}
 .dimedit label{display:grid;gap:3px;font-size:12px;color:var(--muted)}
 .dimedit input.in{width:100%;color:var(--ink)}
@@ -268,7 +276,7 @@ tfoot td{font-weight:600;border-bottom:0}
         <div class="seg" role="group" aria-label="Layers to show">
           <button data-layer="far" title="Show the floor area layers used for the FAR calculation">FAR</button>
           <button data-layer="int" title="Show walls, the elevator and the stair">Interiors</button>
-          <button data-layer="sell" title="Show the residential, commercial and community facility sellable areas">Sellable</button>
+          <button data-layer="sell" title="Show the units and sellable areas">Units</button>
         </div>
       </div>
       <div class="floorhead" id="floorhead"></div>
@@ -328,7 +336,7 @@ tfoot td{font-weight:600;border-bottom:0}
         <span style="--c:var(--comm)">Commercial area</span>
         <span style="--c:var(--cf)">Community facility area</span>
         <span style="--c:var(--aff)">Residential affordable</span>
-        <span style="--c:var(--sell)">Sellable area (not in the FAR math)</span>
+        <span style="--c:var(--sell)">Units and sellable areas (not in the FAR math)</span>
       </div>
       <div class="sel" id="sel"></div>
       <p class="note" id="modeNote"></p>
@@ -364,6 +372,13 @@ tfoot td{font-weight:600;border-bottom:0}
           <tfoot id="tfoot"></tfoot>
         </table>
       </div>
+    </section>
+
+    <section>
+      <h2>Units</h2>
+      <div class="units-mix" id="unitMix"></div>
+      <div class="tablewrap"><table><thead><tr><th>Unit</th><th>Floors</th><th>Type</th><th>Tenure</th><th>Bed / bath</th><th>Sellable SF</th><th>Interior SF</th><th>Outdoor SF</th><th>Exposure</th><th>Check</th></tr></thead><tbody id="unitBody"></tbody></table></div>
+      <p class="note">Draw each unit on the Units layer to the outside face of exterior walls and the centerline of demising and corridor walls (the offering plan convention); that is its sellable SF. Interior SF is measured inside the wall faces and is approximate. A unit can have a part on several floors. Tie a terrace to a unit to count it as that unit's outdoor space. Click a row to go to the unit.</p>
     </section>
 
     <section>
@@ -430,13 +445,15 @@ const AREA_TYPES={
   cfArea:{label:"Community facility area",short:"Community facility",kind:"use",use:"cf",color:"--cf"},
   resAff:{label:"Residential affordable",short:"Affordable",kind:"use",use:"residential",aff:true,color:"--aff"},
   // Sellable areas are tracked for efficiency only and do not change floor area
+  // A unit is a sellable area tied to a unit record (number, tenure, bedrooms); one unit can have parts on several floors
+  unit:{label:"Unit (condo)",short:"Unit",kind:"sell",unit:true,color:"--gross"},
   sellRes:{label:"Sellable area, residential - free-market",short:"Sellable free-market",kind:"sell",use:"residential",color:"--sell"},
   sellAff:{label:"Sellable area, residential affordable",short:"Sellable affordable",kind:"sell",use:"residential",aff:true,color:"--aff"},
   sellComm:{label:"Sellable area, commercial",short:"Sellable comm.",kind:"sell",use:"commercial",color:"--sell"},
   sellCf:{label:"Sellable area, community facility",short:"Sellable CF",kind:"sell",use:"cf",color:"--cf"}
 };
-const MENU=["gross","resArea","resAff","commArea","cfArea","parking","mechanical","corridor100","corridor50","laundry","amenity","terrace","sellRes","sellAff","sellComm","sellCf"];
-const ORDER=["gross","resArea","resAff","commArea","cfArea","terrace","amenity","parking","mechanical","corridor50","corridor100","laundry","sellRes","sellAff","sellComm","sellCf"];
+const MENU=["gross","resArea","resAff","commArea","cfArea","parking","mechanical","corridor100","corridor50","laundry","amenity","terrace","unit","sellRes","sellAff","sellComm","sellCf"];
+const ORDER=["gross","resArea","resAff","commArea","cfArea","terrace","amenity","parking","mechanical","corridor50","corridor100","laundry","unit","sellRes","sellAff","sellComm","sellCf"];
 
 const A=(type,pts)=>({id:uid(),type,pts:pts.map(p=>[p[0],p[1]])});
 const W=(a,b,t,tag)=>({id:uid(),a:[a[0],a[1]],b:[b[0],b[1]],t,tag:tag||""});
@@ -500,6 +517,9 @@ const DEFAULT_RULES={
   extWall:{thickIn:12},
   // Height and setback (R6, narrow street, qualifying affordable housing): ZR 23-432, 23-433. Max height is the zoning input.
   envelope:{baseFt:65,setbackFt:15},                               // exterior walls: outside face on the building envelope
+  // Units: sellable SF to the outside face of exterior walls and the centerline of demising/corridor walls (offering plan);
+  // minimum interior SF by bedroom count for affordable units (HPD design guidelines, confirm)
+  units:{measure:"offering",minSF:{0:400,1:575,2:775,3:1000}},
   roof:{bulkheadFt:10,elevatorStops:false,isPrivate:true},   // roof level: private outdoor space; the core rises as a bulkhead, the elevator overruns without a stop
   stairBlock:{cellarKind:"straight",defaultKind:"u",minWidthIn:36},   // placed stairs: the cellar stair is a direct straight run; 36 in min width (BC 1011.2, under 50 occupants)
   court:{lowMinDimFt:10,lowMinAreaSF:200,highMinDimFt:15,highMinAreaSF:300,highAboveFt:75,wallIn:8,measureAt:"top"}   // measureAt: "top" of each story (stricter) or its "floor" level
@@ -559,7 +579,90 @@ function stairMap(b,q){
   return [b.x+x,b.y+y];
 }
 const blocksOf=f=>(f&&f.blocks)||[];
+/* ---------- units ---------- */
+const TENURES={fm:"Free-market",aff:"Affordable",comm:"Commercial",cf:"Community facility"};
+const TENURE_COL={fm:"--gross",aff:"--aff",comm:"--comm",cf:"--cf"};
+const unitById=id=>(S.units||[]).find(u=>u.id===id)||null;
+function unitParts(u){const out=[];S.floors.forEach((f,i)=>f.areas.forEach(a=>{if(a.type==="unit"&&a.unit===u.id&&a.pts.length>=3)out.push({f,i,a});}));return out;}
+function unitTerraces(u){const out=[];S.floors.forEach((f,i)=>f.areas.forEach(a=>{if(a.type==="terrace"&&a.unit===u.id&&a.pts.length>=3)out.push({f,i,a});}));return out;}
+function floorNo(f){const i=S.floors.indexOf(f);if(f.use==="cellar")return "C";if(f.use==="roof")return "R";return String(S.floors.slice(0,i+1).filter(x=>x.use!=="cellar"&&x.use!=="roof").length);}
+function nextUnitNo(f){const p=floorNo(f),used=new Set((S.units||[]).map(u=>u.no));for(let k=0;k<26;k++){const c=p+String.fromCharCode(65+k);if(!used.has(c))return c;}return p+"?";}
+function newUnit(f,from){
+  const u={id:uid(),no:nextUnitNo(f),tenure:"fm",beds:1,baths:1};
+  if(from)["tenure","beds","baths","extra","ami"].forEach(k=>{if(from[k]!=null)u[k]=from[k];});
+  S.units.push(u);return u;
+}
+// an area that becomes a unit gets its own unit record, with the tenure its old sellable type had
+function ensureAreaUnit(a,f){
+  if(a.type!=="unit"||unitById(a.unit))return;
+  const was={sellAff:"aff",sellComm:"comm",sellCf:"cf"}[a.prevType]||"fm";delete a.prevType;
+  a.unit=newUnit(f,{tenure:was}).id;
+}
+// units no part refers to are dropped; terraces lose links to dropped units
+function pruneUnits(st){
+  if(!Array.isArray(st.units))st.units=[];
+  const used=new Set();st.floors.forEach(f=>f.areas.forEach(a=>{if(a.type==="unit"&&a.unit)used.add(a.unit);}));
+  st.units=st.units.filter(u=>used.has(u.id));
+  st.floors.forEach(f=>f.areas.forEach(a=>{if(a.type!=="unit"&&a.unit&&!st.units.some(u=>u.id===a.unit))delete a.unit;}));
+}
+// copied floors get their own units (same tenure and bedrooms, the new floor's numbers)
+function remapUnits(f){
+  const map={};
+  f.areas.forEach(a=>{if(a.type==="unit"&&a.unit){if(!map[a.unit])map[a.unit]=newUnit(f,unitById(a.unit)).id;a.unit=map[a.unit];}});
+  f.areas.forEach(a=>{if(a.type==="terrace"&&a.unit){if(map[a.unit])a.unit=map[a.unit];else delete a.unit;}});
+}
+// Sutherland-Hodgman: the part of a polygon inside a convex one
+function clipConvex(subj,clip){
+  let sA=0;for(let i=0;i<clip.length;i++){const j=(i+1)%clip.length;sA+=clip[i][0]*clip[j][1]-clip[j][0]*clip[i][1];}
+  const sg=sA>=0?1:-1;let out=subj;
+  for(let i=0;i<clip.length&&out.length;i++){
+    const A2=clip[i],B=clip[(i+1)%clip.length],inp=out;out=[];
+    const inside=q=>sg*((B[0]-A2[0])*(q[1]-A2[1])-(B[1]-A2[1])*(q[0]-A2[0]))>=-1e-9;
+    const cross=(q,r)=>{const a1=B[1]-A2[1],b1=A2[0]-B[0],c1=a1*A2[0]+b1*A2[1],a2=r[1]-q[1],b2=q[0]-r[0],c2=a2*q[0]+b2*q[1],d=a1*b2-a2*b1;return Math.abs(d)<1e-12?r:[(b2*c1-b1*c2)/d,(a1*c2-a2*c1)/d];};
+    inp.forEach((q,k)=>{const r=inp[(k+1)%inp.length],iq=inside(q),ir=inside(r);if(iq){out.push(q);if(!ir)out.push(cross(q,r));}else if(ir)out.push(cross(q,r));});
+  }
+  return out;
+}
+const wallRect=(a,b,t)=>{const L=dist(a,b)||1,nx=-(b[1]-a[1])/L*t/2,ny=(b[0]-a[0])/L*t/2;return [[a[0]+nx,a[1]+ny],[b[0]+nx,b[1]+ny],[b[0]-nx,b[1]-ny],[a[0]-nx,a[1]-ny]];};
+const clipArea=(pts,cl)=>{const q=clipConvex(pts,cl);return q.length>=3?polyArea(q):0;};
+// one floor's part of a unit: sellable as drawn (less any light well), interior inside the wall faces (approximate)
+function unitPartMetrics(f,a){
+  const cr=courtRectFor(f),court=cr?clipArea(a.pts,rect(cr.x0,cr.y0,cr.x1,cr.y1)):0,sell=Math.max(0,polyArea(a.pts)-court);
+  const wallA=drawEnds([...cutWalls(f),...coreWalls(f),...courtWalls(f)]).reduce((t,d)=>t+clipArea(a.pts,wallRect(d.a,d.b,d.w.t)),0);
+  return {sell,net:Math.max(0,sell-wallA)};
+}
+// which way a unit part looks out: street, rear, the light well or a side yard
+function partExposure(f,a){
+  const gross=f.areas.filter(x=>x.type==="gross"&&x.pts.length>=3),cr=courtRectFor(f),out=new Set(),P=a.pts;
+  let sA=0;for(let i=0;i<P.length;i++){const j=(i+1)%P.length;sA+=P[i][0]*P[j][1]-P[j][0]*P[i][1];}
+  const sg=sA>=0?1:-1;
+  P.forEach((p,i)=>{
+    const q=P[(i+1)%P.length],L=dist(p,q);if(L<2)return;
+    const ux=(q[0]-p[0])/L,uy=(q[1]-p[1])/L,nx=sg*uy,ny=-sg*ux,m=[(p[0]+q[0])/2+nx*2.2,(p[1]+q[1])/2+ny*2.2];
+    if(cr&&m[0]>cr.x0&&m[0]<cr.x1&&m[1]>cr.y0-0.05&&m[1]<cr.y1+0.05){out.add("light well");return;}
+    if(gross.some(g=>pointInPoly(m,g.pts)))return;
+    if(Math.abs(nx)>Math.abs(ny))out.add(nx>0?"street":"rear");
+    else if(pointInPoly(m,LOT)&&inLot(m))out.add(ny<0?"west yard":"east yard");
+  });
+  return [...out];
+}
+function unitMetrics(u){
+  const parts=unitParts(u);let sell=0,net=0;const exp=new Set(),floors=[];
+  parts.forEach(({f,a})=>{const m=unitPartMetrics(f,a);sell+=m.sell;net+=m.net;partExposure(f,a).forEach(x=>exp.add(x));if(!floors.includes(f))floors.push(f);});
+  const outdoor=unitTerraces(u).reduce((t,x)=>t+polyArea(x.a.pts),0);
+  return {parts,sell,net,outdoor,exposure:[...exp],floors};
+}
+function bedBath(u){return u.tenure==="fm"||u.tenure==="aff"?`${(+u.beds||0)===0?"Studio":(+u.beds)+"BR"}/${+u.baths||0}BA`:unitType(u);}
+function unitType(u){return u.tenure==="comm"?"Commercial":u.tenure==="cf"?"Community facility":(+u.beds||0)===0?"Studio":`${u.beds}BR`;}
+function unitIssues(u,m){
+  const iss=[];
+  if(u.tenure==="aff"){const R=S.rules.units.minSF,min=R[Math.min(3,+u.beds||0)];if(min&&m.net<min-0.5)iss.push(`interior ${fmt(m.net)} SF is under the ${fmt(min)} SF affordable minimum for a ${unitType(u)}`);}
+  if((u.tenure==="fm"||u.tenure==="aff")&&!m.exposure.some(x=>x==="street"||x==="rear"))iss.push("no street or rear exposure for legal windows");
+  return iss;
+}
+const floorsTxt=fl=>fl.length>1?`${fl[0].name.replace(/ floor$/,"")}–${fl[fl.length-1].name}`:(fl[0]?fl[0].name:"–");
 function ensureRules(st){
+  if(!Array.isArray(st.units))st.units=[];
   if(st.settings&&st.settings.cfFar==null)st.settings.cfFar=4.8;   // community facility FAR, added after the first save
   if(!st.rules)st.rules=JSON.parse(JSON.stringify(DEFAULT_RULES));
   const r=st.rules;
@@ -898,6 +1001,7 @@ function compute(){
       else if(T.kind==="use"){if(T.use==="residential")ovRes+=net;else if(T.use==="cf")ovCf+=net;else ovComm+=net;if(T.aff)aff+=net;}
       else if(T.kind==="deduct"){const u=useAt(centroid(a.pts));ded[u==="commercial"||u==="cf"?u:"residential"]+=net*factorOf(a.type);}
       else if(T.kind==="amenity"){if(useAt(centroid(a.pts))==="residential")amen+=net;}
+      else if(T.kind==="sell"&&T.unit){const u=unitById(a.unit),tn=u?u.tenure:"fm";if(tn==="aff")sellAff+=net;else if(tn==="comm")sellComm+=net;else if(tn==="cf")sellCf+=net;else sellRes+=net;}
       else if(T.kind==="sell"){if(T.aff)sellAff+=net;else if(T.use==="residential")sellRes+=net;else if(T.use==="cf")sellCf+=net;else sellComm+=net;}
       else terr+=ar;
     });
@@ -1009,9 +1113,32 @@ function renderTotals(){
     (()=>{const bad=S.floors.filter(f=>setbackIssue(f));const e=S.rules.envelope;
       return `<div class="cap ${bad.length?"over":""}"><div class="l"><span>Street setback above ${fmtLen(e.baseFt)}</span><span>${bad.length?bad.map(f=>`${f.name} ${fmtLen(setbackIssue(f).over)} past`).join(", "):`all floors at least ${fmtLen(e.setbackFt)} back`}</span></div></div>`;})();
 
+  renderUnits();
   const r=c.rows[ui.floor];
   $("#floorhead").innerHTML=`<strong>${r.f.name}</strong><span>Gross <b>${fmt(r.gross)}</b> SF</span><span>Deductions <b>${fmt(r.dedTotal)}</b> SF</span><span>Zoning floor area <b>${fmt(r.zfa)}</b> SF</span>`;
 }
+
+function renderUnits(){
+  const list=(S.units||[]).map(u=>({u,m:unitMetrics(u)})).filter(x=>x.m.parts.length);
+  list.sort((x,y)=>(x.m.parts[0].i-y.m.parts[0].i)||x.u.no.localeCompare(y.u.no,undefined,{numeric:true}));
+  const box=(t,v,sub)=>`<div><small>${t}</small><b>${v}</b>${sub?`<small>${sub}</small>`:""}</div>`;
+  const by={};list.forEach(({u,m})=>{const k=unitType(u)+(u.tenure==="aff"?", affordable":"");(by[k]=by[k]||[]).push(m);});
+  const sum=(arr,f)=>arr.reduce((t,x)=>t+f(x),0),tot=t=>list.filter(x=>x.u.tenure===t);
+  $("#unitMix").innerHTML=list.length?
+    box("Units",list.length,`${fmt(sum(list,x=>x.m.sell))} SF sellable`)+
+    ["fm","aff","comm","cf"].filter(t=>tot(t).length).map(t=>box(TENURES[t],tot(t).length,`${fmt(sum(tot(t),x=>x.m.sell))} SF`)).join("")+
+    Object.keys(by).sort().map(k=>box(k,by[k].length,`avg ${fmt(sum(by[k],m=>m.sell)/by[k].length)} SF`)).join("")+
+    box("Private outdoor",fmt(sum(list,x=>x.m.outdoor))+" SF","")
+    :`<div><small>No units yet</small><b>–</b><small>Turn on the Units layer and draw a Unit</small></div>`;
+  $("#unitBody").innerHTML=list.map(({u,m})=>{const iss=unitIssues(u,m),res=u.tenure==="fm"||u.tenure==="aff";
+    return `<tr data-unit="${u.id}"><td><b>${escH(u.no)}</b></td><td>${floorsTxt(m.floors)}${m.floors.length>1?`<small>${m.floors.length} levels</small>`:""}</td><td>${unitType(u)}${u.extra?`<small>+ ${escH(u.extra)}</small>`:""}</td><td>${TENURES[u.tenure]}${u.tenure==="aff"&&u.ami?`<small>${u.ami}% AMI</small>`:""}</td><td>${res?`${+u.beds||0} / ${+u.baths||0}`:"–"}</td><td>${fmt(m.sell)}</td><td>${fmt(m.net)}</td><td>${m.outdoor>0.5?fmt(m.outdoor):"–"}</td><td>${m.exposure.join(", ")||"–"}</td><td${iss.length?' style="color:var(--over)"':""}>${iss.length?iss.join("; "):"OK"}</td></tr>`;}).join("");
+}
+$("#unitBody").addEventListener("click",e=>{
+  const tr=e.target.closest("[data-unit]");if(!tr)return;const u=unitById(tr.dataset.unit);if(!u)return;
+  const p=unitParts(u)[0];if(!p)return;
+  ui.floor=p.i;ui.layers.sell=true;ui.mode="select";ui.sel={k:"area",id:p.a.id};savePrefs();renderAll();
+  $("#plan").scrollIntoView({behavior:"smooth",block:"center"});
+});
 
 /* ---------- tabs and floor controls ---------- */
 function renderTabs(){
@@ -1333,15 +1460,52 @@ function renderSel(){
     el.innerHTML=`<label class="check">Name <input class="in" id="aName" style="width:170px" maxlength="60" value="${escH(o.name||"")}" placeholder="${escH(T.short)}"></label>
       <label class="check">Type <select class="in" id="aT">${MENU.map(k=>`<option value="${k}" ${k===o.type?"selected":""}>${labelOf(k)}</option>`).join("")}</select></label>
       <span>${fmt(ar)} SF${counted}</span>
-      <button class="btn warn" id="delSel">Delete area</button>
+      <button class="btn warn" id="delSel">Delete area</button>${unitPanel(o)}
       ${ui.selVert&&ui.selVert.id===o.id&&o.pts[ui.selVert.i]?`<button class="btn warn" id="delVert">Delete corner ${ui.selVert.i+1}</button>`:`<span class="note" style="margin:0">Click a corner to delete it, or drag a + to add one</span>`}${dimEditor(o)}`;
     el.querySelectorAll("[data-r],[data-v],[data-side]").forEach(inp=>inp.addEventListener("change",e=>applyDimEdit(o,e.target)));
-    $("#aT").addEventListener("change",e=>{pushHist();o.type=e.target.value;commit();});
+    $("#aT").addEventListener("change",e=>{pushHist();o.prevType=o.type;o.type=e.target.value;ensureAreaUnit(o,cur());delete o.prevType;commit();});
+    unitPanelWire(o);
     const dv=$("#delVert");if(dv)dv.addEventListener("click",()=>deleteVert(o,ui.selVert.i));
     $("#aName").addEventListener("change",e=>{const v=e.target.value.trim();if((o.name||"")===v)return;pushHist();if(v)o.name=v;else delete o.name;commit();});
     $("#aName").addEventListener("keydown",e=>{if(e.key==="Enter"||e.key==="Escape"){e.preventDefault();if(e.key==="Escape")e.target.value=o.name||"";e.target.blur();}});
   }
   $("#delSel").addEventListener("click",deleteSel);
+}
+/* Unit details in the panel under the plan; terraces can be tied to a unit as its private outdoor space */
+function unitPanel(o){
+  const all=(S.units||[]).slice().sort((x,y)=>x.no.localeCompare(y.no,undefined,{numeric:true}));
+  if(o.type==="terrace"){
+    return `<label class="check" style="flex-basis:100%">Private outdoor space of <select class="in" id="tUnit"><option value="">No unit (shared or common)</option>${all.map(u=>`<option value="${u.id}" ${u.id===o.unit?"selected":""}>Unit ${escH(u.no)} (${floorsTxt(unitMetrics(u).floors)})</option>`).join("")}</select></label>`;
+  }
+  const T=AREA_TYPES[o.type]||{};
+  if(T.kind==="sell"&&!T.unit)return `<button class="btn" id="toUnit" title="Turns this sellable area into a unit with a number, bedrooms and bathrooms">Make this a unit</button>`;
+  const u=o.type==="unit"?unitById(o.unit):null;if(!u)return "";
+  const m=unitMetrics(u),iss=unitIssues(u,m),res=u.tenure==="fm"||u.tenure==="aff";
+  return `<div class="unitedit" style="flex-basis:100%">
+    <label>Unit<select class="in" id="uPick">${all.map(x=>`<option value="${x.id}" ${x.id===u.id?"selected":""}>${escH(x.no)} (${floorsTxt(unitMetrics(x).floors)})</option>`).join("")}<option value="new">New unit</option></select></label>
+    <label>Unit number<input class="in" id="uNo" maxlength="12" value="${escH(u.no)}"></label>
+    <label>Tenure<select class="in" id="uTen">${Object.keys(TENURES).map(k=>`<option value="${k}" ${k===u.tenure?"selected":""}>${TENURES[k]}</option>`).join("")}</select></label>
+    ${res?`<label>Bedrooms<input class="in" id="uBeds" type="number" min="0" max="8" step="1" value="${+u.beds||0}"></label><label>Bathrooms<input class="in" id="uBaths" type="number" min="0" max="8" step="0.5" value="${+u.baths||0}"></label>`:""}
+    <label>Extra rooms<input class="in" id="uExtra" maxlength="60" placeholder="den, home office" value="${escH(u.extra||"")}"></label>
+    ${u.tenure==="aff"?`<label>AMI %<input class="in" id="uAmi" type="number" min="0" max="200" step="5" value="${u.ami!=null?u.ami:""}" placeholder="e.g. 80"></label>`:""}
+    <label class="wide">Notes<input class="in" id="uNotes" maxlength="200" value="${escH(u.notes||"")}"></label>
+  </div>
+  <p class="note" style="flex-basis:100%;margin:0"><b>Unit ${escH(u.no)}</b>: ${bedBath(u)}${u.extra?` + ${escH(u.extra)}`:""} · sellable <b>${fmt(m.sell)} SF</b> · interior about ${fmt(m.net)} SF · outdoor ${fmt(m.outdoor)} SF · exposure ${m.exposure.length?m.exposure.join(", "):"none"} · ${m.floors.length>1?`${m.floors.length} levels: ${m.floors.map(x=>x.name).join(", ")}`:m.floors[0].name}.
+  To add another level, draw a Unit on that floor and pick ${escH(u.no)} in its Unit list.${iss.length?`<br><span style="color:var(--over)">Check: ${iss.join("; ")}.</span>`:""}</p>`;
+}
+function unitPanelWire(o){
+  const on=(id,ev,fn)=>{const el=$("#"+id);if(el)el.addEventListener(ev,fn);};
+  on("tUnit","change",e=>{pushHist();if(e.target.value)o.unit=e.target.value;else delete o.unit;commit();});
+  on("toUnit","click",()=>{pushHist();o.prevType=o.type;o.type="unit";ensureAreaUnit(o,cur());delete o.prevType;commit();});
+  const u=o.type==="unit"?unitById(o.unit):null;if(!u)return;
+  on("uPick","change",e=>{pushHist();o.unit=e.target.value==="new"?newUnit(cur(),u).id:e.target.value;commit();});
+  on("uNo","change",e=>{const v=e.target.value.trim();if(!v||v===u.no)return;if((S.units||[]).some(x=>x!==u&&x.no===v)){e.target.value=u.no;alert(`Unit ${v} already exists. To add this area to it, pick it in the Unit list.`);return;}pushHist();u.no=v;commit();});
+  on("uTen","change",e=>{pushHist();u.tenure=e.target.value;commit();});
+  on("uBeds","change",e=>{const v=Math.max(0,Math.round(+e.target.value||0));pushHist();u.beds=v;commit();});
+  on("uBaths","change",e=>{const v=Math.max(0,Math.round((+e.target.value||0)*2)/2);pushHist();u.baths=v;commit();});
+  on("uExtra","change",e=>{pushHist();const v=e.target.value.trim();if(v)u.extra=v;else delete u.extra;commit();});
+  on("uAmi","change",e=>{pushHist();const v=parseFloat(e.target.value);if(v>0)u.ami=v;else delete u.ami;commit();});
+  on("uNotes","change",e=>{pushHist();const v=e.target.value.trim();if(v)u.notes=v;else delete u.notes;commit();});
 }
 function dimEditor(o){
   const r=rectOf(o.pts),f=(lab,attrs,v)=>`<label>${lab}<input class="in" ${attrs} value="${attrLen(v)}"></label>`;
@@ -1638,7 +1802,7 @@ function renderPlan(){
   let ar="",lb=`<g pointer-events="none">`;
   areas.forEach(a=>{
     if(a.pts.length<3||!areaShown(a))return;
-    const T=AREA_TYPES[a.type]||AREA_TYPES.gross,c=`var(${T.color})`,sel=ui.sel&&ui.sel.id===a.id;
+    const T=AREA_TYPES[a.type]||AREA_TYPES.gross,uu=a.type==="unit"?unitById(a.unit):null,c=`var(${uu?TENURE_COL[uu.tenure]||T.color:T.color})`,sel=ui.sel&&ui.sel.id===a.id;
     const dash=a.type==="terrace"?`stroke-dasharray:${0.8*k} ${0.5*k};`:T.kind==="sell"?`stroke-dasharray:${1.2*k} ${0.4*k} ${0.2*k} ${0.4*k};`:"";
     ar+=`<path data-k="area" data-id="${a.id}" d="${pathOf(a.pts)}" style="fill:${c};fill-opacity:${a.type==="gross"?0.09:T.kind==="sell"?0.05:T.kind==="use"?0.16:0.26};stroke:${sel?"var(--sel)":c};stroke-width:${(sel?0.5:0.22)*k};${dash}"/>`;
     const A_=polyArea(a.pts);
@@ -1653,6 +1817,12 @@ function renderPlan(){
       const lw=courtRectFor(f),rr=rectOf(a.pts),cut=lw?(rr?rectOverlap(rr,lw):(lw.x1-lw.x0)*(lw.y1-lw.y0)):0;
       lb+=`<text x="${mx+0.8*k}" y="${my+afs*1.3}" style="fill:var(--gross);font-size:${afs}px;font-weight:600">${escH(a.name||"Gross")} ${fmt(A_-cut)} SF</text>`;
       if(cut>0.5)lb+=`<text x="${mx+0.8*k}" y="${my+afs*2.4}" style="fill:var(--gross);font-size:${afs*0.72}px">${fmt(A_)} SF outline − ${fmt(cut)} SF light well</text>`;
+    }else if(uu){
+      // unit label: number and type, its sellable SF (whole unit) and outdoor space; a part of a multi-floor unit says so
+      const cc=centroid(a.pts),m=unitMetrics(uu),multi=m.floors.length>1,bb=" "+bedBath(uu);
+      lb+=`<text x="${cc[0]}" y="${cc[1]-afs*0.2}" text-anchor="middle" style="fill:var(--ink);font-size:${afs*0.92}px;font-weight:700">${escH(uu.no)}${uu.tenure==="aff"?" (aff.)":""} ·${bb}</text>`;
+      lb+=`<text x="${cc[0]}" y="${cc[1]+afs*0.9}" text-anchor="middle" style="fill:var(--ink);font-size:${afs*0.8}px">${fmt(m.sell)} SF${m.outdoor>0.5?` + ${fmt(m.outdoor)} SF outdoor`:""}</text>`;
+      if(multi)lb+=`<text x="${cc[0]}" y="${cc[1]+afs*1.9}" text-anchor="middle" style="fill:var(--muted);font-size:${afs*0.7}px">${m.floors.length}-level unit, ${floorsTxt(m.floors)}; ${fmt(unitPartMetrics(f,a).sell)} SF on this floor</text>`;
     }else{
       const cc=centroid(a.pts);
       lb+=`<text x="${cc[0]}" y="${cc[1]}" text-anchor="middle" style="fill:var(--ink);font-size:${afs*0.92}px;font-weight:600">${escH(a.name||T.short)}</text>`;
@@ -2031,7 +2201,7 @@ $("#layerList").addEventListener("change",e=>{
   if(sh){const a=cur().areas.find(x=>x.id===sh.dataset.lshow);if(a){pushHist();if(sh.checked)delete a.hideLabel;else a.hideLabel=true;sh.blur();layersKey="";commit();}return;}
   const s2=e.target.closest("[data-ltype]");if(!s2)return;
   const a=cur().areas.find(x=>x.id===s2.dataset.ltype);if(!a||a.type===s2.value)return;
-  pushHist();a.type=s2.value;
+  pushHist();a.prevType=a.type;a.type=s2.value;ensureAreaUnit(a,cur());delete a.prevType;
   const T=AREA_TYPES[a.type];if(T.kind==="sell")ui.layers.sell=true;else ui.layers.far=true;
   ui.sel={k:"area",id:a.id};s2.blur();layersKey="";savePrefs();commit();
 });
@@ -2146,8 +2316,9 @@ svg.addEventListener("wheel",e=>{e.preventDefault();ui.view.w=Math.max(12,Math.m
 
 function finishArea(){
   const d=ui.draft;if(!d||d.kind!=="area"||d.pts.length<3)return;
+  if(!AREA_TYPES[ui.areaType])ui.areaType=menuTypes()[0]||"gross";   // never save an area with no type
   pushHist();
-  const a=A(ui.areaType,d.pts);cur().areas.push(a);
+  const a=A(ui.areaType,d.pts);cur().areas.push(a);ensureAreaUnit(a,cur());
   ui.draft=null;ui.sel={k:"area",id:a.id};
   commit();
 }
@@ -2329,7 +2500,7 @@ function build3D(){
 }
 
 /* ---------- glue ---------- */
-function commit(){syncDerived(S);save();renderAll();}
+function commit(){syncDerived(S);pruneUnits(S);save();renderAll();}
 function renderRules(){
   const R=S.rules,c=compute(),body=$("#rulesBody");
   if(!body||(document.activeElement&&document.activeElement.closest&&document.activeElement.closest("#rulesBody")))return;
@@ -2391,7 +2562,7 @@ function renderLayers(){
     grp("Areas");
     areas.forEach(a=>{
       const T=AREA_TYPES[a.type]||AREA_TYPES.gross,on=sel&&sel.k==="area"&&sel.id===a.id;
-      h+=`<div class="lrow ${on?"on":""} ${kindShown(T.kind)?"":"hid"}" data-lk="area" data-lid="${a.id}"><span class="sw" style="--c:var(${T.color})"></span><span class="nm">${escH(a.name||labelOf(a.type))}</span><span class="sf">${fmt(polyArea(a.pts))} SF</span>`+
+      h+=`<div class="lrow ${on?"on":""} ${kindShown(T.kind)?"":"hid"}" data-lk="area" data-lid="${a.id}"><span class="sw" style="--c:var(${T.color})"></span><span class="nm">${a.type==="unit"&&unitById(a.unit)?`Unit ${escH(unitById(a.unit).no)}`:escH(a.name||labelOf(a.type))}</span><span class="sf">${fmt(polyArea(a.pts))} SF</span>`+
          (on?`<div class="lopts">
            <label>Type<select class="in" data-ltype="${a.id}">${MENU.map(k=>`<option value="${k}" ${k===a.type?"selected":""}>${labelOf(k)}</option>`).join("")}</select></label>
            <label>Name<input class="in" data-lname="${a.id}" maxlength="60" value="${escH(a.name||"")}" placeholder="${escH(T.short)}"></label>
@@ -2640,7 +2811,7 @@ $("#rulesBody").addEventListener("change",e=>{
 $("#copyBelow").addEventListener("click",()=>{
   if(ui.floor===0)return;pushHist();
   const src=reId(clone(S.floors[ui.floor-1]));
-  cur().walls=src.walls;cur().areas=src.areas;cur().blocks=src.blocks||[];ui.sel=null;commit();
+  cur().walls=src.walls;cur().areas=src.areas;cur().blocks=src.blocks||[];remapUnits(cur());ui.sel=null;commit();
 });
 /* Exterior walls sit inside the gross outline, outside face on it, so they never cross the offset line. */
 function insetRing(pts,d){
@@ -2669,7 +2840,7 @@ $("#addFloor").addEventListener("click",()=>{
   const ri=S.floors.findIndex(f=>f.use==="roof"),at=ri>=0?ri:S.floors.length,top=S.floors[at-1];
   const n=S.floors.filter(f=>f.use!=="cellar"&&f.use!=="roof").length+1;
   const nf=reId(clone(top));nf.id=uid();nf.name=ord(n)+" floor";
-  S.floors.splice(at,0,nf);ui.floor=at;ui.sel=null;commit();
+  S.floors.splice(at,0,nf);remapUnits(nf);ui.floor=at;ui.sel=null;commit();
 });
 $("#addRoof").addEventListener("click",()=>{
   if(S.floors.some(f=>f.use==="roof"))return;pushHist();
