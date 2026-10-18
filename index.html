@@ -1335,7 +1335,7 @@ function renderSel(){
       <span>${fmt(ar)} SF${counted}</span>
       <button class="btn warn" id="delSel">Delete area</button>
       ${ui.selVert&&ui.selVert.id===o.id&&o.pts[ui.selVert.i]?`<button class="btn warn" id="delVert">Delete corner ${ui.selVert.i+1}</button>`:`<span class="note" style="margin:0">Click a corner to delete it, or drag a + to add one</span>`}${dimEditor(o)}`;
-    el.querySelectorAll("[data-r],[data-v]").forEach(inp=>inp.addEventListener("change",e=>applyDimEdit(o,e.target)));
+    el.querySelectorAll("[data-r],[data-v],[data-side]").forEach(inp=>inp.addEventListener("change",e=>applyDimEdit(o,e.target)));
     $("#aT").addEventListener("change",e=>{pushHist();o.type=e.target.value;commit();});
     const dv=$("#delVert");if(dv)dv.addEventListener("click",()=>deleteVert(o,ui.selVert.i));
     $("#aName").addEventListener("change",e=>{const v=e.target.value.trim();if((o.name||"")===v)return;pushHist();if(v)o.name=v;else delete o.name;commit();});
@@ -1346,11 +1346,26 @@ function renderSel(){
 function dimEditor(o){
   const r=rectOf(o.pts),f=(lab,attrs,v)=>`<label>${lab}<input class="in" ${attrs} value="${attrLen(v)}"></label>`;
   if(r)return `<div class="dimedit">${f("Length, rear to front",'data-r="w"',r.x1-r.x0)}${f("Width, across the lot",'data-r="h"',r.y1-r.y0)}${f("Starts from rear lot line",'data-r="x"',r.x0)}${f("Starts from top lot line",'data-r="y"',r.y0)}</div>`;
-  return `<div class="dimedit">${o.pts.map((p,i)=>f(`Corner ${i+1}, from rear`,`data-v="${i}" data-c="0"`,p[0])+f(`Corner ${i+1}, from top`,`data-v="${i}" data-c="1"`,p[1])).join("")}</div>`;
+  // each side's length, named by its corners and the way it runs
+  const n=o.pts.length,way=(p,q)=>{const dx=q[0]-p[0],dy=q[1]-p[1];return Math.abs(dx)>=Math.abs(dy)*1.0001?(dx>0?"toward the street":"toward the rear"):(dy>0?"toward the east":"toward the west");};
+  const sides=o.pts.map((p,i)=>{const q=o.pts[(i+1)%n];return f(`Side ${i+1}–${(i+1)%n+1}, ${way(p,q)}`,`data-side="${i}"`,dist(p,q));}).join("");
+  return `<div class="dimedit sides">${sides}</div><p class="note" style="flex-basis:100%;margin:0">A side keeps its first corner and its direction; a square side after it moves along so the corners stay square. Click a dimension on the plan to choose which end stays.</p><div class="dimedit">${o.pts.map((p,i)=>f(`Corner ${i+1}, from rear`,`data-v="${i}" data-c="0"`,p[0])+f(`Corner ${i+1}, from top`,`data-v="${i}" data-c="1"`,p[1])).join("")}</div>`;
 }
 function applyDimEdit(o,inp){
   const v=parseLen(inp.value);
   if(!isFinite(v)){renderSel();return;}
+  if(inp.dataset.side!=null){
+    // stretch one side: its far corner moves along the side; if the next side is square to it, that side moves with it
+    const n=o.pts.length,i=+inp.dataset.side,j=(i+1)%n,k=(i+2)%n,p=o.pts[i],q=o.pts[j],L=dist(p,q);
+    if(!(v>0)||L<1e-9){renderSel();return;}
+    const ux=(q[0]-p[0])/L,uy=(q[1]-p[1])/L,d=[(v-L)*ux,(v-L)*uy];
+    pushHist();
+    const r2=o.pts[k],nx=r2[0]-q[0],ny=r2[1]-q[1],nl=Math.hypot(nx,ny);
+    const square=n>3&&k!==i&&nl>1e-9&&Math.abs((nx*ux+ny*uy)/nl)<0.02;
+    o.pts[j]=[q[0]+d[0],q[1]+d[1]];
+    if(square)o.pts[k]=[r2[0]+d[0],r2[1]+d[1]];
+    commit();return;
+  }
   if(inp.dataset.r){
     const r=rectOf(o.pts);if(!r){renderSel();return;}
     let w=r.x1-r.x0,h=r.y1-r.y0,x=r.x0,y=r.y0;
@@ -1654,7 +1669,7 @@ function renderPlan(){
     const sg=s>=0?1:-1;
     pts.forEach((p,i)=>{
       const q=pts[(i+1)%pts.length],dx=q[0]-p[0],dy=q[1]-p[1],L=Math.hypot(dx,dy);
-      if(L*v.pxPerFt<30)return;
+      if(L*v.pxPerFt<(force?18:30))return;
       const ux=dx/L,uy=dy/L,nx=sg*uy,ny=-sg*ux;
       if(!outside&&!force){
         const pr=pts.map(o=>o[0]*nx+o[1]*ny);
@@ -1676,7 +1691,8 @@ function renderPlan(){
     });
   };
   const selO=findSel();
-  if(ui.dims)areas.forEach(a=>{if(a.pts.length>=3&&(areaShown(a)||a.type==="gross"))dimPoly(a.pts,a.type==="gross",false,"area:"+a.id);});
+  // the selected area always shows its side lengths, and each can be clicked to set it
+  areas.forEach(a=>{const on=ui.sel&&ui.sel.k==="area"&&ui.sel.id===a.id;if(a.pts.length>=3&&(ui.dims||on)&&(areaShown(a)||a.type==="gross"))dimPoly(a.pts,a.type==="gross",on,"area:"+a.id);});
   if(S.core&&(ui.dims||(ui.sel&&ui.sel.k==="core"))){const c=coreRectFor(f);dimPoly(rect(c.x0,c.y0,c.x1,c.y1),false,true,S.core.auto?null:"core");}
   if(selO&&ui.sel.k==="area"&&selO.pts.length>=3&&(selO.type!=="gross"||!ui.dims))dimPoly(selO.pts,false,true,"area:"+selO.id);
   if(selO&&ui.sel.k==="wall"){
