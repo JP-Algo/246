@@ -283,6 +283,7 @@ tfoot td{font-weight:600;border-bottom:0}
           <button data-layer="int" title="Show walls, the elevator and the stair">Interiors</button>
           <button data-layer="sell" title="Show the units and sellable areas">Units</button>
           <button data-layer="rooms" title="Show the room layouts inside the units">Rooms</button>
+          <button data-layer="furn" title="Show the furniture and kitchen fixtures">Furniture</button>
           <button data-layer="nbr" title="Show the neighboring buildings from the survey">Neighbors</button>
         </div>
       </div>
@@ -1067,9 +1068,9 @@ window.addEventListener("pagehide",()=>{if(saveTimer)flush();});
 const LOCAL=load();
 let S=ensureLightwell(syncDerived(ensureRules(ensureCore(LOCAL||seed()))));
 const ui={floor:Math.min(5,S.floors.length-1),mode:"select",areaType:"gross",sel:null,snap:true,ortho:true,
-  explode:false,above:true,view:{cx:60,cy:15,w:142},draft:null,dims:true,typed:"",layers:{far:true,int:true,sell:true,nbr:true,rooms:true},wallT:6,just:"center",snapC:true,snapF:true,snapM:true,hover:null};
+  explode:false,above:true,view:{cx:60,cy:15,w:142},draft:null,dims:true,typed:"",layers:{far:true,int:true,sell:true,nbr:true,rooms:true,furn:true},wallT:6,just:"center",snapC:true,snapF:true,snapM:true,hover:null};
 const PREF_KEY="s2nd-prefs-v1";
-try{const pr=JSON.parse(localStorage.getItem(PREF_KEY))||{};ui.snap=pr.snap!==false;ui.ortho=pr.ortho!==false;ui.dims=pr.dims!==false;if(pr.layers&&typeof pr.layers==="object")ui.layers={far:pr.layers.far!==false,int:pr.layers.int!==false,sell:pr.layers.sell!==false,nbr:pr.layers.nbr!==false,rooms:pr.layers.rooms!==false};else if(pr.layer==="far")ui.layers={far:true,int:false,sell:true};else if(pr.layer==="int")ui.layers={far:false,int:true,sell:false};if(pr.wallT>0)ui.wallT=pr.wallT;if(["out","center","in"].includes(pr.just))ui.just=pr.just;else if(pr.just==="left"||pr.just==="right")ui.just="out";if(typeof pr.snapC==="boolean")ui.snapC=pr.snapC;if(typeof pr.snapF==="boolean")ui.snapF=pr.snapF;if(typeof pr.snapM==="boolean")ui.snapM=pr.snapM;}catch(e){}
+try{const pr=JSON.parse(localStorage.getItem(PREF_KEY))||{};ui.snap=pr.snap!==false;ui.ortho=pr.ortho!==false;ui.dims=pr.dims!==false;if(pr.layers&&typeof pr.layers==="object")ui.layers={far:pr.layers.far!==false,int:pr.layers.int!==false,sell:pr.layers.sell!==false,nbr:pr.layers.nbr!==false,rooms:pr.layers.rooms!==false,furn:pr.layers.furn!==false};else if(pr.layer==="far")ui.layers={far:true,int:false,sell:true};else if(pr.layer==="int")ui.layers={far:false,int:true,sell:false};if(pr.wallT>0)ui.wallT=pr.wallT;if(["out","center","in"].includes(pr.just))ui.just=pr.just;else if(pr.just==="left"||pr.just==="right")ui.just="out";if(typeof pr.snapC==="boolean")ui.snapC=pr.snapC;if(typeof pr.snapF==="boolean")ui.snapF=pr.snapF;if(typeof pr.snapM==="boolean")ui.snapM=pr.snapM;}catch(e){}
 function savePrefs(){try{localStorage.setItem(PREF_KEY,JSON.stringify({snap:ui.snap,ortho:ui.ortho,dims:ui.dims,layers:ui.layers,wallT:ui.wallT,just:ui.just,snapC:ui.snapC,snapF:ui.snapF,snapM:ui.snapM}));}catch(e){}}
 let shiftHeld=false;
 const orthoOn=()=>ui.ortho!==shiftHeld;
@@ -1498,7 +1499,7 @@ function renderToolbar(){
   document.querySelectorAll("[data-just]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.just===ui.just)));
   document.querySelectorAll("[data-layer]").forEach(b=>b.setAttribute("aria-pressed",String(!!ui.layers[b.dataset.layer])));
   $("[data-mode='wall']").disabled=!ui.layers.int;
-  $("[data-mode='area']").disabled=!ui.layers.far&&!ui.layers.sell&&!ui.layers.rooms;
+  $("[data-mode='area']").disabled=!ui.layers.far&&!ui.layers.sell&&!ui.layers.rooms&&!ui.layers.furn;
   $("#legend").style.display=ui.layers.far||ui.layers.sell?"":"none";
   if(!ui.draft)ui.typed="";
   renderTyped();
@@ -2707,7 +2708,7 @@ function build3D(){
         return;
       }
       if(T.kind==="fixture"){
-        if(ui.layers.rooms===false)return;
+        if(ui.layers.furn===false)return;
         const geo=new THREE.ExtrudeGeometry(toShape(a.pts),{depth:T.h||2.5,bevelEnabled:false});geo.rotateX(-Math.PI/2);
         const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:C("--room").lerp(wallCol,0.55),roughness:0.85,metalness:0}));
         m.position.y=y+0.8;m.userData.floor=i;m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:ink,transparent:true,opacity:0.35})));root.add(m);
@@ -2899,7 +2900,7 @@ function renderLayers(){
   const kindShown=k=>!!ui.layers[kindLayer(k)];
   let h="";
   // group eyes switch the layer the group lives on; row eyes hide one item (Rhino-style)
-  const GRP_LAYER={"Areas":"far","Rooms":"rooms","Walls":"int","Windows and doors":"int","Stairs":"int","Neighbors":"nbr","Building elements":"int"};
+  const GRP_LAYER={"Areas":"far","Rooms":"rooms","Furniture":"furn","Walls":"int","Windows and doors":"int","Stairs":"int","Neighbors":"nbr","Building elements":"int"};
   const grp=t=>{const L=GRP_LAYER[t];h+=`<div class="lgrp">${L?eyeBtn(`layer:${L}`,ui.layers[L]!==false,`Show or hide the ${t.toLowerCase()} layer`):""}${t}</div>`;};
   // label size and zoom behaviour, shared by every item that has a label
   const labCtl=(kind,id,o)=>{const sz=(o&&o.labSize)||100,lk=!!(o&&o.labLock>0),ref=`${kind}:${id}`;
@@ -2920,9 +2921,10 @@ function renderLayers(){
            <span class="lhint">${a.hideLabel?"Label hidden":"Drag the label on the plan to move it"}</span>
          </div>`:"")+`</div>`;
     };
-    const isRoom=a=>(AREA_TYPES[a.type]||{}).kind==="room",plain=areas.filter(a=>!isRoom(a)),rooms=areas.filter(isRoom);
+    const kindOf=a=>(AREA_TYPES[a.type]||{}).kind,plain=areas.filter(a=>kindOf(a)!=="room"&&kindOf(a)!=="fixture"),rooms=areas.filter(a=>kindOf(a)==="room"),furn=areas.filter(a=>kindOf(a)==="fixture");
     if(plain.length){grp("Areas");plain.forEach(row);}
     if(rooms.length){grp("Rooms");rooms.forEach(row);}
+    if(furn.length){grp("Furniture");furn.forEach(row);}
   }
   if(f.walls.length){
     grp("Walls");
@@ -3070,7 +3072,7 @@ function syncSettings(){
 // room partitions (4-1/2" or thinner, or tagged) belong to the Rooms layer; other walls to Interiors
 const isPartition=w=>w.tag==="part"||(w.tag!=="ext"&&w.t<=0.4+1e-6);
 const wallShown=w=>isPartition(w)?!!ui.layers.rooms:!!ui.layers.int;
-const kindLayer=k=>k==="sell"?"sell":k==="room"||k==="fixture"?"rooms":"far";
+const kindLayer=k=>k==="sell"?"sell":k==="room"?"rooms":k==="fixture"?"furn":"far";
 function menuTypes(){return MENU.filter(k=>ui.layers[kindLayer(AREA_TYPES[k].kind)]);}
 function fillAreaTypes(){
   const list=menuTypes();
@@ -3080,7 +3082,7 @@ function fillAreaTypes(){
 $("#areaType").addEventListener("change",e=>{ui.areaType=e.target.value;});
 document.querySelectorAll("[data-layer]").forEach(b=>b.addEventListener("click",()=>{
   const L=b.dataset.layer;ui.layers[L]=!ui.layers[L];   // each layer button turns on and off
-  if(((ui.mode==="wall"||ui.mode==="block"||ui.mode==="op")&&!ui.layers.int)||(ui.mode==="area"&&!ui.layers.far&&!ui.layers.sell&&!ui.layers.rooms))ui.mode="select";
+  if(((ui.mode==="wall"||ui.mode==="block"||ui.mode==="op")&&!ui.layers.int)||(ui.mode==="area"&&!ui.layers.far&&!ui.layers.sell&&!ui.layers.rooms&&!ui.layers.furn))ui.mode="select";
   if(ui.sel){
     const o=findSel(),kind=ui.sel.k==="area"&&o?(AREA_TYPES[o.type]||{}).kind:null;
     if((ui.sel.k==="wall"&&!(o&&wallShown(o)))||(ui.sel.k==="area"&&!ui.layers[kindLayer(kind)]))ui.sel=null;
