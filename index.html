@@ -704,6 +704,14 @@ function roomIssues(f,a){
   else{const glass=legal.reduce((t,op)=>t+opDef(op,"w")*(opDef(op,"head")-opDef(op,"sill")),0);if(glass<ar*R.glassPct/100-0.01)out.push(`glass ${fmt(glass)} SF, under ${R.glassPct}% of the room`);}
   return out;
 }
+// standard sizes (along x, along y) for placing a piece with one click
+const FURN_SIZE={fxCounter:[8,2.0833],fxIsland:[6,3],fxTable:[6,3.5],fxSofa:[7,3],fxCoffee:[4,2],fxBed:[6.3333,6.6667],
+  fxToilet:[1.75,2.4],fxVanity:[2.5,1.75],fxTub:[5,2.5],fxShower:[3,3],fxWD:[2.5,2.5],fxAHU:[2.5,2.5],fxWH:[2,2],fxERV:[1.5,2.5]};
+// turn an area about its center by deg (90 keeps a rectangle square to the walls)
+function rotateArea(a,deg){
+  const c=centroid(a.pts),t=deg*Math.PI/180,cs=Math.cos(t),sn=Math.sin(t),r6=v=>Math.round(v*1e4)/1e4;
+  a.pts=a.pts.map(q=>{const x=q[0]-c[0],y=q[1]-c[1];return [r6(c[0]+x*cs-y*sn),r6(c[1]+x*sn+y*cs)];});
+}
 const isOutdoor=a=>(AREA_TYPES[a.type]||{}).kind==="terrace";
 function unitTerraces(u){const out=[];S.floors.forEach((f,i)=>f.areas.forEach(a=>{if(isOutdoor(a)&&a.unit===u.id&&a.pts.length>=3)out.push({f,i,a});}));return out;}
 function floorNo(f){const i=S.floors.indexOf(f);if(f.use==="cellar")return "C";if(f.use==="roof")return "R";return String(S.floors.slice(0,i+1).filter(x=>x.use!=="cellar"&&x.use!=="roof").length);}
@@ -1483,6 +1491,7 @@ $("#dimpop").addEventListener("toggle",e=>{if(e.target.tagName==="DETAILS")ui.po
 const NOTES={
   select:"Tap a wall or area to select it. Drag its handles to reshape, drag the body to move it, or drag empty space to pan. On an area, drag a + to add a corner; click a corner and press Delete (or Alt+click it) to remove it.",
   wall:"Tap the start point, then the end point. After the first tap you can type a length, such as 5 or 5'6\", press Enter to lock it, then click to pick the direction.",
+  furn:"Click to place the piece, centered where you click, at its standard size. Press R to turn it 90°. Keep clicking to add more; Esc when done. Select a piece to move it (drag), turn it (Rotate 90° or R) or change its size by its corners.",
   op:"Click on a wall to put the window or door there; it centers where you click. Keep clicking to add more. Esc when done. Then select one to set its width, sill and swing, or drag it along the wall.",
   block:"Click to place the stair by its bottom corner, where you start up. Press R to turn it 90°. It rises from this floor to the floor above, which shows it dashed. Esc to cancel.",
   area:"Tap each corner, then tap the first corner or Close shape. After a corner you can type a length, such as 25', press Enter to lock it, then click to pick the direction. Choose the area type first."
@@ -1490,7 +1499,7 @@ const NOTES={
 function renderToolbar(){
   document.querySelectorAll("[data-mode]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mode===ui.mode)));
   $("#areaType").style.display=ui.mode==="area"?"":"none";
-  $("#blockBtn").setAttribute("aria-pressed",String(ui.mode==="block"||ui.mode==="op"));
+  $("#blockBtn").setAttribute("aria-pressed",String(ui.mode==="block"||ui.mode==="op"||ui.mode==="furn"));
   $("#blockBtn").disabled=false;
   $("#areaType").value=ui.areaType;
   const d=ui.draft;
@@ -1663,11 +1672,14 @@ function renderSel(){
     el.innerHTML=`<label class="check">Name <input class="in" id="aName" style="width:170px" maxlength="60" value="${escH(o.name||"")}" placeholder="${escH(T.short)}"></label>
       <label class="check">Type <select class="in" id="aT">${MENU.map(k=>`<option value="${k}" ${k===o.type?"selected":""}>${labelOf(k)}</option>`).join("")}</select></label>
       <span>${fmt(ar)} SF${counted}</span>
+      <button class="btn" id="aRot" title="Turn it 90 degrees about its center (R)">Rotate 90°</button><label class="check">Turn by <input class="in" id="aRotDeg" type="number" step="15" value="90" style="width:64px">°</label>
       <button class="btn warn" id="delSel">Delete area</button>${unitPanel(o)}
       ${ui.selVert&&ui.selVert.id===o.id&&o.pts[ui.selVert.i]?`<button class="btn warn" id="delVert">Delete corner ${ui.selVert.i+1}</button>`:`<span class="note" style="margin:0">Click a corner to delete it, or drag a + to add one</span>`}${dimEditor(o)}`;
     el.querySelectorAll("[data-r],[data-v],[data-side]").forEach(inp=>inp.addEventListener("change",e=>applyDimEdit(o,e.target)));
     $("#aT").addEventListener("change",e=>{pushHist();o.prevType=o.type;o.type=e.target.value;ensureAreaUnit(o,cur());delete o.prevType;commit();});
     unitPanelWire(o);
+    $("#aRot").addEventListener("click",()=>{pushHist();rotateArea(o,90);commit();});
+    $("#aRotDeg").addEventListener("change",e=>{const v=parseFloat(e.target.value);if(!isFinite(v)||!v)return;pushHist();rotateArea(o,v);commit();});
     const dv=$("#delVert");if(dv)dv.addEventListener("click",()=>deleteVert(o,ui.selVert.i));
     $("#aName").addEventListener("change",e=>{const v=e.target.value.trim();if((o.name||"")===v)return;pushHist();if(v)o.name=v;else delete o.name;commit();});
     $("#aName").addEventListener("keydown",e=>{if(e.key==="Enter"||e.key==="Escape"){e.preventDefault();if(e.key==="Escape")e.target.value=o.name||"";e.target.blur();}});
@@ -2306,6 +2318,8 @@ function renderPlan(){
     d.pts.forEach((p,i)=>{dr+=`<circle cx="${p[0]}" cy="${p[1]}" r="${i===0?vr*1.6:vr}" pointer-events="none" style="fill:${i===0?"var(--panel)":"var(--sel)"};stroke:var(--sel);stroke-width:${0.25*k}"/>`;});
     if(pts.length>=3)dr+=`<text x="${centroid(pts)[0]}" y="${centroid(pts)[1]}" text-anchor="middle" pointer-events="none" style="fill:var(--sel);font-size:${fs}px;font-weight:600">${fmt(polyArea(pts))} SF</text>`;
   }
+  if(ui.mode==="furn"&&ui.furnGhost){const [a0,b0]=FURN_SIZE[ui.furnKind],[a,b]=ui.furnRot?[b0,a0]:[a0,b0],q=ui.furnGhost;
+    dr+=`<rect x="${q[0]-a/2}" y="${q[1]-b/2}" width="${a}" height="${b}" pointer-events="none" style="fill:var(--sel);fill-opacity:.12;stroke:var(--sel);stroke-width:${0.15*k};stroke-dasharray:${0.5*k} ${0.35*k}"/>`;}
   if(ui.mode==="op"&&ui.opGhost){const g2=ui.opGhost,w=OP_KINDS[ui.opKind].w,s0=Math.max(0,g2.s-w/2),s1=Math.min(g2.L,g2.s+w/2);dr+=opSym(g2.a,[g2.ux,g2.uy],g2.t,s0,s1,{kind:ui.opKind,id:"ghost"},"var(--sel)",true);}
   if(ui.mode==="block"&&ui.ghost)dr+=stairSvg({id:"ghost",kind:ui.blockKind||"u",x:ui.ghost[0],y:ui.ghost[1],rot:ui.blockRot||0},f.height,"ghost");
   // neighbors: hatched buildings, the court as an open dashed outline, each labelled
@@ -2357,6 +2371,12 @@ svg.addEventListener("pointerdown",e=>{
       ui.draft=null;
     }
     renderPlan();renderToolbar();return;
+  }
+  if(ui.mode==="furn"){
+    // the piece is centered where you click (snapped), at its standard size, turned if R was pressed
+    const q=placePt(null,p),[a0,b0]=FURN_SIZE[ui.furnKind],[a,b]=ui.furnRot?[b0,a0]:[a0,b0],fl=cur();pushHist();
+    const ar={id:uid(),type:ui.furnKind,name:AREA_TYPES[ui.furnKind].short,pts:[[q[0]-a/2,q[1]-b/2],[q[0]+a/2,q[1]-b/2],[q[0]+a/2,q[1]+b/2],[q[0]-a/2,q[1]+b/2]].map(z=>[Math.round(z[0]*1e4)/1e4,Math.round(z[1]*1e4)/1e4])};
+    fl.areas.push(ar);commit();return;
   }
   if(ui.mode==="op"){
     const fl=cur(),h=hostOf(fl,p,1.5);if(!h)return;
@@ -2542,6 +2562,7 @@ svg.addEventListener("pointermove",e=>{
   shiftHeld=e.shiftKey;
   const p=toPlan(e);
   if(!drag){
+    if(ui.mode==="furn"){const q=placePt(null,p);ui.furnGhost=q;ui.hover={pt:q,kind:snapInfo.kind,desc:snapInfo.desc};renderPlan();return;}
     if(ui.mode==="op"){const h=hostOf(cur(),p,1.5);ui.opGhost=h?{...h,s:Math.round(h.s*12)/12}:null;renderPlan();return;}
     if(ui.mode==="block"){const q=placePt(null,p);ui.ghost=q;ui.hover={pt:q,kind:snapInfo.kind,desc:snapInfo.desc};renderPlan();return;}
     if(ui.mode==="wall"||ui.mode==="area"){
@@ -3112,7 +3133,11 @@ function stairThumb(kind){
 }
 function renderBlockMenu(level){
   const m=$("#blockMenu"),f=cur(),i=S.floors.indexOf(f),up=S.floors[i+1],sb=S.rules.stairBlock;
-  if(level==="openings"){
+  if(level==="furniture"){
+    m.innerHTML=`<div class="bmhead"><button data-bm="root" aria-label="Back">‹ Back</button>Furniture and fixtures</div>`+
+      Object.keys(FURN_SIZE).map(k2=>{const [a,b]=FURN_SIZE[k2],sc=Math.min(34/a,22/b);
+        return `<button role="menuitem" data-bm="fx:${k2}"><svg class="thumb" viewBox="0 0 46 30" aria-hidden="true"><rect x="${(23-a*sc/2).toFixed(1)}" y="${(15-b*sc/2).toFixed(1)}" width="${(a*sc).toFixed(1)}" height="${(b*sc).toFixed(1)}" fill="currentColor" fill-opacity=".15" stroke="currentColor" stroke-width=".8"/></svg><span class="bmt"><span>${AREA_TYPES[k2].label.replace(/^(Fixture|Furniture): /,"")}</span><small>${fmtLen(a)} × ${fmtLen(b)}; click to place, R turns it</small></span></button>`;}).join("");
+  }else if(level==="openings"){
     const ic={window:'<rect x="4" y="12" width="38" height="6" fill="none" stroke="currentColor" stroke-width=".8"/><path d="M4 15H42" stroke="var(--glass)" stroke-width="1.2"/>',
       door:'<path d="M6 24H14M32 24H40M14 24V6" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M14 6A18 18 0 0 1 32 24" stroke="currentColor" stroke-width=".6" stroke-dasharray="2 1.5" fill="none"/>',
       entry:'<path d="M4 24H12M34 24H42M12 24V2" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M12 2A22 22 0 0 1 34 24" stroke="currentColor" stroke-width=".6" stroke-dasharray="2 1.5" fill="none"/>',
@@ -3126,6 +3151,7 @@ function renderBlockMenu(level){
         return `<button role="menuitem" data-bm="kind:${k}">${stairThumb(k)}<span class="bmt"><span>${STAIR_KINDS[k].name}${k===sug?` <small class="sugg">suggested for the cellar</small>`:""}</span><small>${STAIR_KINDS[k].desc}</small><small${g.issues.length?' class="warnt"':""}>${fmtLen(g.bb.w)} × ${fmtLen(g.bb.h)}, ${g.R} risers${g.issues.length?", too tall for one flight here":""}</small></span></button>`;}).join("");
   }else{
     m.innerHTML=`<button role="menuitem" data-bm="stairs">${stairThumb(f.use==="cellar"?sb.cellarKind:sb.defaultKind)}<span class="bmt"><span>Stairs</span><small>Straight, L-shaped, U-shaped or scissor</small></span><span class="more">›</span></button>
+      <button role="menuitem" data-bm="furniture"><svg class="thumb" viewBox="0 0 46 30" aria-hidden="true"><rect x="6" y="8" width="22" height="14" rx="2" fill="currentColor" fill-opacity=".15" stroke="currentColor" stroke-width=".8"/><rect x="6" y="8" width="22" height="4" fill="currentColor" fill-opacity=".3"/><rect x="32" y="10" width="9" height="10" fill="none" stroke="currentColor" stroke-width=".8"/></svg><span class="bmt"><span>Furniture and fixtures</span><small>Beds, sofas, tables, kitchen, bath, laundry and mechanical</small></span><span class="more">›</span></button>
       <button role="menuitem" data-bm="openings"><svg class="thumb" viewBox="0 0 46 30" aria-hidden="true"><rect x="4" y="12" width="16" height="6" fill="none" stroke="currentColor" stroke-width=".8"/><path d="M4 15H20" stroke="var(--glass)" stroke-width="1.2"/><path d="M26 24H30M30 24V8" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M30 8A16 16 0 0 1 46 24" stroke="currentColor" stroke-width=".6" stroke-dasharray="2 1.5" fill="none"/></svg><span class="bmt"><span>Windows and doors</span><small>Windows, doors, entry doors, sliding doors</small></span><span class="more">›</span></button>
       <button role="menuitem" data-bm="lightwell"><svg class="thumb" viewBox="0 0 46 30" aria-hidden="true"><rect x="6" y="5" width="34" height="20" fill="var(--terrace)" fill-opacity=".2" stroke="currentColor" stroke-width=".8"/><path d="M6 25L26 5M16 25L36 5M26 25L40 11M6 15L16 5" stroke="var(--terrace)" stroke-width=".6"/></svg><span class="bmt"><span>Light well</span><small>${S.lightwell?"Select the light well":"Add a light well at the code minimum"}</small></span></button>
       <button role="menuitem" data-bm="core"><svg class="thumb" viewBox="0 0 46 30" aria-hidden="true"><rect x="4" y="5" width="38" height="20" fill="var(--core)" fill-opacity=".2" stroke="currentColor" stroke-width=".8"/><path d="M33 5V25M33 5L42 25M42 5L33 25" stroke="currentColor" stroke-width=".6"/></svg><span class="bmt"><span>Elevator and stair core</span><small>Select the core</small></span></button>`;
@@ -3138,7 +3164,8 @@ $("#blockBtn").addEventListener("click",e=>{e.stopPropagation();if($("#blockMenu
 $("#blockMenu").addEventListener("click",e=>{
   e.stopPropagation();
   const it=e.target.closest("[data-bm]");if(!it)return;const v=it.dataset.bm;
-  if(v==="root"||v==="stairs"||v==="openings"){renderBlockMenu(v);return;}
+  if(v==="root"||v==="stairs"||v==="openings"||v==="furniture"){renderBlockMenu(v);return;}
+  if(v.startsWith("fx:")){closeBlockMenu();ui.furnKind=v.slice(3);ui.furnRot=0;ui.mode="furn";ui.draft=null;ui.sel=null;ui.pop=null;ui.furnGhost=null;if(ui.layers.furn===false){ui.layers.furn=true;savePrefs();}renderAll();return;}
   if(v.startsWith("op:")){closeBlockMenu();ui.opKind=v.slice(3);ui.mode="op";ui.draft=null;ui.sel=null;ui.pop=null;ui.opGhost=null;if(!ui.layers.int){ui.layers.int=true;savePrefs();}renderAll();return;}
   closeBlockMenu();
   if(v.startsWith("kind:")){
@@ -3304,6 +3331,11 @@ document.addEventListener("keydown",e=>{
     const q=placePt(draftFrom(),ui.lastP);ui.hover={pt:q,kind:snapInfo.kind,desc:snapInfo.desc};if(d)d.cur=q;renderPlan();return;
   }
   const lk=e.key.length===1?e.key.toLowerCase():"";
+  if(lk==="r"&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&(ui.mode==="furn"||(ui.mode==="select"&&ui.sel&&ui.sel.k==="area"))){
+    e.preventDefault();
+    if(ui.mode==="furn"){ui.furnRot=((ui.furnRot||0)+90)%180;renderPlan();return;}
+    const a=findSel();if(a){pushHist();rotateArea(a,90);commit();}return;
+  }
   if(lk==="r"&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&(ui.mode==="block"||(ui.sel&&ui.sel.k==="block"))){
     e.preventDefault();
     if(ui.mode==="block"){ui.blockRot=((ui.blockRot||0)+90)%360;renderPlan();return;}
