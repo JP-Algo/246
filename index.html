@@ -277,6 +277,7 @@ tfoot td{font-weight:600;border-bottom:0}
           <button data-layer="far" title="Show the floor area layers used for the FAR calculation">FAR</button>
           <button data-layer="int" title="Show walls, the elevator and the stair">Interiors</button>
           <button data-layer="sell" title="Show the units and sellable areas">Units</button>
+          <button data-layer="rooms" title="Show the room layouts inside the units">Rooms</button>
           <button data-layer="nbr" title="Show the neighboring buildings from the survey">Neighbors</button>
         </div>
       </div>
@@ -1053,9 +1054,9 @@ window.addEventListener("pagehide",()=>{if(saveTimer)flush();});
 const LOCAL=load();
 let S=ensureLightwell(syncDerived(ensureRules(ensureCore(LOCAL||seed()))));
 const ui={floor:Math.min(5,S.floors.length-1),mode:"select",areaType:"gross",sel:null,snap:true,ortho:true,
-  explode:false,above:true,view:{cx:60,cy:15,w:142},draft:null,dims:true,typed:"",layers:{far:true,int:true,sell:true,nbr:true},wallT:6,just:"center",snapC:true,snapF:true,snapM:true,hover:null};
+  explode:false,above:true,view:{cx:60,cy:15,w:142},draft:null,dims:true,typed:"",layers:{far:true,int:true,sell:true,nbr:true,rooms:true},wallT:6,just:"center",snapC:true,snapF:true,snapM:true,hover:null};
 const PREF_KEY="s2nd-prefs-v1";
-try{const pr=JSON.parse(localStorage.getItem(PREF_KEY))||{};ui.snap=pr.snap!==false;ui.ortho=pr.ortho!==false;ui.dims=pr.dims!==false;if(pr.layers&&typeof pr.layers==="object")ui.layers={far:pr.layers.far!==false,int:pr.layers.int!==false,sell:pr.layers.sell!==false,nbr:pr.layers.nbr!==false};else if(pr.layer==="far")ui.layers={far:true,int:false,sell:true};else if(pr.layer==="int")ui.layers={far:false,int:true,sell:false};if(pr.wallT>0)ui.wallT=pr.wallT;if(["out","center","in"].includes(pr.just))ui.just=pr.just;else if(pr.just==="left"||pr.just==="right")ui.just="out";if(typeof pr.snapC==="boolean")ui.snapC=pr.snapC;if(typeof pr.snapF==="boolean")ui.snapF=pr.snapF;if(typeof pr.snapM==="boolean")ui.snapM=pr.snapM;}catch(e){}
+try{const pr=JSON.parse(localStorage.getItem(PREF_KEY))||{};ui.snap=pr.snap!==false;ui.ortho=pr.ortho!==false;ui.dims=pr.dims!==false;if(pr.layers&&typeof pr.layers==="object")ui.layers={far:pr.layers.far!==false,int:pr.layers.int!==false,sell:pr.layers.sell!==false,nbr:pr.layers.nbr!==false,rooms:pr.layers.rooms!==false};else if(pr.layer==="far")ui.layers={far:true,int:false,sell:true};else if(pr.layer==="int")ui.layers={far:false,int:true,sell:false};if(pr.wallT>0)ui.wallT=pr.wallT;if(["out","center","in"].includes(pr.just))ui.just=pr.just;else if(pr.just==="left"||pr.just==="right")ui.just="out";if(typeof pr.snapC==="boolean")ui.snapC=pr.snapC;if(typeof pr.snapF==="boolean")ui.snapF=pr.snapF;if(typeof pr.snapM==="boolean")ui.snapM=pr.snapM;}catch(e){}
 function savePrefs(){try{localStorage.setItem(PREF_KEY,JSON.stringify({snap:ui.snap,ortho:ui.ortho,dims:ui.dims,layers:ui.layers,wallT:ui.wallT,just:ui.just,snapC:ui.snapC,snapF:ui.snapF,snapM:ui.snapM}));}catch(e){}}
 let shiftHeld=false;
 const orthoOn=()=>ui.ortho!==shiftHeld;
@@ -1477,7 +1478,7 @@ function renderToolbar(){
   document.querySelectorAll("[data-just]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.just===ui.just)));
   document.querySelectorAll("[data-layer]").forEach(b=>b.setAttribute("aria-pressed",String(!!ui.layers[b.dataset.layer])));
   $("[data-mode='wall']").disabled=!ui.layers.int;
-  $("[data-mode='area']").disabled=!ui.layers.far&&!ui.layers.sell;
+  $("[data-mode='area']").disabled=!ui.layers.far&&!ui.layers.sell&&!ui.layers.rooms;
   $("#legend").style.display=ui.layers.far||ui.layers.sell?"":"none";
   if(!ui.draft)ui.typed="";
   renderTyped();
@@ -2869,8 +2870,7 @@ function renderLayers(){
       <span class="seg" role="group" aria-label="Label zoom"><button data-llock="${ref}" data-v="0" aria-pressed="${!lk}" title="The label is redrawn at the same size on screen at every zoom">Same on screen</button><button data-llock="${ref}" data-v="1" aria-pressed="${lk}" title="The label keeps the size it has now on the drawing, so it grows when you zoom in and shrinks when you zoom out">Lock to drawing</button></span>
       ${sz!==100||lk?`<button class="btn" data-lszreset="${ref}">Reset size</button>`:""}</div>`;};
   if(areas.length){
-    grp("Areas");
-    areas.forEach(a=>{
+    const row=a=>{
       const T=AREA_TYPES[a.type]||AREA_TYPES.gross,on=sel&&sel.k==="area"&&sel.id===a.id;
       h+=`<div class="lrow ${on?"on":""} ${kindShown(T.kind)?"":"hid"}" data-lk="area" data-lid="${a.id}"><span class="sw" style="--c:var(${T.color})"></span><span class="nm">${a.type==="unit"&&unitById(a.unit)?`Unit ${escH(unitById(a.unit).no)}`:escH(a.name||labelOf(a.type))}</span><span class="sf">${fmt(polyArea(a.pts))} SF</span>`+
          (on?`<div class="lopts">
@@ -2881,7 +2881,10 @@ function renderLayers(){
            <div class="lbtns"><button class="btn" data-lreset="${a.id}" ${a.lab?"":"disabled"}>Reset label position</button></div>
            <span class="lhint">${a.hideLabel?"Label hidden":"Drag the label on the plan to move it"}</span>
          </div>`:"")+`</div>`;
-    });
+    };
+    const isRoom=a=>(AREA_TYPES[a.type]||{}).kind==="room",plain=areas.filter(a=>!isRoom(a)),rooms=areas.filter(isRoom);
+    if(plain.length){grp("Areas");plain.forEach(row);}
+    if(rooms.length){grp("Rooms");rooms.forEach(row);}
   }
   if(f.walls.length){
     grp("Walls");
@@ -3017,7 +3020,7 @@ function syncSettings(){
 }
 
 /* The Draw area list shows the area types of the layers that are on. */
-const kindLayer=k=>k==="sell"?"sell":k==="room"?"int":"far";
+const kindLayer=k=>k==="sell"?"sell":k==="room"?"rooms":"far";
 function menuTypes(){return MENU.filter(k=>ui.layers[kindLayer(AREA_TYPES[k].kind)]);}
 function fillAreaTypes(){
   const list=menuTypes();
@@ -3027,7 +3030,7 @@ function fillAreaTypes(){
 $("#areaType").addEventListener("change",e=>{ui.areaType=e.target.value;});
 document.querySelectorAll("[data-layer]").forEach(b=>b.addEventListener("click",()=>{
   const L=b.dataset.layer;ui.layers[L]=!ui.layers[L];   // each layer button turns on and off
-  if(((ui.mode==="wall"||ui.mode==="block"||ui.mode==="op")&&!ui.layers.int)||(ui.mode==="area"&&!ui.layers.far&&!ui.layers.sell))ui.mode="select";
+  if(((ui.mode==="wall"||ui.mode==="block"||ui.mode==="op")&&!ui.layers.int)||(ui.mode==="area"&&!ui.layers.far&&!ui.layers.sell&&!ui.layers.rooms))ui.mode="select";
   if(ui.sel){
     const o=findSel(),kind=ui.sel.k==="area"&&o?(AREA_TYPES[o.type]||{}).kind:null;
     if((ui.sel.k==="wall"&&!ui.layers.int)||(ui.sel.k==="area"&&!ui.layers[kindLayer(kind)]))ui.sel=null;
