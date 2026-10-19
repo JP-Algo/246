@@ -441,6 +441,8 @@ const AREA_TYPES={
   laundry:{base:"Laundry",label:"Laundry (100%)",short:"Laundry",kind:"deduct",factor:1,color:"--deduct"},
   amenity:{label:"Amenity (5% cap)",short:"Amenity",kind:"amenity",factor:1,color:"--amenity"},
   terrace:{label:"Terrace (outdoor)",short:"Terrace",kind:"terrace",color:"--terrace"},
+  // a balcony projects past the wall below it (cantilevered); outdoor space like a terrace, built as a slab
+  balcony:{label:"Balcony (outdoor, cantilevered)",short:"Balcony",kind:"terrace",color:"--terrace"},
   // Use areas sit inside the gross outline and set the use of that part of the floor
   resArea:{label:"Residential area",short:"Residential",kind:"use",use:"residential",color:"--gross"},
   commArea:{label:"Commercial area",short:"Commercial",kind:"use",use:"commercial",color:"--comm"},
@@ -454,8 +456,8 @@ const AREA_TYPES={
   sellComm:{label:"Sellable area, commercial",short:"Sellable comm.",kind:"sell",use:"commercial",color:"--sell"},
   sellCf:{label:"Sellable area, community facility",short:"Sellable CF",kind:"sell",use:"cf",color:"--cf"}
 };
-const MENU=["gross","resArea","resAff","commArea","cfArea","parking","mechanical","corridor100","corridor50","laundry","amenity","terrace","unit","sellRes","sellAff","sellComm","sellCf"];
-const ORDER=["gross","resArea","resAff","commArea","cfArea","terrace","amenity","parking","mechanical","corridor50","corridor100","laundry","unit","sellRes","sellAff","sellComm","sellCf"];
+const MENU=["gross","resArea","resAff","commArea","cfArea","parking","mechanical","corridor100","corridor50","laundry","amenity","terrace","balcony","unit","sellRes","sellAff","sellComm","sellCf"];
+const ORDER=["gross","resArea","resAff","commArea","cfArea","terrace","balcony","amenity","parking","mechanical","corridor50","corridor100","laundry","unit","sellRes","sellAff","sellComm","sellCf"];
 
 const A=(type,pts)=>({id:uid(),type,pts:pts.map(p=>[p[0],p[1]])});
 const W=(a,b,t,tag)=>({id:uid(),a:[a[0],a[1]],b:[b[0],b[1]],t,tag:tag||""});
@@ -524,7 +526,7 @@ const DEFAULT_RULES={
   envelope:{baseFt:65,setbackFt:15},
   // Rear yard (ZR 23-342): attached building on a lot under 40 ft wide, 30 ft at every rear lot line; only the ground story may
   // sit in it (a one-story permitted obstruction), so every story above the ground floor is checked
-  rearYard:{ft:30},                               // exterior walls: outside face on the building envelope
+  rearYard:{ft:30,obstructionStories:1},   // obstructionStories: stories above grade allowed to fill the rear yard                               // exterior walls: outside face on the building envelope
   // Units: sellable SF to the outside face of exterior walls and the centerline of demising/corridor walls (offering plan);
   // minimum interior SF by bedroom count for affordable units (HPD design guidelines, confirm)
   units:{measure:"offering",minSF:{0:400,1:575,2:775,3:1000}},
@@ -592,7 +594,8 @@ const TENURES={fm:"Free-market",aff:"Affordable",comm:"Commercial",cf:"Community
 const TENURE_COL={fm:"--gross",aff:"--aff",comm:"--comm",cf:"--cf"};
 const unitById=id=>(S.units||[]).find(u=>u.id===id)||null;
 function unitParts(u){const out=[];S.floors.forEach((f,i)=>f.areas.forEach(a=>{if(a.type==="unit"&&a.unit===u.id&&a.pts.length>=3)out.push({f,i,a});}));return out;}
-function unitTerraces(u){const out=[];S.floors.forEach((f,i)=>f.areas.forEach(a=>{if(a.type==="terrace"&&a.unit===u.id&&a.pts.length>=3)out.push({f,i,a});}));return out;}
+const isOutdoor=a=>(AREA_TYPES[a.type]||{}).kind==="terrace";
+function unitTerraces(u){const out=[];S.floors.forEach((f,i)=>f.areas.forEach(a=>{if(isOutdoor(a)&&a.unit===u.id&&a.pts.length>=3)out.push({f,i,a});}));return out;}
 function floorNo(f){const i=S.floors.indexOf(f);if(f.use==="cellar")return "C";if(f.use==="roof")return "R";return String(S.floors.slice(0,i+1).filter(x=>x.use!=="cellar"&&x.use!=="roof").length);}
 function nextUnitNo(f){const p=floorNo(f),used=new Set((S.units||[]).map(u=>u.no));for(let k=0;k<26;k++){const c=p+String.fromCharCode(65+k);if(!used.has(c))return c;}return p+"?";}
 function newUnit(f,from){
@@ -617,7 +620,7 @@ function pruneUnits(st){
 function remapUnits(f){
   const map={};
   f.areas.forEach(a=>{if(a.type==="unit"&&a.unit){if(!map[a.unit])map[a.unit]=newUnit(f,unitById(a.unit)).id;a.unit=map[a.unit];}});
-  f.areas.forEach(a=>{if(a.type==="terrace"&&a.unit){if(map[a.unit])a.unit=map[a.unit];else delete a.unit;}});
+  f.areas.forEach(a=>{if(isOutdoor(a)&&a.unit){if(map[a.unit])a.unit=map[a.unit];else delete a.unit;}});
 }
 // Sutherland-Hodgman: the part of a polygon inside a convex one
 function clipConvex(subj,clip){
@@ -1146,9 +1149,10 @@ function renderTotals(){
     cap("Commercial",c.commZfa,c.commCap,"SF")+
     cap(`Community facility (${S.settings.cfFar} FAR)`,c.cfZfa,c.cfCap,"SF")+
     cap("Building height above grade",c.height,S.settings.maxHeight,"ft")+
-    (()=>{const ry=S.rules.rearYard.ft,bad=S.floors.map((f,i)=>{if(f.use==="cellar"||f.use==="roof"||floorTop(i)-f.height<=0.5)return null;
+    (()=>{const ry=S.rules.rearYard.ft,obs=S.rules.rearYard.obstructionStories||1,above=S.floors.filter(f=>f.use!=="cellar"&&f.use!=="roof");
+      const bad=S.floors.map((f,i)=>{if(f.use==="cellar"||f.use==="roof"||above.indexOf(f)<obs)return null;
         const xs=f.areas.filter(a=>a.type==="gross"&&a.pts.length>=3).flatMap(a=>a.pts.map(q=>q[0]));if(!xs.length)return null;const mn=Math.min(...xs);return mn<ry-0.01?`${f.name} ${fmtLen(ry-mn)} into it`:null;}).filter(Boolean);
-      return `<div class="cap ${bad.length?"over":""}"><div class="l"><span>Rear yard, ${fmtLen(ry)} from the rear lot line<small style="display:block;color:var(--muted);font-size:11.5px">Every story above the ground floor; the ground floor may extend into it as a one-story permitted obstruction</small></span><span>${bad.length?bad.join(", "):"all upper floors clear"}</span></div></div>`;})()+
+      return `<div class="cap ${bad.length?"over":""}"><div class="l"><span>Rear yard, ${fmtLen(ry)} from the rear lot line<small style="display:block;color:var(--muted);font-size:11.5px">Every story above the ${obs===1?"ground floor":ord(obs)+" floor"}; ${obs===1?"the ground floor":"the lowest "+obs+" stories"} may fill the rear yard</small></span><span>${bad.length?bad.join(", "):"all upper floors clear"}</span></div></div>`;})()+
     (()=>{const bad=S.floors.filter(f=>setbackIssue(f));const e=S.rules.envelope;
       return `<div class="cap ${bad.length?"over":""}"><div class="l"><span>Street setback above ${fmtLen(e.baseFt)}</span><span>${bad.length?bad.map(f=>`${f.name} ${fmtLen(setbackIssue(f).over)} past`).join(", "):`all floors at least ${fmtLen(e.setbackFt)} back`}</span></div></div>`;})();
 
@@ -1523,7 +1527,7 @@ function renderSel(){
 /* Unit details in the panel under the plan; terraces can be tied to a unit as its private outdoor space */
 function unitPanel(o){
   const all=(S.units||[]).slice().sort((x,y)=>x.no.localeCompare(y.no,undefined,{numeric:true}));
-  if(o.type==="terrace"){
+  if(isOutdoor(o)){
     return `<label class="check" style="flex-basis:100%">Private outdoor space of <select class="in" id="tUnit"><option value="">No unit (shared or common)</option>${all.map(u=>`<option value="${u.id}" ${u.id===o.unit?"selected":""}>Unit ${escH(u.no)} (${floorsTxt(unitMetrics(u).floors)})</option>`).join("")}</select></label>`;
   }
   const T=AREA_TYPES[o.type]||{};
@@ -1852,7 +1856,7 @@ function renderPlan(){
   areas.forEach(a=>{
     if(a.pts.length<3||!areaShown(a))return;
     const T=AREA_TYPES[a.type]||AREA_TYPES.gross,uu=a.type==="unit"?unitById(a.unit):null,c=`var(${uu?TENURE_COL[uu.tenure]||T.color:T.color})`,sel=ui.sel&&ui.sel.id===a.id;
-    const dash=a.type==="terrace"?`stroke-dasharray:${0.8*k} ${0.5*k};`:T.kind==="sell"?`stroke-dasharray:${1.2*k} ${0.4*k} ${0.2*k} ${0.4*k};`:"";
+    const dash=isOutdoor(a)?`stroke-dasharray:${0.8*k} ${0.5*k};`:T.kind==="sell"?`stroke-dasharray:${1.2*k} ${0.4*k} ${0.2*k} ${0.4*k};`:"";
     ar+=`<path data-k="area" data-id="${a.id}" d="${pathOf(a.pts)}" style="fill:${c};fill-opacity:${a.type==="gross"?0.09:T.kind==="sell"?0.05:T.kind==="use"?0.16:0.26};stroke:${sel?"var(--sel)":c};stroke-width:${(sel?0.5:0.22)*k};${dash}"/>`;
     const A_=polyArea(a.pts);
     if(a.hideLabel)return;
@@ -2474,6 +2478,14 @@ function build3D(){
     f.areas.forEach(a=>{
       if(a.pts.length<3)return;
       const T=AREA_TYPES[a.type]||AREA_TYPES.gross;
+      if(a.type==="balcony"){
+        // a balcony is built: a thin slab at the floor level, with a railing outline
+        const geo=new THREE.ExtrudeGeometry(toShape(a.pts),{depth:0.67,bevelEnabled:false});geo.rotateX(-Math.PI/2);
+        const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:isSel?selCol:slabCol,roughness:0.9,metalness:0}));
+        m.position.y=y+0.13;m.userData.floor=i;root.add(m);pickables.push(m);
+        root.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(a.pts.map(q=>new THREE.Vector3(q[0]-CX,y+0.8+3.5,q[1]-CZ))),new THREE.LineBasicMaterial({color:ink,transparent:true,opacity:0.5})));
+        return;
+      }
       if(T.kind!=="gross"&&!ui.layers.far)return;
       if(T.kind==="sell")return;
       if(T.kind==="gross"){

@@ -168,8 +168,19 @@
       "ft": 30,
       "meaning": "Every story above the ground floor keeps its rear wall (outside face) at least this far from the rear lot line. The ground floor may extend into the rear yard as a one-story permitted obstruction (check the district's limit, about 23 ft above curb for non-residential).",
       "rule": "ZR 23-342: attached or semi-detached buildings on lots under 40 ft wide need 30 ft at every rear lot line. 20 ft applies only to detached and zero lot line buildings, or to lots 40 ft or wider (at or below 75 ft). The R6 20 ft modification in 23-723 is limited to Brooklyn Community District 12.",
-      "thisBuilding": "25 ft wide attached lot: 30 ft. Floors 4-7 moved from 29'-4\" to 29'-10\" back to 30'-0\" (2026-10-19). The 2nd floor still covers the full lot depth and needs review.",
-      "source": "ZR 23-342, 23-344, 23-723 (as amended 12/5/2024)"
+      "thisBuilding": "25 ft wide attached lot: 30 ft. Floors 4-7 moved back to 30'-0\" (2026-10-19). Project owner: the 1st and 2nd floors may fill the rear yard (obstructionStories 2).",
+      "source": "ZR 23-342, 23-344, 23-723 (as amended 12/5/2024)",
+      "obstructionStories": 2
+    },
+    "balconies": {
+      "label": "Balconies (cantilevered outdoor space)",
+      "maxProjectionFt": 7,
+      "maxWallWidthPct": 50,
+      "minAboveCurbFt": 13,
+      "minFromRearLotLineFt": 5,
+      "meaning": "A terrace with no floor under it is a balcony. In yards, courts and other required open areas a balcony may project the lesser of 7 ft or one third of the open area's depth from the wall (the one-third limit does not apply in setback areas required by height and setback rules), cover at most 10% of a required open area, and the balconies on any story may total at most 50% of that wall's width. Unenclosed except parapets to 4 ft or railings to 4'-6\" (at least 50% open above 4 ft); at least 13 ft above curb. In a rear yard, not within 5 ft of the rear lot line. Balconies at most 67% enclosed are not floor area.",
+      "thisBuilding": "Rear balconies on floors 5-7 (5th projects 7'-6\", over the 7 ft limit by 6\"; owner says OK), 8th floor street balcony 7'-0\" over the 7th floor terrace, 12'-4\" of a 24'-8\" wall (50%).",
+      "source": "ZR 23-62 (balconies), 23-312, 23-341, 12-10 floor area; project owner"
     },
     "affordable": {
       "label": "Residential affordable areas",
