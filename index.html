@@ -298,6 +298,8 @@ tfoot td{font-weight:600;border-bottom:0}
           <button class="tool" data-mode="area" title="Draw area (A)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 6.5L10 3l6.5 4-1.5 9.5H5z" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg><span>Area</span></button>
           <button class="tool" id="blockBtn" title="Place a block: stairs, the light well or the core" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 16.5h4v-4h4v-4h4v-4h2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M3 16.5h14v-12" fill="none" stroke="currentColor" stroke-width="1" opacity=".5"/></svg><span>Block</span></button>
         </div>
+        <div class="tgroup"><button class="tool" id="opBtn" title="Doors and windows: click a wall to place one (D)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 17h4M13 17h4M7 17V4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M7 4a13 13 0 0 1 6 13" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="2 1.5"/></svg><span>Door / window</span></button></div>
+        <select class="in" id="opType" aria-label="Door or window type"></select>
         <div class="blockmenu" id="blockMenu" role="menu" hidden></div>
         <select class="in" id="areaType" aria-label="Area type"></select>
         <div class="tgroup">
@@ -651,7 +653,10 @@ const OP_KINDS={
   window:{name:"Window",w:5,sill:2.5,head:8,glass:true},
   door:{name:"Door",w:2.667,sill:0,head:7,swing:true},
   entry:{name:"Entry door",w:3,sill:0,head:7,swing:true},
-  slider:{name:"Sliding door",w:6,sill:0,head:8,glass:true}
+  slider:{name:"Sliding door",w:6,sill:0,head:8,glass:true},
+  double:{name:"Double door",w:5,sill:0,head:7,swing:true},
+  pocket:{name:"Pocket door",w:2.667,sill:0,head:7},
+  bifold:{name:"Bifold closet door",w:4,sill:0,head:7,swing:true}
 };
 const opsOf=f=>(f&&f.openings)||[];
 const opDef=(op,k)=>op[k]!=null?op[k]:(OP_KINDS[op.kind]||OP_KINDS.window)[k];
@@ -684,6 +689,8 @@ function opOutlook(f,op){
     return "lot line";};
   const a=side(1),b=side(-1);return a==="inside"?b:b==="inside"?a:a;
 }
+// keep an opening inside its wall after its width or type changes
+function clampOp(f,op){const h=hostOf(f,[op.x,op.y],0.3);if(!h)return;const w=opDef(op,"w"),sv=Math.max(Math.min(w/2,h.L/2),Math.min(h.L-w/2,h.s));op.x=h.a[0]+h.ux*sv;op.y=h.a[1]+h.uy*sv;}
 const legalOutlook=o=>o==="street"||o==="rear yard"||o==="open area on the lot";
 // a room's windows: those whose wall runs along the room's edge
 function roomWindows(f,a){
@@ -1499,7 +1506,9 @@ const NOTES={
 function renderToolbar(){
   document.querySelectorAll("[data-mode]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mode===ui.mode)));
   $("#areaType").style.display=ui.mode==="area"?"":"none";
-  $("#blockBtn").setAttribute("aria-pressed",String(ui.mode==="block"||ui.mode==="op"||ui.mode==="furn"));
+  $("#opType").style.display=ui.mode==="op"?"":"none";$("#opType").value=ui.opKind||"door";
+  $("#opBtn").setAttribute("aria-pressed",String(ui.mode==="op"));
+  $("#blockBtn").setAttribute("aria-pressed",String(ui.mode==="block"||ui.mode==="furn"));
   $("#blockBtn").disabled=false;
   $("#areaType").value=ui.areaType;
   const d=ui.draft;
@@ -1547,11 +1556,11 @@ function renderSel(){
     el.innerHTML=`<span><span class="k">${K.name}</span> ${fmtLen(opDef(op,"w"))} wide${K.glass?`, sill ${fmtLen(opDef(op,"sill"))}, head ${fmtLen(opDef(op,"head"))}`:""}${out&&out!=="inside"?`, looks onto the ${out}`:""}${ends?`; ${fmtLen(ends[0])} and ${fmtLen(ends[1])} to the wall's ends`:""}</span>
       <div class="dimedit"><label>Type<select class="in" id="opKind">${Object.keys(OP_KINDS).map(k2=>`<option value="${k2}" ${k2===op.kind?"selected":""}>${OP_KINDS[k2].name}</option>`).join("")}</select></label><label>Width${fl("w")}</label>${K.glass?`<label>Sill above floor${fl("sill")}</label>`:""}<label>Head above floor${fl("head")}</label></div>
       ${out==="lot line"?`<p class="note" style="flex-basis:100%;margin:0;color:var(--over)">Lot line window: it needs a protected (fire-rated) opening under the Building Code's exterior wall rules and is often paired with a light and air easement from the neighbor. It adds light but does not count as a legally required window.</p>`:out==="light well"&&K.glass?`<p class="note" style="flex-basis:100%;margin:0">Faces the light well: fine for light, but it does not count as a legally required window.</p>`:""}
-      ${K.swing?`<button class="btn" id="opSwing">Swing to the other side</button><button class="btn" id="opHinge">Hinge on the other end</button>`:""}
+      ${K.swing?`<button class="btn" id="opSwing">Swing to the other side</button>`:""}${K.swing&&op.kind!=="double"&&op.kind!=="bifold"||op.kind==="pocket"?`<button class="btn" id="opHinge">${op.kind==="pocket"?"Pocket on the other side":"Hinge on the other end"}</button>`:""}
       <button class="btn warn" id="delSel">Remove ${K.name.toLowerCase()}</button>
       <span class="note" style="margin:0">Drag it along the wall to move it</span>`;
-    $("#opKind").addEventListener("change",e=>{pushHist();op.kind=e.target.value;["w","sill","head"].forEach(k2=>delete op[k2]);commit();});
-    el.querySelectorAll("[data-opv]").forEach(inp=>inp.addEventListener("change",e=>{const v=parseLen(e.target.value);if(!(v>=0)){renderSel();return;}pushHist();op[e.target.dataset.opv]=v;commit();}));
+    $("#opKind").addEventListener("change",e=>{pushHist();op.kind=e.target.value;["w","sill","head"].forEach(k2=>delete op[k2]);clampOp(f,op);commit();});
+    el.querySelectorAll("[data-opv]").forEach(inp=>inp.addEventListener("change",e=>{const v=parseLen(e.target.value);if(!(v>=0)){renderSel();return;}pushHist();op[e.target.dataset.opv]=v;clampOp(f,op);commit();}));
     const sw=$("#opSwing");if(sw)sw.addEventListener("click",()=>{pushHist();op.swing=-(op.swing||1);commit();});
     const hg=$("#opHinge");if(hg)hg.addEventListener("click",()=>{pushHist();op.hinge=-(op.hinge||1);commit();});
     $("#delSel").addEventListener("click",deleteSel);
@@ -2123,6 +2132,13 @@ function renderPlan(){
     o+=`<path d="M${f3(P(s0,-t/2))}L${f3(P(s0,t/2))}M${f3(P(s1,-t/2))}L${f3(P(s1,t/2))}"/>`;
     if(op.kind==="window")o+=`<path d="M${f3(P(s0,-t/6))}L${f3(P(s1,-t/6))}M${f3(P(s0,t/6))}L${f3(P(s1,t/6))}" style="stroke:var(--glass);stroke-width:${sw*1.3}"/>`;
     else if(op.kind==="slider"){const m=(s0+s1)/2;o+=`<path d="M${f3(P(s0,-t/8))}L${f3(P(m+0.25,-t/8))}M${f3(P(m-0.25,t/8))}L${f3(P(s1,t/8))}" style="stroke:var(--glass);stroke-width:${sw*1.6}"/>`;}
+    else if(op.kind==="double"){const sg=op.swing||1,w=(s1-s0)/2,A0=P(s0,0),A1=P(s1,0),M=P(s0+w,0),L0=[A0[0]+n[0]*sg*w,A0[1]+n[1]*sg*w],L1=[A1[0]+n[0]*sg*w,A1[1]+n[1]*sg*w];
+      const sw0=((L0[0]-A0[0])*(M[1]-A0[1])-(L0[1]-A0[1])*(M[0]-A0[0]))>0?1:0,sw1=((L1[0]-A1[0])*(M[1]-A1[1])-(L1[1]-A1[1])*(M[0]-A1[0]))>0?1:0;
+      o+=`<path d="M${f3(A0)}L${f3(L0)}M${f3(A1)}L${f3(L1)}" style="stroke-width:${sw*1.8}"/><path d="M${f3(L0)}A${w} ${w} 0 0 ${sw0} ${f3(M)}M${f3(L1)}A${w} ${w} 0 0 ${sw1} ${f3(M)}" style="stroke-dasharray:${0.3*k} ${0.25*k}"/>`;}
+    else if(op.kind==="pocket"){const w=s1-s0,hg=(op.hinge||1)>0;   // the door slides into the wall beside the opening
+      o+=`<path d="M${f3(P(s0,0))}L${f3(P(s1,0))}" style="stroke-width:${sw*1.8}"/><path d="M${f3(P(hg?s0-w:s1,0))}L${f3(P(hg?s0:s1+w,0))}" style="stroke-dasharray:${0.3*k} ${0.25*k}"/>`;}
+    else if(op.kind==="bifold"){const sg=op.swing||1,q=(s1-s0)/4,dp=Math.min(q*1.2,1.0)*sg;   // two pairs of folding leaves
+      o+=`<path d="M${f3(P(s0,0))}L${f3(P(s0+q,dp))}L${f3(P(s0+2*q,0))}L${f3(P(s0+3*q,dp))}L${f3(P(s1,0))}" style="stroke-width:${sw*1.4}"/>`;}
     else{const hg=(op.hinge||1)>0,H=P(hg?s0:s1,0),O=P(hg?s1:s0,0),sg=op.swing||1,w=s1-s0,L2=[H[0]+n[0]*sg*w,H[1]+n[1]*sg*w];
       const cr=(L2[0]-H[0])*(O[1]-H[1])-(L2[1]-H[1])*(O[0]-H[0]);
       o+=`<path d="M${f3(H)}L${f3(L2)}" style="stroke-width:${sw*1.8}"/><path d="M${f3(L2)}A${w} ${w} 0 0 ${cr>0?1:0} ${f3(O)}" style="stroke-dasharray:${0.3*k} ${0.25*k}"/>`;}
@@ -2130,13 +2146,14 @@ function renderPlan(){
     if(!ghost)o+=`<path data-k="op" data-id="${op.id}" d="M${f3(P(s0,-t/2-0.3))}L${f3(P(s1,-t/2-0.3))}L${f3(P(s1,t/2+0.3))}L${f3(P(s0,t/2+0.3))}Z" pointer-events="all" style="fill:transparent;stroke:none"/>`;
     return o;
   };
+  let osv="";   // opening symbols and their click targets, drawn above the walls
   const wallLine=(d,t,stroke)=>{
     const sp=spansOn(d.a,d.b,t,OPS);
     if(!sp.length)return `<line x1="${d.a[0]}" y1="${d.a[1]}" x2="${d.b[0]}" y2="${d.b[1]}" pointer-events="none" style="stroke:${stroke};stroke-width:${t};stroke-linecap:butt"/>`;
     const L=dist(d.a,d.b),u=[(d.b[0]-d.a[0])/L,(d.b[1]-d.a[1])/L],at=sv=>[d.a[0]+u[0]*sv,d.a[1]+u[1]*sv];let o="",c=0;
     sp.forEach(([s0,s1])=>{if(s0>c+0.01){const p0=at(c),p1=at(s0);o+=`<line x1="${p0[0]}" y1="${p0[1]}" x2="${p1[0]}" y2="${p1[1]}" pointer-events="none" style="stroke:${stroke};stroke-width:${t};stroke-linecap:butt"/>`;}c=Math.max(c,s1);});
     if(c<L-0.01){const p0=at(c);o+=`<line x1="${p0[0]}" y1="${p0[1]}" x2="${d.b[0]}" y2="${d.b[1]}" pointer-events="none" style="stroke:${stroke};stroke-width:${t};stroke-linecap:butt"/>`;}
-    sp.forEach(([s0,s1,op])=>{o+=opSym(d.a,u,t,s0,s1,op,"var(--ink)");});
+    sp.forEach(([s0,s1,op])=>{osv+=opSym(d.a,u,t,s0,s1,op,"var(--ink)");});
     return o;
   };
   const cw0=courtRectFor(f);
@@ -2339,7 +2356,7 @@ function renderPlan(){
     });
   });
   const hatch=`<defs><pattern id="nbrHatch" patternUnits="userSpaceOnUse" width="${1.2}" height="${1.2}" patternTransform="rotate(45)"><rect width="1.2" height="1.2" style="fill:var(--muted);fill-opacity:.07"/><line x1="0" y1="0" x2="0" y2="1.2" style="stroke:var(--muted);stroke-opacity:.45;stroke-width:${0.08*k}"/></pattern></defs>`;
-  svg.innerHTML=hatch+g+nb+ar+wl+lb+dm+sl+hd+dr;
+  svg.innerHTML=hatch+g+nb+ar+wl+osv+lb+dm+sl+hd+dr;
   renderPop();
 }
 
@@ -3120,6 +3137,11 @@ document.querySelectorAll("[data-layer]").forEach(b=>b.addEventListener("click",
   }
   ui.draft=null;ui.pop=null;savePrefs();renderAll();
 }));
+// the Door / window tool and its type list
+$("#opType").innerHTML=Object.keys(OP_KINDS).map(k=>`<option value="${k}">${OP_KINDS[k].name} (${fmtLen(OP_KINDS[k].w)})</option>`).join("");
+function startOpTool(kind){ui.opKind=kind||ui.opKind||"door";ui.mode="op";ui.draft=null;ui.sel=null;ui.pop=null;ui.opGhost=null;if(!ui.layers.int){ui.layers.int=true;savePrefs();}renderAll();}
+$("#opBtn").addEventListener("click",()=>{if(ui.mode==="op"){ui.mode="select";ui.opGhost=null;renderAll();}else startOpTool();});
+$("#opType").addEventListener("change",e=>{ui.opKind=e.target.value;e.target.blur();renderPlan();});
 /* Block menu: Stairs (with its types), Light well, Core */
 function stairThumb(kind){
   if(kind==="helical")return `<svg class="thumb" viewBox="0 0 46 30" aria-hidden="true"><circle cx="23" cy="15" r="13" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width=".8"/><circle cx="23" cy="15" r="5" fill="none" stroke="currentColor" stroke-width=".8"/>${Array.from({length:12},(_,j)=>{const a=j*Math.PI/7;return `<path d="M${(23+5*Math.cos(a)).toFixed(1)} ${(15+5*Math.sin(a)).toFixed(1)}L${(23+13*Math.cos(a)).toFixed(1)} ${(15+13*Math.sin(a)).toFixed(1)}" stroke="currentColor" stroke-width=".4"/>`;}).join("")}</svg>`;
@@ -3341,6 +3363,7 @@ document.addEventListener("keydown",e=>{
     if(ui.mode==="block"){ui.blockRot=((ui.blockRot||0)+90)%360;renderPlan();return;}
     const b=findSel();if(b){pushHist();b.rot=((b.rot||0)+90)%360;commit();}return;
   }
+  if(lk==="d"&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!draftFrom()){e.preventDefault();startOpTool();return;}
   if((lk==="w"||lk==="a")&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
     // W draws walls, A draws areas; switch to Both if the current view hides that layer
     e.preventDefault();
