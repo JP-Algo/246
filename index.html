@@ -157,7 +157,17 @@ input.in{width:84px}
 .layers .lopts .in{width:100%;padding:3px 6px;font-size:12px;color:var(--ink)}
 .layers .lopts .btn{padding:3px 8px;font-size:12px}
 .layers .lhint{font-size:11.5px;color:var(--muted)}
-@media (max-width:720px){.planrow{flex-direction:column}.layers{flex-basis:auto;max-height:260px}}
+/* side column: layers above, the selected item's properties below; together as tall as the plan */
+.sidecol{flex:0 0 290px;display:flex;flex-direction:column;gap:8px;min-width:0;min-height:0;max-height:calc(clamp(260px,44vh,440px) + 2px)}
+.sidecol .layers{flex:1 1 0;max-height:none;min-height:90px}
+.sidecol .layers.closed{flex:0 0 auto;min-height:0}
+.props{flex:1.5 1 0;min-height:140px;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:12.5px;min-width:0}
+.props .lhd{padding:6px 8px;border-bottom:1px solid var(--line);font-weight:600}
+.props .sel{margin:0;padding:8px;overflow-y:auto;min-height:0;flex:1 1 auto;align-content:flex-start;font-size:12.5px;gap:8px}
+.props .sel .dimedit{grid-template-columns:repeat(auto-fill,minmax(118px,1fr))}
+.props .sel .seg{flex-wrap:wrap}
+.editor.fs .sidecol{max-height:none}
+@media (max-width:720px){.planrow{flex-direction:column}.sidecol{flex-basis:auto;max-height:none}.layers,.sidecol .layers,.props{flex:0 0 auto;max-height:260px}.props{max-height:none}}
 #plan{display:block;width:100%;height:clamp(260px,44vh,440px);touch-action:none;cursor:crosshair;user-select:none;-webkit-user-select:none}
 #plan.select{cursor:default}
 .zoom{position:absolute;right:8px;bottom:8px;display:flex;gap:4px}
@@ -319,10 +329,17 @@ tfoot td{font-weight:600;border-bottom:0}
           <button class="btn" id="zFull" aria-label="Full screen" title="Full screen (Esc to exit)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg></button>
         </div>
       </div>
+      <div class="sidecol">
       <aside class="layers" id="layersPanel" aria-label="Layers on this floor">
         <div class="lhd">Layers on this floor<button id="lpToggle" title="Hide or show the layers list">Hide</button></div>
         <div class="lbody" id="layerList"></div>
       </aside>
+      <!-- the selected item's settings, beside the plan so they stay in reach in full screen -->
+      <section class="props" id="propsPanel" aria-label="Selected item">
+        <div class="lhd">Properties</div>
+        <div class="sel" id="sel"></div>
+      </section>
+      </div>
       </div>
       <!-- drawing settings as a small status bar under the plan -->
       <div class="statusbar" id="statusbar">
@@ -350,7 +367,6 @@ tfoot td{font-weight:600;border-bottom:0}
         <span style="--c:var(--aff)">Residential affordable</span>
         <span style="--c:var(--sell)">Units and sellable areas (not in the FAR math)</span>
       </div>
-      <div class="sel" id="sel"></div>
       <p class="note" id="modeNote"></p>
 
       <div class="row" style="margin-top:12px">
