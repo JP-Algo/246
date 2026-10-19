@@ -129,9 +129,11 @@ input.in{width:84px}
 .layers .eye{display:inline-grid;place-items:center;width:18px;height:18px;padding:0;border:0;background:none;color:var(--muted);cursor:pointer;border-radius:4px}
 .layers .eye:hover{color:var(--ink);background:color-mix(in srgb,var(--ink) 8%,transparent)}
 .layers .eye svg{width:14px;height:14px}
-.layers .lgrp .eye{margin:0 4px -4px -2px}
+.layers .lgrp{display:flex;align-items:center}
+.layers .lgrp .eye{order:2;margin:0 0 0 auto}
+.layers .lrow .eye{grid-column:4;grid-row:1}
 .layers .lrow.off .nm,.layers .lrow.off .sf,.layers .lrow.off .sw{opacity:.4}
-.layers .lrow{display:grid;grid-template-columns:18px 10px 1fr auto;gap:2px 6px;align-items:center;padding:4px 8px;cursor:pointer;border-left:3px solid transparent}
+.layers .lrow{display:grid;grid-template-columns:10px 1fr auto 18px;gap:2px 6px;align-items:center;padding:4px 8px;cursor:pointer;border-left:3px solid transparent}
 .layers .lrow:hover{background:color-mix(in srgb,var(--gross) 7%,transparent)}
 .layers .lrow.on{background:color-mix(in srgb,var(--sel) 12%,transparent);border-left-color:var(--sel)}
 .layers .lrow.hid{opacity:.5}
