@@ -468,6 +468,8 @@ const AREA_TYPES={
   laundry:{base:"Laundry",label:"Laundry (100%)",short:"Laundry",kind:"deduct",factor:1,color:"--deduct"},
   amenity:{label:"Amenity (5% cap)",short:"Amenity",kind:"amenity",factor:1,color:"--amenity"},
   terrace:{label:"Terrace (outdoor)",short:"Terrace",kind:"terrace",color:"--terrace"},
+  // an opening in the floor (atrium, double-height space): the part inside the gross outline is not floor area
+  openBelow:{label:"Open to below (atrium; not floor area)",short:"Open to below",kind:"void",color:"--glass"},
   // Rooms: the layout inside a unit, on the Interiors layer; they do not change floor area
   rmLiving:{label:"Room: living / dining / kitchen",short:"Living / dining / kitchen",kind:"room",hab:true,living:true,color:"--room"},
   rmBed:{label:"Room: bedroom",short:"Bedroom",kind:"room",hab:true,bed:true,color:"--room"},
@@ -478,6 +480,9 @@ const AREA_TYPES={
   rmLaundry:{label:"Room: laundry / storage",short:"Laundry",kind:"room",color:"--room"},
   rmHall:{label:"Room: foyer / hall",short:"Foyer / hall",kind:"room",color:"--room"},
   rmOutdoor:{label:"Room: outdoor zone (roof deck, terrace)",short:"Outdoor",kind:"room",color:"--terrace"},
+  // a walkable glass floor is still floor area; a glass roof sits over this floor (drawn dashed, as overhead)
+  glassFloor:{label:"Glass floor, walkable (floor area)",short:"Glass floor",kind:"room",glass:"floor",color:"--glass"},
+  glassRoof:{label:"Glass roof over this floor, operable",short:"Operable glass roof",kind:"room",glass:"roof",color:"--glass"},
   // Fixtures and furniture: show how a room is laid out (Rooms layer); h is their height in 3D
   fxCounter:{label:"Fixture: kitchen counter",short:"Counter",kind:"fixture",h:3,color:"--room"},
   fxIsland:{label:"Fixture: kitchen island",short:"Island",kind:"fixture",h:3,color:"--room"},
@@ -493,6 +498,8 @@ const AREA_TYPES={
   fxAHU:{label:"Fixture: air handler (heat pump)",short:"AHU",kind:"fixture",h:5,color:"--deduct"},
   fxWH:{label:"Fixture: heat pump water heater",short:"HPWH",kind:"fixture",h:5.5,color:"--deduct"},
   fxERV:{label:"Fixture: ERV",short:"ERV",kind:"fixture",h:2.5,color:"--deduct"},
+  fxPlanter:{label:"Fixture: planting bed",short:"Planter",kind:"fixture",h:2,color:"--terrace"},
+  fxTree:{label:"Fixture: tree in a planter",short:"Tree",kind:"fixture",h:30,tree:true,color:"--terrace"},
   // a balcony projects past the wall below it (cantilevered); outdoor space like a terrace, built as a slab
   balcony:{label:"Balcony (outdoor, cantilevered)",short:"Balcony",kind:"terrace",color:"--terrace"},
   // Use areas sit inside the gross outline and set the use of that part of the floor
@@ -508,8 +515,8 @@ const AREA_TYPES={
   sellComm:{label:"Sellable area, commercial",short:"Sellable comm.",kind:"sell",use:"commercial",color:"--sell"},
   sellCf:{label:"Sellable area, community facility",short:"Sellable CF",kind:"sell",use:"cf",color:"--cf"}
 };
-const MENU=["gross","resArea","resAff","commArea","cfArea","parking","mechanical","corridor100","corridor50","laundry","amenity","terrace","balcony","unit","sellRes","sellAff","sellComm","sellCf","rmLiving","rmBed","rmDen","rmKitchen","rmBath","rmCloset","rmLaundry","rmHall","rmOutdoor","fxCounter","fxIsland","fxTable","fxSofa","fxCoffee","fxBed","fxToilet","fxVanity","fxTub","fxShower","fxWD","fxAHU","fxWH","fxERV"];
-const ORDER=["gross","resArea","resAff","commArea","cfArea","terrace","balcony","amenity","parking","mechanical","corridor50","corridor100","laundry","unit","sellRes","sellAff","sellComm","sellCf","rmLiving","rmBed","rmDen","rmKitchen","rmBath","rmCloset","rmLaundry","rmHall","rmOutdoor","fxCounter","fxIsland","fxTable","fxSofa","fxCoffee","fxBed","fxToilet","fxVanity","fxTub","fxShower","fxWD","fxAHU","fxWH","fxERV"];
+const MENU=["gross","resArea","resAff","commArea","cfArea","parking","mechanical","corridor100","corridor50","laundry","amenity","terrace","balcony","openBelow","unit","sellRes","sellAff","sellComm","sellCf","rmLiving","rmBed","rmDen","rmKitchen","rmBath","rmCloset","rmLaundry","rmHall","rmOutdoor","glassFloor","glassRoof","fxCounter","fxIsland","fxTable","fxSofa","fxCoffee","fxBed","fxToilet","fxVanity","fxTub","fxShower","fxWD","fxAHU","fxWH","fxERV"];
+const ORDER=["gross","resArea","resAff","commArea","cfArea","terrace","balcony","openBelow","amenity","parking","mechanical","corridor50","corridor100","laundry","unit","sellRes","sellAff","sellComm","sellCf","rmLiving","rmBed","rmDen","rmKitchen","rmBath","rmCloset","rmLaundry","rmHall","rmOutdoor","glassFloor","glassRoof","fxCounter","fxIsland","fxTable","fxSofa","fxCoffee","fxBed","fxToilet","fxVanity","fxTub","fxShower","fxWD","fxAHU","fxWH","fxERV"];
 
 const A=(type,pts)=>({id:uid(),type,pts:pts.map(p=>[p[0],p[1]])});
 const W=(a,b,t,tag)=>({id:uid(),a:[a[0],a[1]],b:[b[0],b[1]],t,tag:tag||""});
@@ -672,7 +679,8 @@ const OP_KINDS={
   slider:{name:"Sliding door",w:6,sill:0,head:8,glass:true},
   double:{name:"Double door",w:5,sill:0,head:7,swing:true},
   pocket:{name:"Pocket door",w:2.667,sill:0,head:7},
-  bifold:{name:"Bifold closet door",w:4,sill:0,head:7,swing:true}
+  bifold:{name:"Bifold closet door",w:4,sill:0,head:7,swing:true},
+  garage:{name:"Garage door, glass overhead",w:9,sill:0,head:8,glass:true,swing:true}
 };
 const opsOf=f=>(f&&f.openings)||[];
 const opDef=(op,k)=>op[k]!=null?op[k]:(OP_KINDS[op.kind]||OP_KINDS.window)[k];
@@ -729,7 +737,7 @@ function roomIssues(f,a){
 }
 // standard sizes (along x, along y) for placing a piece with one click
 const FURN_SIZE={fxCounter:[8,2.0833],fxIsland:[6,3],fxTable:[6,3.5],fxSofa:[7,3],fxCoffee:[4,2],fxBed:[6.3333,6.6667],
-  fxToilet:[1.75,2.4],fxVanity:[2.5,1.75],fxTub:[5,2.5],fxShower:[3,3],fxWD:[2.5,2.5],fxAHU:[2.5,2.5],fxWH:[2,2],fxERV:[1.5,2.5]};
+  fxToilet:[1.75,2.4],fxVanity:[2.5,1.75],fxTub:[5,2.5],fxShower:[3,3],fxWD:[2.5,2.5],fxAHU:[2.5,2.5],fxWH:[2,2],fxERV:[1.5,2.5],fxPlanter:[6,3],fxTree:[4,4]};
 // turn an area about its center by deg (90 keeps a rectangle square to the walls)
 function rotateArea(a,deg){
   const c=centroid(a.pts),t=deg*Math.PI/180,cs=Math.cos(t),sn=Math.sin(t),r6=v=>Math.round(v*1e4)/1e4;
@@ -776,6 +784,7 @@ function clipConvex(subj,clip){
   return out;
 }
 const wallRect=(a,b,t)=>{const L=dist(a,b)||1,nx=-(b[1]-a[1])/L*t/2,ny=(b[0]-a[0])/L*t/2;return [[a[0]+nx,a[1]+ny],[b[0]+nx,b[1]+ny],[b[0]-nx,b[1]-ny],[a[0]-nx,a[1]-ny]];};
+const onPolyEdge=(q,P)=>P.some((a,i)=>{const b=P[(i+1)%P.length],L=Math.hypot(b[0]-a[0],b[1]-a[1]);if(L<1e-9)return false;const t=((q[0]-a[0])*(b[0]-a[0])+(q[1]-a[1])*(b[1]-a[1]))/(L*L);if(t<-1e-6||t>1+1e-6)return false;return Math.abs((q[0]-a[0])*(b[1]-a[1])-(q[1]-a[1])*(b[0]-a[0]))/L<0.01;});
 const clipArea=(pts,cl)=>{const q=clipConvex(pts,cl);return q.length>=3?polyArea(q):0;};
 // one floor's part of a unit: sellable as drawn (less any light well), interior inside the wall faces (approximate)
 function unitPartMetrics(f,a){
@@ -1186,8 +1195,12 @@ function compute(){
       else if(T.kind==="sell"&&T.unit){const u=unitById(a.unit),tn=u?u.tenure:"fm";if(tn==="aff")sellAff+=net;else if(tn==="comm")sellComm+=net;else if(tn==="cf")sellCf+=net;else sellRes+=net;}
       else if(T.kind==="sell"){if(T.aff)sellAff+=net;else if(T.use==="residential")sellRes+=net;else if(T.use==="cf")sellCf+=net;else sellComm+=net;}
       else if(T.kind==="room"||T.kind==="fixture"){}
+      else if(T.kind==="void"){}
       else terr+=ar;
     });
+    // openings in the floor: only the part inside the gross outline comes off
+    const voidA=below?0:f.areas.filter(v=>(AREA_TYPES[v.type]||{}).kind==="void"&&v.pts.length>=3).reduce((t,v)=>t+f.areas.filter(g=>g.type==="gross"&&g.pts.length>=3).reduce((u,g)=>u+clipArea(g.pts,v.pts),0),0);
+    gross=Math.max(0,gross-voidA);
     // the core is floor area on every story it passes through: any part of it outside the drawn outline still counts
     const ccOut=(()=>{const c0=coreRectFor(f);if(below||!c0)return 0;const cr0=rect(c0.x0,c0.y0,c0.x1,c0.y1);
       const inG=f.areas.filter(a=>a.type==="gross"&&a.pts.length>=3).reduce((t,a)=>t+clipArea(a.pts,cr0),0);return Math.max(0,polyArea(cr0)-inG);})();
@@ -1572,7 +1585,7 @@ function renderSel(){
     // ends of the wall, named by where they are on the plan
     const endName=q=>h&&Math.abs(h.ux)>=Math.abs(h.uy)?(q[0]<(h.a[0]+h.b[0])/2?"rear":"street"):(q[1]<(h.a[1]+h.b[1])/2?"west":"east");
     const e0=h?h.s-W/2:0,e1=h?h.L-h.s-W/2:0,n0=h?endName(h.a):"",n1=h?endName(h.b):"";
-    const presets=(K.glass?[2,3,4,5,6,8,10]:op.kind==="double"?[4,5,6]:op.kind==="slider"?[5,6,8]:op.kind==="bifold"?[3,4,5,6]:[2,2.333,2.5,2.667,2.833,3]);
+    const presets=(op.kind==="garage"?[8,9,10,12,16]:K.glass?[2,3,4,5,6,8,10]:op.kind==="double"?[4,5,6]:op.kind==="slider"?[5,6,8]:op.kind==="bifold"?[3,4,5,6]:[2,2.333,2.5,2.667,2.833,3]);
     const others=S.floors.filter(x=>x!==f&&x.use!=="cellar");
     el.innerHTML=`<span><span class="k">${escH(op.tag?op.tag+" · ":"")}${K.name}</span> ${fmtLen(W)} wide${K.glass?`, sill ${fmtLen(opDef(op,"sill"))}`:""}, head ${fmtLen(opDef(op,"head"))}${out&&out!=="inside"?`; looks onto the ${out}`:""}</span>
       <div class="dimedit">
@@ -2072,8 +2085,10 @@ function renderPlan(){
   areas.forEach(a=>{
     if(a.pts.length<3||!areaShown(a))return;
     const T=AREA_TYPES[a.type]||AREA_TYPES.gross,uu=a.type==="unit"?unitById(a.unit):null,c=`var(${uu?TENURE_COL[uu.tenure]||T.color:T.color})`,sel=ui.sel&&ui.sel.id===a.id;
-    const dash=isOutdoor(a)?`stroke-dasharray:${0.8*k} ${0.5*k};`:T.kind==="sell"?`stroke-dasharray:${1.2*k} ${0.4*k} ${0.2*k} ${0.4*k};`:"";
+    const dash=isOutdoor(a)||T.glass==="roof"?`stroke-dasharray:${0.8*k} ${0.5*k};`:T.kind==="sell"?`stroke-dasharray:${1.2*k} ${0.4*k} ${0.2*k} ${0.4*k};`:"";
     ar+=`<path data-k="area" data-id="${a.id}" d="${pathOf(a.pts)}" style="fill:${c};fill-opacity:${a.type==="gross"?0.09:T.kind==="room"?0.06:T.kind==="fixture"?0.22:T.kind==="sell"?0.05:T.kind==="use"?0.16:0.26};stroke:${sel?"var(--sel)":c};stroke-width:${(sel?0.5:0.22)*k};${dash}"/>`;
+    if(T.kind==="void"){const xs=a.pts.map(q=>q[0]),ys=a.pts.map(q=>q[1]),x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
+      ar+=`<path d="M${x0} ${y0}L${x1} ${y1}M${x0} ${y1}L${x1} ${y0}" pointer-events="none" style="stroke:${c};stroke-width:${0.12*k};stroke-dasharray:${0.6*k} ${0.4*k}"/>`;}
     const A_=polyArea(a.pts);
     if(a.hideLabel)return;
     const afs=LF(a);
@@ -2175,6 +2190,8 @@ function renderPlan(){
     const sel=!ghost&&ui.sel&&ui.sel.k==="op"&&ui.sel.id===op.id,c=sel||ghost?"var(--sel)":col;let o=`<g pointer-events="none" style="fill:none;stroke:${c};stroke-width:${sw}">`;
     o+=`<path d="M${f3(P(s0,-t/2))}L${f3(P(s0,t/2))}M${f3(P(s1,-t/2))}L${f3(P(s1,t/2))}"/>`;
     if(op.kind==="window")o+=`<path d="M${f3(P(s0,-t/6))}L${f3(P(s1,-t/6))}M${f3(P(s0,t/6))}L${f3(P(s1,t/6))}" style="stroke:var(--glass);stroke-width:${sw*1.3}"/>`;
+    else if(op.kind==="garage"){const sg=op.swing||1,dp=Math.min(8,opDef(op,"head"))*sg;   // glass panel in the wall; the overhead track runs inside, dashed
+      o+=`<path d="M${f3(P(s0,0))}L${f3(P(s1,0))}" style="stroke:var(--glass);stroke-width:${sw*1.8}"/><path d="M${f3(P(s0+0.15,t/2*sg))}L${f3(P(s0+0.15,dp))}L${f3(P(s1-0.15,dp))}L${f3(P(s1-0.15,t/2*sg))}" style="stroke-dasharray:${0.5*k} ${0.35*k}"/>`;}
     else if(op.kind==="slider"){const m=(s0+s1)/2;o+=`<path d="M${f3(P(s0,-t/8))}L${f3(P(m+0.25,-t/8))}M${f3(P(m-0.25,t/8))}L${f3(P(s1,t/8))}" style="stroke:var(--glass);stroke-width:${sw*1.6}"/>`;}
     else if(op.kind==="double"){const sg=op.swing||1,w=(s1-s0)/2,A0=P(s0,0),A1=P(s1,0),M=P(s0+w,0),L0=[A0[0]+n[0]*sg*w,A0[1]+n[1]*sg*w],L1=[A1[0]+n[0]*sg*w,A1[1]+n[1]*sg*w];
       const sw0=((L0[0]-A0[0])*(M[1]-A0[1])-(L0[1]-A0[1])*(M[0]-A0[0]))>0?1:0,sw1=((L1[0]-A1[0])*(M[1]-A1[1])-(L1[1]-A1[1])*(M[0]-A1[0]))>0?1:0;
@@ -2809,16 +2826,29 @@ function build3D(){
       }
       if(T.kind==="fixture"){
         if(ui.layers.furn===false)return;
+        if(T.tree){   // a trunk and a crown in a planter box, as tall as set (up through the atrium)
+          const cc=centroid(a.pts),r=Math.max(1,Math.min(...[0,1].map(d=>Math.max(...a.pts.map(q=>q[d]))-Math.min(...a.pts.map(q=>q[d]))))/2),ht=a.h||T.h;
+          const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.4,ht*0.6,8),new THREE.MeshStandardMaterial({color:new THREE.Color("#7A5A3A"),roughness:0.9}));tr.position.set(cc[0]-CX,y+0.8+ht*0.3,cc[1]-CZ);root.add(tr);
+          const cr=new THREE.Mesh(new THREE.SphereGeometry(r*1.6,12,9),new THREE.MeshStandardMaterial({color:C("--terrace"),roughness:0.9,transparent:true,opacity:0.85}));cr.scale.y=Math.max(1,ht*0.3/(r*1.6));cr.position.set(cc[0]-CX,y+0.8+ht*0.62,cc[1]-CZ);root.add(cr);
+          const pl=new THREE.Mesh(new THREE.BoxGeometry(r*2,1.5,r*2),new THREE.MeshStandardMaterial({color:C("--room").lerp(wallCol,0.55),roughness:0.85}));pl.position.set(cc[0]-CX,y+0.8+0.75,cc[1]-CZ);root.add(pl);return;}
         const geo=new THREE.ExtrudeGeometry(toShape(a.pts),{depth:T.h||2.5,bevelEnabled:false});geo.rotateX(-Math.PI/2);
         const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:C("--room").lerp(wallCol,0.55),roughness:0.85,metalness:0}));
         m.position.y=y+0.8;m.userData.floor=i;m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:ink,transparent:true,opacity:0.35})));root.add(m);
         return;
       }
+      if(T.glass==="floor"){const geo=new THREE.ExtrudeGeometry(toShape(a.pts),{depth:0.15,bevelEnabled:false});geo.rotateX(-Math.PI/2);
+        const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:C("--glass"),transparent:true,opacity:0.35,roughness:0.05,metalness:0.2,depthWrite:false}));m.position.y=y+0.65;m.userData.floor=i;root.add(m);return;}
+      if(T.glass==="roof"){const geo=new THREE.ExtrudeGeometry(toShape(a.pts),{depth:0.2,bevelEnabled:false});geo.rotateX(-Math.PI/2);
+        const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:C("--glass"),transparent:true,opacity:0.4,roughness:0.05,metalness:0.2,depthWrite:false}));m.position.y=y+f.height+0.6;m.userData.floor=i;
+        m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:ink,transparent:true,opacity:0.4})));root.add(m);return;}
+      if(T.kind==="void"){root.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(a.pts.map(q=>new THREE.Vector3(q[0]-CX,y+0.85,q[1]-CZ))),new THREE.LineBasicMaterial({color:ink,transparent:true,opacity:0.5})));return;}
       if(T.kind==="room")return;
       if(T.kind!=="gross"&&!ui.layers.far)return;
       if(T.kind==="sell")return;
       if(T.kind==="gross"){
-        const geo=new THREE.ExtrudeGeometry(toShape(a.pts),{depth:0.8,bevelEnabled:false});
+        // openings in the floor and glass floors are cut out of the slab
+        const sh=toShape(a.pts);f.areas.forEach(v=>{const TV=AREA_TYPES[v.type]||{};if((TV.kind==="void"||TV.glass==="floor")&&v.pts.length>=3&&v.pts.every(q=>pointInPoly(q,a.pts)||onPolyEdge(q,a.pts)))sh.holes.push(new THREE.Path(v.pts.map(p=>new THREE.Vector2(p[0]-CX,CZ-p[1]))));});
+        const geo=new THREE.ExtrudeGeometry(sh,{depth:0.8,bevelEnabled:false});
         geo.rotateX(-Math.PI/2);
         const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:isSel?selCol:slabCol,roughness:0.9,metalness:0}));
         m.position.y=y;m.userData.floor=i;root.add(m);pickables.push(m);
@@ -3215,7 +3245,11 @@ function renderBlockMenu(level){
     const ic={window:'<rect x="4" y="12" width="38" height="6" fill="none" stroke="currentColor" stroke-width=".8"/><path d="M4 15H42" stroke="var(--glass)" stroke-width="1.2"/>',
       door:'<path d="M6 24H14M32 24H40M14 24V6" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M14 6A18 18 0 0 1 32 24" stroke="currentColor" stroke-width=".6" stroke-dasharray="2 1.5" fill="none"/>',
       entry:'<path d="M4 24H12M34 24H42M12 24V2" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M12 2A22 22 0 0 1 34 24" stroke="currentColor" stroke-width=".6" stroke-dasharray="2 1.5" fill="none"/>',
-      slider:'<rect x="4" y="12" width="38" height="6" fill="none" stroke="currentColor" stroke-width=".8"/><path d="M4 14H25M21 16H42" stroke="var(--glass)" stroke-width="1.4"/>'};
+      slider:'<rect x="4" y="12" width="38" height="6" fill="none" stroke="currentColor" stroke-width=".8"/><path d="M4 14H25M21 16H42" stroke="var(--glass)" stroke-width="1.4"/>',
+      double:'<path d="M3 24H8M38 24H43M8 24V9M38 24V9" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M8 9A15 15 0 0 1 23 24M38 9A15 15 0 0 0 23 24" stroke="currentColor" stroke-width=".6" stroke-dasharray="2 1.5" fill="none"/>',
+      pocket:'<rect x="4" y="12" width="38" height="6" fill="none" stroke="currentColor" stroke-width=".8"/><path d="M23 15H42" stroke="currentColor" stroke-width="1.4"/><path d="M4 15H23" stroke="currentColor" stroke-width=".7" stroke-dasharray="2 1.5"/>',
+      bifold:'<path d="M4 22H8M38 22H42" stroke="currentColor" stroke-width="1.2"/><path d="M8 22L15 13L23 22L31 13L38 22" stroke="currentColor" stroke-width="1" fill="none"/>',
+      garage:'<path d="M2 8H8M38 8H44" stroke="currentColor" stroke-width="1.4"/><path d="M8 8H38" stroke="var(--glass)" stroke-width="1.6"/><path d="M9 9V27H37V9" stroke="currentColor" stroke-width=".7" stroke-dasharray="2 1.5" fill="none"/>'};
     m.innerHTML=`<div class="bmhead"><button data-bm="root" aria-label="Back">‹ Back</button>Windows and doors</div>`+
       Object.keys(OP_KINDS).map(k2=>`<button role="menuitem" data-bm="op:${k2}"><svg class="thumb" viewBox="0 0 46 30" aria-hidden="true">${ic[k2]}</svg><span class="bmt"><span>${OP_KINDS[k2].name}</span><small>${fmtLen(OP_KINDS[k2].w)} wide${OP_KINDS[k2].glass?`, sill ${fmtLen(OP_KINDS[k2].sill)}`:""}; click on any wall to place it</small></span></button>`).join("");
   }else if(level==="stairs"){

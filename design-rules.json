@@ -216,6 +216,42 @@
     },
     "facade": {
       "label": "Façade (renderings)",
+      "style": "frame",
+      "styles": "frame: a limestone giant order over the street wall (below), the owner's choice; ribbon: a sculpted white GFRC skin (tried and set aside 10/19/2026, too busy); masonry: the punched-window brick base described in meaning",
+      "frame": {
+        "meaning": "Clean lines for a high-end boutique street wall. Limestone ashlar from the storefront head to parapetFt above the first setback floor, with pierFt piers at the lot lines and bays equal bays split by mullionFt stone mullions that run unbroken through each group of floors. Consecutive floors of the same class form a group: the commercial and amenity floors make a double-height base, the residential floors below the setback a single giant order; a bandFt stone band separates the groups. Glass sits glassDepthFt behind the stone face in slim bronze frames, each floor with a fixed and an operable lite and a bronze guard rail at 42 in; bronze spandrel panels sit spandrelDepthFt back at each slab inside a group. The parapet carries one bronze shadow line and a smooth stone coping. Nothing projects past the street line. Setback floors: storey-high glass and bronze.",
+        "stoneColor": "#DCD4C6",
+        "pierFt": 1.6,
+        "mullionFt": 0.7,
+        "bays": 3,
+        "bandFt": 2.3,
+        "glassDepthFt": 1.25,
+        "spandrelDepthFt": 0.85,
+        "parapetFt": 3.6
+      },
+      "ribbon": {
+        "meaning": "One sculpted skin over the street wall from startFt above grade to parapetFt above the first setback floor. Each floor below the base height gets one long eye-shaped opening: half-width = half the façade - pierFt - |shift|, centred at half the façade + shift (shiftsFt, cycled floor by floor, so the openings' ends alternate and the bands swell and pinch), height = the floor height - 1 ft - 2 x bandMinFt, lens-shaped tips (superellipse endShape), its mid-line waving by waveFt and leaning by tiltFt across the opening, alternating floor by floor so the bands taper. Every edge rolls back over rollFt into a revealFt-deep reveal; glass and slim mullions sit behind. The skin's crown is on the street line (no projection over the street). Lot-line and rear walls get the same white finish with the ribbons as low relief; setback floors and terrace edges get rounded white bands.",
+        "color": "#ECE9E3",
+        "startFt": 12.0,
+        "parapetFt": 3.6,
+        "pierFt": 1.1,
+        "shiftsFt": [
+          2.2,
+          -1.8,
+          2.6,
+          -2.3,
+          2.0
+        ],
+        "waveFt": 0.6,
+        "tiltFt": 1.1,
+        "bandMinFt": 1.0,
+        "endShape": 2.2,
+        "rollFt": 1.3,
+        "revealFt": 0.8,
+        "skinFt": 0.55,
+        "mullionFt": 4.5,
+        "reliefScale": 0.09
+      },
       "meaning": "How a façade is generated from the floor outlines when the model has no façade design. Base (below envelope.baseFt): masonry with punched windows centred in bays of about bayFt, window width = bay - pierMinFt (at most windowMaxWFt), sill sillFt above the finished floor, head headBelowFt below the next floor, a precast sill, a bronze guard bar at 42 in and a soldier course at every slab. Commercial floors above grade: one wide opening per face (1'-7\" brick piers), glazed as a curtain wall. Floors at or above the base height, and floors with no gross outline (an amenity room on a terrace level): storey-high glass in bronze frames on curtainBayFt mullions. Ground floor on the street: retail glass with a recessed residential entry and canopy at the core end. Lot-line walls: the same brick with no openings and the slab soldier course. Terrace edges over masonry: brick upstand and coping with glass above; elsewhere frameless glass.",
       "brickColor": "#ADA498",
       "brickLengthIn": 12,
@@ -229,7 +265,18 @@
       "headBelowFt": 0.8,
       "curtainBayFt": 5.0,
       "thisBuilding": "Warm grey Roman brick (12 x 2 in courses) with dark bronze frames; floors 4-6 get three 6'-2\" windows per 24'-8\" face; floors 7-8 and the 3rd floor amenity room are glass and bronze",
-      "source": "Design assumption for the renderings (scripts/render/render_scene.py), not a design; replace with the architect's façade when there is one"
+      "source": "Design assumption for the renderings (scripts/render/render_scene.py), not a design; frame style chosen by the owner for clean lines, 10/19/2026 (a Zaha-like ribbon skin was tried first). Replace with the architect's façade when there is one"
+    },
+    "liveWorkTriplex": {
+      "label": "Commercial live/work triplex (cellar, 1st, 2nd)",
+      "source": "Project owner, artifact comment 2026-10-19",
+      "rule": "A three-story planted atrium at the rear, across the 30 ft wide rear 19'-6\", from planting beds and trees on the cellar floor up to an operable glass roof on top of the 2nd floor. The 1st floor is open to below over the atrium. The 2nd floor over the atrium is a walkable glass floor (a walkway along the lot line and a 4 ft bridge) with openings between, so light and air reach the cellar. Kitchen and dining are on the cellar garden level. The 1st floor is an open studio and showroom with a gallery that runs to the garage. The garage has a glass overhead door on the street and a second glass overhead door inside, so it opens to the gallery. The 2nd floor has offices around the atrium and bedrooms on the street windows (atrium and lot-line windows are not legal windows for sleeping rooms).",
+      "floorArea": "Openings in a floor (Open to below) are not floor area; the part inside the gross outline comes off. A glass floor is floor area.",
+      "codeChecks": [
+        "Atrium: NYC BC 404 (smoke control, sprinklers) applies when an opening connects more than two stories; the cellar-1st-2nd atrium connects three.",
+        "Garage to live/work: the separation the Building Code requires (406) needs a rated door or fire shutter on the inside garage door, or the garage counted as part of the space.",
+        "Glass floor: rated for floor live load and walkable/slip-resistant; guards (42 in) at every edge of the 2nd-floor openings and at the 1st-floor atrium edge."
+      ]
     }
   },
   "siteInputs246South2nd": {
