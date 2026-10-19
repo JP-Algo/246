@@ -1809,7 +1809,7 @@ function deleteVert(o,i){
   pushHist();o.pts.splice(i,1);ui.selVert=null;commit();
 }
 function deleteSel(){
-  if(!ui.sel||ui.sel.k==="core"||ui.sel.k==="lot"||ui.sel.k==="nbr"||ui.sel.k==="op")return;
+  if(!ui.sel||ui.sel.k==="core"||ui.sel.k==="lot"||ui.sel.k==="nbr")return;
   if(ui.sel.k==="court"){pushHist();S.lightwell=null;ui.sel=null;commit();return;}
   if(ui.sel.k==="op"){pushHist();const f=cur();f.openings=opsOf(f).filter(o=>o.id!==ui.sel.id);ui.sel=null;commit();return;}
   if(ui.sel.k==="block"){pushHist();const f=cur();f.blocks=blocksOf(f).filter(b=>b.id!==ui.sel.id);ui.sel=null;commit();return;}
