@@ -2384,15 +2384,18 @@ function renderPlan(){
     dr+=`<rect x="${q[0]-a/2}" y="${q[1]-b/2}" width="${a}" height="${b}" pointer-events="none" style="fill:var(--sel);fill-opacity:.12;stroke:var(--sel);stroke-width:${0.15*k};stroke-dasharray:${0.5*k} ${0.35*k}"/>`;}
   if(ui.mode==="op"&&ui.opGhost){const g2=ui.opGhost,w=OP_KINDS[ui.opKind].w,s0=Math.max(0,g2.s-w/2),s1=Math.min(g2.L,g2.s+w/2);dr+=opSym(g2.a,[g2.ux,g2.uy],g2.t,s0,s1,{kind:ui.opKind,id:"ghost"},"var(--sel)",true);}
   if(ui.mode==="block"&&ui.ghost)dr+=stairSvg({id:"ghost",kind:ui.blockKind||"u",x:ui.ghost[0],y:ui.ghost[1],rot:ui.blockRot||0},f.height,"ghost");
-  // neighbors: hatched buildings, the court as an open dashed outline, each labelled
+  // neighbors: hatched buildings (labelled), the court drawn like a light well
   let nb="";
   if(ui.layers.nbr!==false)(S.neighbors||[]).forEach(n=>{if(n.hide)return;
     const nsel=ui.sel&&ui.sel.k==="nbr"&&ui.sel.id===n.id,col=nsel?"var(--sel)":"var(--muted)",nf=LF(n);
     n.parts.forEach(pt=>{
       const d=pathOf(pt.pts),cc=centroid(pt.pts),xs=pt.pts.map(q=>q[0]),ys=pt.pts.map(q=>q[1]);
       if(pt.kind==="court"){
-        nb+=`<path d="${d}" pointer-events="none" style="fill:var(--terrace);fill-opacity:.08;stroke:${col};stroke-width:${0.2*k};stroke-dasharray:${0.9*k} ${0.6*k}"/>`;
-        if(!n.hideLabel)nb+=`<text x="${(Math.min(...xs)+Math.max(...xs))/2}" y="${(Math.min(...ys)+Math.max(...ys))/2}" text-anchor="middle" dominant-baseline="central" pointer-events="none" style="fill:${col};font-size:${nf*0.72}px;font-weight:600">${escH(pt.label)}, ${fmtLen(Math.max(...xs)-Math.min(...xs))} × ${fmtLen(Math.max(...ys)-Math.min(...ys))}${pt.down?`, open to the cellar (${fmtLen(pt.down)} down)`:""}</text>`;
+        // drawn like our light well: open court, dashed edge, diagonal hatch, no label (its size is in the layers panel)
+        const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys),cw=x1-x0,ch=y1-y0;
+        nb+=`<path d="${d}" pointer-events="none" style="fill:var(--panel);fill-opacity:.95;stroke:${nsel?"var(--sel)":"var(--terrace)"};stroke-width:${0.25*k};stroke-dasharray:${0.8*k} ${0.5*k}"/><g pointer-events="none" style="stroke:var(--terrace);stroke-opacity:.45;stroke-width:${0.1*k}">`;
+        for(let dd=-ch;dd<cw;dd+=1.5){const xa=Math.max(x0,x0+dd),ya=y1-(xa-(x0+dd)),xb=Math.min(x1,x0+dd+ch),yb=y1-(xb-(x0+dd));nb+=`<path d="M${xa} ${ya}L${xb} ${yb}"/>`;}
+        nb+=`</g>`;
       }else{
         nb+=`<path data-k="nbr" data-id="${n.id}" d="${d}" style="fill:url(#nbrHatch);stroke:${col};stroke-width:${(nsel?0.3:0.18)*k}"/>`;
         if(!n.hideLabel&&pt.kind==="bldg")nb+=`<text x="${cc[0]}" y="${(Math.min(...ys)+Math.max(...ys))/2-nf*0.4}" text-anchor="middle" pointer-events="none" style="fill:${col};font-size:${nf*0.8}px;font-weight:600;paint-order:stroke;stroke:var(--paper);stroke-width:${nf*0.25}px">${escH(pt.label)}</text>`;
