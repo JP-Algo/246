@@ -252,5 +252,11 @@
     "affordableTenure": "For sale (affordable homeownership), valued at affordable pricing, not market comps",
     "orientation": "Plan top edge (y = 0) is the west lot line, bottom edge is the east lot line, right edge is South 2nd Street",
     "floorHeights": "Cellar 12'-0\", 1st 13'-11\", 2nd 11'-0\", 3rd-8th 10'-0\"; roof at 84'-11\" above grade"
+  },
+  "rooms": {
+    "rearUnitBathCloset": {
+      "source": "user layout on the 6th floor rear unit, copied to floors 4, 5, 7 (2026-10-19)",
+      "rule": "Behind the bedroom: a linen closet (about 2 ft 10 in deep) opening to the bedroom with a 3 ft slider, then the bath (about 5 ft 6 in x 7 ft 6 in) with the tub across the far (east) end, the WC and vanity along the mech-closet wall, a 2 ft 6 in door from the foyer, and a 2 ft 4 in slider between the closet and the bath. The stacked W/D goes in the mechanical closet instead of a separate laundry room."
+    }
   }
 }
