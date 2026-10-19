@@ -674,7 +674,7 @@ const NEIGHBORS_SURVEY=[
    parts:[
     {kind:"bldg",label:"#242, 6-story brick",h:62,pts:[[18.4,-25],[120,-25],[120,0],[93.1,0],[93.1,-10.1],[44.3,-10.1],[44.3,0],[18.4,0]]},
     {kind:"low",label:"1 story",h:12,pts:[[83.7,-10.1],[93.1,-10.1],[93.1,0],[83.7,0]]},
-    {kind:"court",label:"#242 court yard",pts:[[44.3,-10.1],[83.7,-10.1],[83.7,0],[44.3,0]]}]},
+    {kind:"court",label:"#242 court yard",down:12,pts:[[44.3,-10.1],[83.7,-10.1],[83.7,0],[44.3,0]]}]},
   {id:"n248",name:"#248 South 2nd Street",
    note:"1-story brick building and 1-story brick church. Only the edge on our east lot line is surveyed; a 25 ft depth is assumed.",
    parts:[
@@ -683,6 +683,8 @@ const NEIGHBORS_SURVEY=[
 ];
 function ensureRules(st){
   if(!Array.isArray(st.neighbors))st.neighbors=JSON.parse(JSON.stringify(NEIGHBORS_SURVEY));
+  // #242's court yard is open down to its cellar (added after the first survey trace)
+  st.neighbors.forEach(n=>n.parts.forEach(p2=>{if(n.id==="n242"&&p2.kind==="court"&&p2.down==null)p2.down=12;}));
   if(!Array.isArray(st.units))st.units=[];
   if(st.settings&&st.settings.cfFar==null)st.settings.cfFar=4.8;   // community facility FAR, added after the first save
   if(!st.rules)st.rules=JSON.parse(JSON.stringify(DEFAULT_RULES));
@@ -1391,8 +1393,9 @@ function renderSel(){
   if(ui.sel.k==="nbr"){
     const n=o;
     el.innerHTML=`<span><span class="k">${escH(n.name)}</span> ${escH(n.note||"")}</span>
-      <div class="dimedit">${n.parts.filter(p2=>p2.kind!=="court").map((p2,i)=>`<label>${escH(p2.label)}, height in ft<input class="in" type="number" min="1" step="1" data-nh="${n.parts.indexOf(p2)}" value="${p2.h}"></label>`).join("")}</div>
+      <div class="dimedit">${n.parts.map(p2=>p2.kind==="court"?`<label>${escH(p2.label)}, depth below grade in ft<input class="in" type="number" min="0" step="1" data-nd="${n.parts.indexOf(p2)}" value="${p2.down||0}"></label>`:`<label>${escH(p2.label)}, height in ft<input class="in" type="number" min="1" step="1" data-nh="${n.parts.indexOf(p2)}" value="${p2.h}"></label>`).join("")}</div>
       <p class="note" style="flex-basis:100%;margin:0">Traced from the survey (A &amp; B Engineering, 10/11/2015). Heights are estimates for the 3D view; set them when known. Show or hide it from the layers panel.</p>`;
+    el.querySelectorAll("[data-nd]").forEach(inp=>inp.addEventListener("change",e=>{const v=parseFloat(e.target.value);if(!(v>=0)){renderSel();return;}pushHist();n.parts[+e.target.dataset.nd].down=v;commit();}));
     el.querySelectorAll("[data-nh]").forEach(inp=>inp.addEventListener("change",e=>{const v=parseFloat(e.target.value);if(!(v>0)){renderSel();return;}pushHist();n.parts[+e.target.dataset.nh].h=v;commit();}));
     return;
   }
@@ -2093,7 +2096,7 @@ function renderPlan(){
       const d=pathOf(pt.pts),cc=centroid(pt.pts),xs=pt.pts.map(q=>q[0]),ys=pt.pts.map(q=>q[1]);
       if(pt.kind==="court"){
         nb+=`<path d="${d}" pointer-events="none" style="fill:var(--terrace);fill-opacity:.08;stroke:${col};stroke-width:${0.2*k};stroke-dasharray:${0.9*k} ${0.6*k}"/>`;
-        if(!n.hideLabel)nb+=`<text x="${(Math.min(...xs)+Math.max(...xs))/2}" y="${(Math.min(...ys)+Math.max(...ys))/2}" text-anchor="middle" dominant-baseline="central" pointer-events="none" style="fill:${col};font-size:${nf*0.72}px;font-weight:600">${escH(pt.label)}, ${fmtLen(Math.max(...xs)-Math.min(...xs))} × ${fmtLen(Math.max(...ys)-Math.min(...ys))}</text>`;
+        if(!n.hideLabel)nb+=`<text x="${(Math.min(...xs)+Math.max(...xs))/2}" y="${(Math.min(...ys)+Math.max(...ys))/2}" text-anchor="middle" dominant-baseline="central" pointer-events="none" style="fill:${col};font-size:${nf*0.72}px;font-weight:600">${escH(pt.label)}, ${fmtLen(Math.max(...xs)-Math.min(...xs))} × ${fmtLen(Math.max(...ys)-Math.min(...ys))}${pt.down?`, open to the cellar (${fmtLen(pt.down)} down)`:""}</text>`;
       }else{
         nb+=`<path data-k="nbr" data-id="${n.id}" d="${d}" style="fill:url(#nbrHatch);stroke:${col};stroke-width:${(nsel?0.3:0.18)*k}"/>`;
         if(!n.hideLabel&&pt.kind==="bldg")nb+=`<text x="${cc[0]}" y="${(Math.min(...ys)+Math.max(...ys))/2-nf*0.4}" text-anchor="middle" pointer-events="none" style="fill:${col};font-size:${nf*0.8}px;font-weight:600;paint-order:stroke;stroke:var(--paper);stroke-width:${nf*0.25}px">${escH(pt.label)}</text>`;
@@ -2543,7 +2546,16 @@ function build3D(){
   });
   if(ui.layers.nbr!==false)(S.neighbors||[]).forEach(n=>{if(n.hide)return;
     n.parts.forEach(pt=>{
-      if(pt.kind==="court"){const l=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pt.pts.map(q=>new THREE.Vector3(q[0]-CX,0.06,q[1]-CZ))),new THREE.LineBasicMaterial({color:C("--terrace")}));root.add(l);return;}
+      if(pt.kind==="court"){
+        const dn=pt.down||0,lm=new THREE.LineBasicMaterial({color:C("--terrace")});
+        root.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pt.pts.map(q=>new THREE.Vector3(q[0]-CX,0.06,q[1]-CZ))),lm));
+        if(dn>0){
+          // an open well: translucent sides from its floor below grade up to grade, and its floor outline
+          const geo=new THREE.ExtrudeGeometry(toShape(pt.pts),{depth:dn,bevelEnabled:false});geo.rotateX(-Math.PI/2);
+          const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:C("--terrace"),transparent:true,opacity:0.16,depthWrite:false,side:THREE.DoubleSide}));
+          m.position.y=-dn;m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),lm));root.add(m);
+        }
+        return;}
       const geo=new THREE.ExtrudeGeometry(toShape(pt.pts),{depth:pt.h||10,bevelEnabled:false});geo.rotateX(-Math.PI/2);
       const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:dark?0x59636a:0xb9c0bd,transparent:true,opacity:0.55,roughness:0.95,metalness:0,depthWrite:false}));
       m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:ink,transparent:true,opacity:0.3})));
