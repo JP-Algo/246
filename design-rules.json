@@ -159,6 +159,8 @@
     "communityFacilityFAR": 4.8,
     "communityFacilityNote": "R6 community facility FAR 4.8, confirmed by the project owner (2026-10-18). Community facility areas, floors and sellable areas are tracked separately; the total FAR still caps all uses together.",
     "heightLimitFt": 85,
+    "neighbors": "#242 (west, 6-story brick): rear wall 18.4 ft from our rear lot line; court yard on our west lot line 44.3-83.7 ft from the rear, 10.1 ft deep, with a 1-story piece at 83.7-93.1 ft. #248 (east): 1-story brick from 20 to 57.5 ft, 1-story church 57.5-113.7 ft. From Survey No. 6097 (A & B Engineering, 10/11/2015); heights estimated.",
+    "unitMix": "4F affordable 1BR (858 SF), 4R/5R/6R 1BR (~725 SF), 5F/6F 2BR/2BA (858 SF), 7F studio + 370 SF terrace, 7R 1BR + terrace, PH full 8th floor 2BR/2BA (863 SF) + 435 SF terraces + 1,505 SF private roof. Units are drawn to the offering plan lines.",
     "landCostUSD": 4000000,
     "hardCostPSF": 450,
     "hardCostBasis": "Project owner, per gross SF; confirm whether it is per gross above grade or including the cellar",

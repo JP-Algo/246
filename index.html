@@ -277,6 +277,7 @@ tfoot td{font-weight:600;border-bottom:0}
           <button data-layer="far" title="Show the floor area layers used for the FAR calculation">FAR</button>
           <button data-layer="int" title="Show walls, the elevator and the stair">Interiors</button>
           <button data-layer="sell" title="Show the units and sellable areas">Units</button>
+          <button data-layer="nbr" title="Show the neighboring buildings from the survey">Neighbors</button>
         </div>
       </div>
       <div class="floorhead" id="floorhead"></div>
@@ -661,7 +662,23 @@ function unitIssues(u,m){
   return iss;
 }
 const floorsTxt=fl=>fl.length>1?`${fl[0].name.replace(/ floor$/,"")}–${fl[fl.length-1].name}`:(fl[0]?fl[0].name:"–");
+/* Neighboring buildings, traced from the survey (A & B Engineering, Survey No. 6097, 10/11/2015, scale 1" = 16').
+   Plan coordinates: y < 0 is west of our west lot line (#242), y > 25 is east (#248). Heights are estimates. */
+const NEIGHBORS_SURVEY=[
+  {id:"n242",name:"#242 South 2nd Street",
+   note:"6-story brick. The survey shows its first ~17 ft past our west lot line; a 25 ft lot is assumed beyond that. Its court yard sits on our lot line behind a chain link fence.",
+   parts:[
+    {kind:"bldg",label:"#242, 6-story brick",h:62,pts:[[18.4,-25],[120,-25],[120,0],[93.1,0],[93.1,-10.1],[44.3,-10.1],[44.3,0],[18.4,0]]},
+    {kind:"low",label:"1 story",h:12,pts:[[83.7,-10.1],[93.1,-10.1],[93.1,0],[83.7,0]]},
+    {kind:"court",label:"#242 court yard",pts:[[44.3,-10.1],[83.7,-10.1],[83.7,0],[44.3,0]]}]},
+  {id:"n248",name:"#248 South 2nd Street",
+   note:"1-story brick building and 1-story brick church. Only the edge on our east lot line is surveyed; a 25 ft depth is assumed.",
+   parts:[
+    {kind:"low",label:"1-story brick",h:14,pts:[[20,25],[57.5,25],[57.5,50],[20,50]]},
+    {kind:"low",label:"#248, 1-story church",h:20,pts:[[57.5,25],[113.7,25],[113.7,50],[57.5,50]]}]}
+];
 function ensureRules(st){
+  if(!Array.isArray(st.neighbors))st.neighbors=JSON.parse(JSON.stringify(NEIGHBORS_SURVEY));
   if(!Array.isArray(st.units))st.units=[];
   if(st.settings&&st.settings.cfFar==null)st.settings.cfFar=4.8;   // community facility FAR, added after the first save
   if(!st.rules)st.rules=JSON.parse(JSON.stringify(DEFAULT_RULES));
@@ -927,9 +944,9 @@ window.addEventListener("pagehide",()=>{if(saveTimer)flush();});
 const LOCAL=load();
 let S=ensureLightwell(syncDerived(ensureRules(ensureCore(LOCAL||seed()))));
 const ui={floor:Math.min(5,S.floors.length-1),mode:"select",areaType:"gross",sel:null,snap:true,ortho:true,
-  explode:false,above:true,view:{cx:60,cy:15,w:142},draft:null,dims:true,typed:"",layers:{far:true,int:true,sell:true},wallT:6,just:"center",snapC:true,snapF:true,snapM:true,hover:null};
+  explode:false,above:true,view:{cx:60,cy:15,w:142},draft:null,dims:true,typed:"",layers:{far:true,int:true,sell:true,nbr:true},wallT:6,just:"center",snapC:true,snapF:true,snapM:true,hover:null};
 const PREF_KEY="s2nd-prefs-v1";
-try{const pr=JSON.parse(localStorage.getItem(PREF_KEY))||{};ui.snap=pr.snap!==false;ui.ortho=pr.ortho!==false;ui.dims=pr.dims!==false;if(pr.layers&&typeof pr.layers==="object")ui.layers={far:pr.layers.far!==false,int:pr.layers.int!==false,sell:pr.layers.sell!==false};else if(pr.layer==="far")ui.layers={far:true,int:false,sell:true};else if(pr.layer==="int")ui.layers={far:false,int:true,sell:false};if(pr.wallT>0)ui.wallT=pr.wallT;if(["out","center","in"].includes(pr.just))ui.just=pr.just;else if(pr.just==="left"||pr.just==="right")ui.just="out";if(typeof pr.snapC==="boolean")ui.snapC=pr.snapC;if(typeof pr.snapF==="boolean")ui.snapF=pr.snapF;if(typeof pr.snapM==="boolean")ui.snapM=pr.snapM;}catch(e){}
+try{const pr=JSON.parse(localStorage.getItem(PREF_KEY))||{};ui.snap=pr.snap!==false;ui.ortho=pr.ortho!==false;ui.dims=pr.dims!==false;if(pr.layers&&typeof pr.layers==="object")ui.layers={far:pr.layers.far!==false,int:pr.layers.int!==false,sell:pr.layers.sell!==false,nbr:pr.layers.nbr!==false};else if(pr.layer==="far")ui.layers={far:true,int:false,sell:true};else if(pr.layer==="int")ui.layers={far:false,int:true,sell:false};if(pr.wallT>0)ui.wallT=pr.wallT;if(["out","center","in"].includes(pr.just))ui.just=pr.just;else if(pr.just==="left"||pr.just==="right")ui.just="out";if(typeof pr.snapC==="boolean")ui.snapC=pr.snapC;if(typeof pr.snapF==="boolean")ui.snapF=pr.snapF;if(typeof pr.snapM==="boolean")ui.snapM=pr.snapM;}catch(e){}
 function savePrefs(){try{localStorage.setItem(PREF_KEY,JSON.stringify({snap:ui.snap,ortho:ui.ortho,dims:ui.dims,layers:ui.layers,wallT:ui.wallT,just:ui.just,snapC:ui.snapC,snapF:ui.snapF,snapM:ui.snapM}));}catch(e){}}
 let shiftHeld=false;
 const orthoOn=()=>ui.ortho!==shiftHeld;
@@ -1350,12 +1367,21 @@ function findSel(){
   if(ui.sel.k==="court")return courtRectFor(cur())?S.lightwell:null;
   if(ui.sel.k==="lot")return ensureSite(S);
   if(ui.sel.k==="block")return blocksOf(f).find(b=>b.id===ui.sel.id)||null;
+  if(ui.sel.k==="nbr")return (S.neighbors||[]).find(n=>n.id===ui.sel.id)||null;
   return ui.sel.k==="wall"?f.walls.find(w=>w.id===ui.sel.id):f.areas.find(a=>a.id===ui.sel.id);
 }
 function renderSel(){
   setTimeout(renderLayers,0);
   const el=$("#sel"),o=findSel();
   if(!o){el.innerHTML=`<span class="k">Nothing selected</span>`;return;}
+  if(ui.sel.k==="nbr"){
+    const n=o;
+    el.innerHTML=`<span><span class="k">${escH(n.name)}</span> ${escH(n.note||"")}</span>
+      <div class="dimedit">${n.parts.filter(p2=>p2.kind!=="court").map((p2,i)=>`<label>${escH(p2.label)}, height in ft<input class="in" type="number" min="1" step="1" data-nh="${n.parts.indexOf(p2)}" value="${p2.h}"></label>`).join("")}</div>
+      <p class="note" style="flex-basis:100%;margin:0">Traced from the survey (A &amp; B Engineering, 10/11/2015). Heights are estimates for the 3D view; set them when known. Show or hide it from the layers panel.</p>`;
+    el.querySelectorAll("[data-nh]").forEach(inp=>inp.addEventListener("change",e=>{const v=parseFloat(e.target.value);if(!(v>0)){renderSel();return;}pushHist();n.parts[+e.target.dataset.nh].h=v;commit();}));
+    return;
+  }
   if(ui.sel.k==="lot"){el.innerHTML=`<span><span class="k">Lot lines</span> Drag any lot line label on the plan to move it. Show or hide them in the layers panel.</span>`;return;}
   if(ui.sel.k==="block"){
     const b=o,f=cur(),i=S.floors.indexOf(f),up=S.floors[i+1],g=stairGeom(b,f.height),sr=S.rules.stair;
@@ -1557,7 +1583,7 @@ function deleteVert(o,i){
   pushHist();o.pts.splice(i,1);ui.selVert=null;commit();
 }
 function deleteSel(){
-  if(!ui.sel||ui.sel.k==="core"||ui.sel.k==="lot")return;
+  if(!ui.sel||ui.sel.k==="core"||ui.sel.k==="lot"||ui.sel.k==="nbr")return;
   if(ui.sel.k==="court"){pushHist();S.lightwell=null;ui.sel=null;commit();return;}
   if(ui.sel.k==="block"){pushHist();const f=cur();f.blocks=blocksOf(f).filter(b=>b.id!==ui.sel.id);ui.sel=null;commit();return;}
   pushHist();
@@ -2045,7 +2071,24 @@ function renderPlan(){
     if(pts.length>=3)dr+=`<text x="${centroid(pts)[0]}" y="${centroid(pts)[1]}" text-anchor="middle" pointer-events="none" style="fill:var(--sel);font-size:${fs}px;font-weight:600">${fmt(polyArea(pts))} SF</text>`;
   }
   if(ui.mode==="block"&&ui.ghost)dr+=stairSvg({id:"ghost",kind:ui.blockKind||"u",x:ui.ghost[0],y:ui.ghost[1],rot:ui.blockRot||0},f.height,"ghost");
-  svg.innerHTML=g+ar+wl+lb+dm+sl+hd+dr;
+  // neighbors: hatched buildings, the court as an open dashed outline, each labelled
+  let nb="";
+  if(ui.layers.nbr!==false)(S.neighbors||[]).forEach(n=>{if(n.hide)return;
+    const nsel=ui.sel&&ui.sel.k==="nbr"&&ui.sel.id===n.id,col=nsel?"var(--sel)":"var(--muted)",nf=LF(n);
+    n.parts.forEach(pt=>{
+      const d=pathOf(pt.pts),cc=centroid(pt.pts),xs=pt.pts.map(q=>q[0]),ys=pt.pts.map(q=>q[1]);
+      if(pt.kind==="court"){
+        nb+=`<path d="${d}" pointer-events="none" style="fill:var(--terrace);fill-opacity:.08;stroke:${col};stroke-width:${0.2*k};stroke-dasharray:${0.9*k} ${0.6*k}"/>`;
+        if(!n.hideLabel)nb+=`<text x="${(Math.min(...xs)+Math.max(...xs))/2}" y="${(Math.min(...ys)+Math.max(...ys))/2}" text-anchor="middle" dominant-baseline="central" pointer-events="none" style="fill:${col};font-size:${nf*0.72}px;font-weight:600">${escH(pt.label)}, ${fmtLen(Math.max(...xs)-Math.min(...xs))} × ${fmtLen(Math.max(...ys)-Math.min(...ys))}</text>`;
+      }else{
+        nb+=`<path data-k="nbr" data-id="${n.id}" d="${d}" style="fill:url(#nbrHatch);stroke:${col};stroke-width:${(nsel?0.3:0.18)*k}"/>`;
+        if(!n.hideLabel&&pt.kind==="bldg")nb+=`<text x="${cc[0]}" y="${(Math.min(...ys)+Math.max(...ys))/2-nf*0.4}" text-anchor="middle" pointer-events="none" style="fill:${col};font-size:${nf*0.8}px;font-weight:600;paint-order:stroke;stroke:var(--paper);stroke-width:${nf*0.25}px">${escH(pt.label)}</text>`;
+        else if(!n.hideLabel)nb+=`<text x="${cc[0]}" y="${cc[1]}" text-anchor="middle" dominant-baseline="central" pointer-events="none" style="fill:${col};font-size:${nf*0.62}px;paint-order:stroke;stroke:var(--paper);stroke-width:${nf*0.22}px">${escH(pt.label)}</text>`;
+      }
+    });
+  });
+  const hatch=`<defs><pattern id="nbrHatch" patternUnits="userSpaceOnUse" width="${1.2}" height="${1.2}" patternTransform="rotate(45)"><rect width="1.2" height="1.2" style="fill:var(--muted);fill-opacity:.07"/><line x1="0" y1="0" x2="0" y2="1.2" style="stroke:var(--muted);stroke-opacity:.45;stroke-width:${0.08*k}"/></pattern></defs>`;
+  svg.innerHTML=hatch+g+nb+ar+wl+lb+dm+sl+hd+dr;
   renderPop();
 }
 
@@ -2189,6 +2232,8 @@ $("#layerList").addEventListener("change",e=>{
   if(nm){const a=cur().areas.find(x=>x.id===nm.dataset.lname),v=nm.value.trim();if(a&&(a.name||"")!==v){pushHist();if(v)a.name=v;else delete a.name;nm.blur();layersKey="";commit();}return;}
   const so=e.target.closest("[data-siteopt]");
   if(so){const SI=ensureSite(S);pushHist();if(so.checked)delete SI.hide[so.dataset.siteopt];else SI.hide[so.dataset.siteopt]=true;so.blur();layersKey="";commit();return;}
+  const no=e.target.closest("[data-nopt]");
+  if(no){const n=(S.neighbors||[]).find(x=>x.id===no.dataset.nid);if(n){pushHist();if(no.checked)delete n[no.dataset.nopt];else n[no.dataset.nopt]=true;no.blur();layersKey="";commit();}return;}
   const co=e.target.closest("[data-coreopt]");
   if(co&&S.core){pushHist();if(co.checked)delete S.core[co.dataset.coreopt];else S.core[co.dataset.coreopt]=true;co.blur();layersKey="";commit();return;}
   const lo=e.target.closest("[data-lwopt]");
@@ -2211,7 +2256,7 @@ function labMain(kind,o){return kind==="area"?(o&&o.type==="gross"?1:0.92):kind=
 function labPt(o,kind){const fs=ui.planFs||1,ft=(o&&o.labLock>0?o.labLock:fs)*((o&&o.labSize)||100)/100*labMain(kind,o);return Math.round(ft*vb().pxPerFt*0.75*2)/2;}
 // which object holds the label style for a layers-panel control
 function labTarget(ref){const [kind,id]=ref.split(":");
-  return kind==="block"?blocksOf(cur()).find(x=>x.id===id):kind==="area"?cur().areas.find(x=>x.id===id):kind==="core"?S.core:kind==="court"?S.lightwell:kind==="lot"?ensureSite(S):null;}
+  return kind==="nbr"?(S.neighbors||[]).find(x=>x.id===id):kind==="block"?blocksOf(cur()).find(x=>x.id===id):kind==="area"?cur().areas.find(x=>x.id===id):kind==="core"?S.core:kind==="court"?S.lightwell:kind==="lot"?ensureSite(S):null;}
 let labSliding=false;
 $("#layerList").addEventListener("input",e=>{
   const r=e.target.closest("[data-lsz]");if(!r)return;
@@ -2297,6 +2342,7 @@ svg.addEventListener("pointermove",e=>{
       ui.hover=best!==null&&ui.snap?{pt:[o.x0+(desc.includes("street")?len:0),cr?(cr.y0+cr.y1)/2:5],kind:"end",desc,drag:true}:null;
     }
     else if(ui.sel.k==="block"){o.x=drag.orig.x+dx;o.y=drag.orig.y+dy;}
+    else if(ui.sel.k==="nbr"){}
     else if(ui.sel.k==="core"){o.x0=drag.orig.x0+dx;o.x1=drag.orig.x1+dx;o.y0=drag.orig.y0+dy;o.y1=drag.orig.y1+dy;}
     else o.pts=drag.orig.pts.map(q=>[q[0]+dx,q[1]+dy]);
   }
@@ -2481,6 +2527,15 @@ function build3D(){
       root.add(m);pickables.push(m);
     });
   });
+  if(ui.layers.nbr!==false)(S.neighbors||[]).forEach(n=>{if(n.hide)return;
+    n.parts.forEach(pt=>{
+      if(pt.kind==="court"){const l=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pt.pts.map(q=>new THREE.Vector3(q[0]-CX,0.06,q[1]-CZ))),new THREE.LineBasicMaterial({color:C("--terrace")}));root.add(l);return;}
+      const geo=new THREE.ExtrudeGeometry(toShape(pt.pts),{depth:pt.h||10,bevelEnabled:false});geo.rotateX(-Math.PI/2);
+      const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:dark?0x59636a:0xb9c0bd,transparent:true,opacity:0.55,roughness:0.95,metalness:0,depthWrite:false}));
+      m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:ink,transparent:true,opacity:0.3})));
+      root.add(m);
+    });
+  });
   const lotPts=LOT.map(p=>new THREE.Vector3(p[0]-CX,0.05,p[1]-CZ));
   root.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(lotPts),new THREE.LineBasicMaterial({color:ink})));
   const grid=new THREE.GridHelper(260,52,dark?0x2a3235:0xc3cbc8,dark?0x232a2d:0xd5dbd8);grid.position.y=-0.02;root.add(grid);
@@ -2545,7 +2600,7 @@ function renderLayers(){
   const box=$("#layerList");if(!box)return;
   const f=cur(),sel=ui.sel;
   const areas=[...f.areas].sort((a,b)=>MENU.indexOf(a.type)-MENU.indexOf(b.type));
-  const key=JSON.stringify([ui.floor,sel,ui.layers,areas.map(a=>[a.id,a.type,a.name||"",Math.round(polyArea(a.pts)),!!a.hideLabel,!!a.lab,a.labSize,a.labLock]),JSON.stringify(f.blocks||[]),f.height,f.walls.map(w=>[w.id,w.tag,Math.round(w.t*12),Math.round(dist(w.a,w.b)*10)]),!!S.core,!!courtRectFor(f),JSON.stringify(ensureSite(S)),S.lightwell&&[S.lightwell.labSize,S.lightwell.labLock,!!S.lightwell.hideLabel,!!S.lightwell.hideDims,JSON.stringify(courtRectFor(f))],S.core&&[S.core.labSize,S.core.labLock,!!S.core.hideLabel,!!S.core.hideDims,JSON.stringify(coreRectFor(f)),S.core.elevW,S.core.elevSide,S.core.attach,S.core.auto,f.height,f.use,f.coreRes]]);
+  const key=JSON.stringify([ui.floor,sel,ui.layers,areas.map(a=>[a.id,a.type,a.name||"",Math.round(polyArea(a.pts)),!!a.hideLabel,!!a.lab,a.labSize,a.labLock]),JSON.stringify(f.blocks||[]),f.height,JSON.stringify((S.neighbors||[]).map(n=>[n.id,n.hide,n.hideLabel,n.labSize,n.labLock,n.parts.map(p2=>p2.h)])),ui.layers.nbr,f.walls.map(w=>[w.id,w.tag,Math.round(w.t*12),Math.round(dist(w.a,w.b)*10)]),!!S.core,!!courtRectFor(f),JSON.stringify(ensureSite(S)),S.lightwell&&[S.lightwell.labSize,S.lightwell.labLock,!!S.lightwell.hideLabel,!!S.lightwell.hideDims,JSON.stringify(courtRectFor(f))],S.core&&[S.core.labSize,S.core.labLock,!!S.core.hideLabel,!!S.core.hideDims,JSON.stringify(coreRectFor(f)),S.core.elevW,S.core.elevSide,S.core.attach,S.core.auto,f.height,f.use,f.coreRes]]);
   if(key===layersKey)return;
   if(box.contains(document.activeElement)&&/^(SELECT|INPUT)$/.test(document.activeElement.tagName))return;
   layersKey=key;
@@ -2611,6 +2666,20 @@ function renderLayers(){
       h+=`</div>`;
     });
   }
+  if((S.neighbors||[]).length){
+    grp("Neighbors");
+    S.neighbors.forEach(n=>{
+      const on=sel&&sel.k==="nbr"&&sel.id===n.id,court=n.parts.find(p2=>p2.kind==="court");
+      h+=`<div class="lrow ${on?"on":""} ${ui.layers.nbr!==false?"":"hid"}" data-lk="nbr" data-lid="${n.id}"><span class="sw" style="--c:var(--muted)"></span><span class="nm">${escH(n.name)}</span><span class="sf">${n.parts.filter(p2=>p2.h).map(p2=>Math.round(p2.h)+"'").join(" / ")}</span>`+
+        (on?`<div class="lopts">
+           <label class="ck"><input type="checkbox" data-nopt="hide" data-nid="${n.id}" ${n.hide?"":"checked"}> Show it on the plan and in 3D</label>
+           <label class="ck"><input type="checkbox" data-nopt="hideLabel" data-nid="${n.id}" ${n.hideLabel?"":"checked"}> Show its labels</label>
+           ${labCtl("nbr",n.id,n)}
+           <dl class="lspec">${court?`<dt>Court yard</dt><dd>${fmtLen(Math.max(...court.pts.map(q=>q[0]))-Math.min(...court.pts.map(q=>q[0])))} × ${fmtLen(Math.max(...court.pts.map(q=>q[1]))-Math.min(...court.pts.map(q=>q[1])))}, ${fmtLen(Math.min(...court.pts.map(q=>q[0])))} to ${fmtLen(Math.max(...court.pts.map(q=>q[0])))} from our rear lot line</dd>`:""}<dt>Source</dt><dd>Survey No. 6097, 10/11/2015</dd></dl>
+           <span class="lhint">${escH(n.note||"")}</span>
+         </div>`:"")+`</div>`;
+    });
+  }
   const lw=courtRectFor(f);
   if(S.core||lw){
     grp("Building elements");
@@ -2668,6 +2737,7 @@ function renderLayers(){
 }
 function selectFromLayers(k,id){
   // turn on the layer the item lives on, then select it
+  if(k==="nbr"&&ui.layers.nbr===false)ui.layers.nbr=true;
   if((k==="wall"||k==="block")&&!ui.layers.int)ui.layers.int=true;
   if(k==="area"){const a=cur().areas.find(x=>x.id===id),T=a&&AREA_TYPES[a.type];if(T){if(T.kind==="sell")ui.layers.sell=true;else ui.layers.far=true;}}
   ui.mode="select";ui.draft=null;ui.selVert=null;ui.sel={k,id};
