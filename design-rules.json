@@ -276,7 +276,8 @@
         "Atrium: NYC BC 404 (smoke control, sprinklers) applies when an opening connects more than two stories; the cellar-1st-2nd atrium connects three.",
         "Garage to live/work: the separation the Building Code requires (406) needs a rated door or fire shutter on the inside garage door, or the garage counted as part of the space.",
         "Glass floor: rated for floor live load and walkable/slip-resistant; guards (42 in) at every edge of the 2nd-floor openings and at the 1st-floor atrium edge."
-      ]
+      ],
+      "lotLineWindows": "1st and 2nd floors: lot-line windows on the west wall where it faces #242's court yard (44'-4\" to 83'-8\" from the rear), kept 6 in clear of the court's ends. They give daylight to the gallery, office 3 and the library, but they are not legal windows. They need protected (fire-rated) openings and, under the Building Code's fire separation rules, a recorded light-and-air easement from #242 so the court stays open."
     }
   },
   "siteInputs246South2nd": {
