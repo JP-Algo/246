@@ -1120,14 +1120,14 @@ function compute(){
     f.areas.forEach(a=>{const T=AREA_TYPES[a.type];if(T&&T.kind==="use"&&a.pts.length>=3)ovs[T.use].push(a);});
     const useAt=q=>ovs.residential.some(a=>pointInPoly(q,a.pts))?"residential":ovs.commercial.some(a=>pointInPoly(q,a.pts))?"commercial":ovs.cf.some(a=>pointInPoly(q,a.pts))?"cf":f.use;
     let gross=0,court=0,terr=0,ovRes=0,ovComm=0,ovCf=0,amen=0,sellRes=0,sellComm=0,sellAff=0,sellCf=0,aff=0;
-    const ded={residential:0,commercial:0,cf:0};
+    const ded={residential:0,commercial:0,cf:0},dedBy={};   // dedBy: residential deductions by kind (corridor, mechanical ...)
     f.areas.forEach(a=>{
       if(a.pts.length<3)return;
       const T=AREA_TYPES[a.type]||AREA_TYPES.gross,ar=polyArea(a.pts),rr=rectOf(a.pts);
       const cv=cr?(rr?rectOverlap(rr,cr):(T.kind==="gross"?(cr.x1-cr.x0)*(cr.y1-cr.y0):0)):0,net=Math.max(0,ar-cv);
       if(T.kind==="gross"){gross+=net;court+=cv;}
       else if(T.kind==="use"){if(T.use==="residential")ovRes+=net;else if(T.use==="cf")ovCf+=net;else ovComm+=net;if(T.aff)aff+=net;}
-      else if(T.kind==="deduct"){const u=useAt(centroid(a.pts));ded[u==="commercial"||u==="cf"?u:"residential"]+=net*factorOf(a.type);}
+      else if(T.kind==="deduct"){const u=useAt(centroid(a.pts)),k2=u==="commercial"||u==="cf"?u:"residential";ded[k2]+=net*factorOf(a.type);if(k2==="residential")dedBy[T.base]=(dedBy[T.base]||0)+net*factorOf(a.type);}
       else if(T.kind==="amenity"){if(useAt(centroid(a.pts))==="residential")amen+=net;}
       else if(T.kind==="sell"&&T.unit){const u=unitById(a.unit),tn=u?u.tenure:"fm";if(tn==="aff")sellAff+=net;else if(tn==="comm")sellComm+=net;else if(tn==="cf")sellCf+=net;else sellRes+=net;}
       else if(T.kind==="sell"){if(T.aff)sellAff+=net;else if(T.use==="residential")sellRes+=net;else if(T.use==="cf")sellCf+=net;else sellComm+=net;}
@@ -1151,7 +1151,7 @@ function compute(){
       ded.residential+=wallX*resGross/gross;ded.commercial+=wallX*commGross/gross;ded.cf+=wallX*cfGross/gross;
     }
     const resPreF=below?0:Math.max(0,resGross-ded.residential),commPreF=below?0:Math.max(0,commGross-ded.commercial),cfPreF=below?0:Math.max(0,cfGross-ded.cf);
-    return {i,f,gross,court,terr,below,coreRes,amen:below?0:amen,sellRes,sellComm,sellAff,sellCf,aff:below?0:aff,resGross,commGross,cfGross,resPreF,commPreF,cfPreF,wallX};
+    return {i,f,gross,court,terr,below,coreRes,amen:below?0:amen,sellRes,sellComm,sellAff,sellCf,aff:below?0:aff,resGross,commGross,cfGross,resPreF,commPreF,cfPreF,wallX,dedBy:below?{}:dedBy};
   });
   const resPre=rows.reduce((s,r)=>s+r.resPreF,0);
   const amenRaw=rows.reduce((s,r)=>s+r.amen,0);
@@ -1217,7 +1217,7 @@ function renderTotals(){
   const mrGross=resGross-c.affT,mrZfa=c.resZfa-affZ,mrDed=Math.max(0,mrGross-c.amenUsed-c.zoneGreen-mrZfa);
   const mrTip=infoTip(`Market-rate residential zoning floor area above grade: ${fmt(resGross)} SF residential gross`+
     (c.affT>0.5?` less ${fmt(c.affT)} SF affordable = ${fmt(mrGross)} SF market-rate gross`:"")+
-    `, less ${fmt(mrDed)} SF of floor area deductions drawn on the residential floors (corridors, mechanical closets and the like)`+
+    `, less ${fmt(mrDed)} SF of floor area deductions drawn on the residential floors (${(()=>{const t={};c.rows.forEach(r=>Object.entries(r.dedBy||{}).forEach(([k2,v])=>t[k2]=(t[k2]||0)+v));const L=Object.entries(t).filter(e=>e[1]>0.5).map(([k2,v])=>`${k2.toLowerCase()} ${fmt(v)}`);return L.length?L.join(", "):"none";})()}; walls are not deducted)`+
     (c.amenUsed>0.5?`, less ${fmt(c.amenUsed)} SF amenity deduction`:"")+
     (c.zoneGreen>0.5?`, less ${fmt(c.zoneGreen)} SF Zone Green`:"")+
     ` = ${fmt(mrZfa)} SF.`+
