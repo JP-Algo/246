@@ -2143,7 +2143,8 @@ function renderPlan(){
       const cr=(L2[0]-H[0])*(O[1]-H[1])-(L2[1]-H[1])*(O[0]-H[0]);
       o+=`<path d="M${f3(H)}L${f3(L2)}" style="stroke-width:${sw*1.8}"/><path d="M${f3(L2)}A${w} ${w} 0 0 ${cr>0?1:0} ${f3(O)}" style="stroke-dasharray:${0.3*k} ${0.25*k}"/>`;}
     o+=`</g>`;
-    if(!ghost)o+=`<path data-k="op" data-id="${op.id}" d="M${f3(P(s0,-t/2-0.3))}L${f3(P(s1,-t/2-0.3))}L${f3(P(s1,t/2+0.3))}L${f3(P(s0,t/2+0.3))}Z" pointer-events="all" style="fill:transparent;stroke:none"/>`;
+    const pad=Math.max(0.35,hr*0.45);
+    if(!ghost)o+=`<path data-k="op" data-id="${op.id}" d="M${f3(P(s0,-t/2-pad))}L${f3(P(s1,-t/2-pad))}L${f3(P(s1,t/2+pad))}L${f3(P(s0,t/2+pad))}Z" pointer-events="all" style="fill:${sel?"var(--sel)":"transparent"};fill-opacity:${sel?0.22:0};stroke:${sel?"var(--sel)":"none"};stroke-width:${0.12*k}" cursor="pointer"/>`;
     return o;
   };
   let osv="";   // opening symbols and their click targets, drawn above the walls
@@ -2356,7 +2357,7 @@ function renderPlan(){
     });
   });
   const hatch=`<defs><pattern id="nbrHatch" patternUnits="userSpaceOnUse" width="${1.2}" height="${1.2}" patternTransform="rotate(45)"><rect width="1.2" height="1.2" style="fill:var(--muted);fill-opacity:.07"/><line x1="0" y1="0" x2="0" y2="1.2" style="stroke:var(--muted);stroke-opacity:.45;stroke-width:${0.08*k}"/></pattern></defs>`;
-  svg.innerHTML=hatch+g+nb+ar+wl+osv+lb+dm+sl+hd+dr;
+  svg.innerHTML=hatch+g+nb+ar+wl+lb+dm+sl+hd+osv+dr;
   renderPop();
 }
 
