@@ -405,7 +405,7 @@ tfoot td{font-weight:600;border-bottom:0}
         <label>Height limit (ft)<input class="in" type="number" data-set="maxHeight" step="1"></label>
         <label>Offset from east and west lot lines (in), set by the design rule<input class="in" type="number" id="sideOff" readonly></label>
       </div>
-      <label class="check" style="margin-top:12px"><input type="checkbox" id="wallExcl"> Qualifying exterior wall thickness: exclude <span id="wxIn">8</span> in of the exterior walls on every floor above grade (walls must beat the energy code)</label>
+      <label class="check" style="margin-top:12px"><input type="checkbox" id="wallExcl"> Qualifying exterior wall thickness: exclude <span id="wxIn">8</span> in of the exterior walls on every floor above grade. <b>Existing buildings only</b> (over-cladding or re-cladding a wall standing on 12/6/2023); not available to a new building like this one</label>
       <label class="check" style="margin-top:12px"><input type="checkbox" id="zoneGreen"> Zone Green: deduct <span id="zgPct">5</span>% of the zoning floor area above grade (from residential)</label>
       <div class="row" style="margin-top:14px">
         <button class="btn" id="reset">Reset to the sketch</button>
@@ -511,7 +511,8 @@ const DEFAULT_RULES={
   sideOffset:{ratio:600,minIn:1,roundIn:1},          // 1 : 600 of building height = 1 in per 50 ft
   amenityCap:{pct:5},                                 // % of residential floor area
   zoneGreen:{pct:5},                                  // % of the zoning floor area above grade, before this exclusion
-  // Qualifying exterior wall thickness (ZR 12-10 floor area): up to 8 in of exterior wall excluded where the wall beats the energy code
+  // Qualifying exterior wall thickness (ZR 12-10): only for walls added to a building existing on 12/6/2023 (over-cladding or
+  // re-cladding, up to 12 in) or walls built 4/30/2012 to 12/6/2023. Not available to new buildings, which get the 5% instead.
   wallExcl:{inches:8},
   deductions:{parking:100,mechanical:100,corridor100:100,corridor50:50,laundry:100},
   // Scissor stair: two interlocking stairs in one enclosure (NYC BC 2022 §1011.2, 1011.5.2, 1011.6, 1011.8, 1007.1.1 exc. 3)
@@ -1119,7 +1120,7 @@ function renderTotals(){
       return `<tr class="adj"><td>Amenity deduction${t}</td><td></td><td></td><td></td><td></td><td></td><td>${fmt(c.amenAllowed)}${t}</td><td></td><td></td><td></td></tr>`;})()+
     (()=>{const t=infoTip(`${S.rules.zoneGreen.pct}% of the zoning floor area above grade (${fmt(c.zgBase)} SF, all uses, before this exclusion), the floor area exclusion for a qualifying ultra-low energy building. It is taken off the residential floor area.`);
       return `<tr class="adj"><td>Zone Green${t}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td><td></td><td></td><td>${S.settings.zoneGreen?fmt(c.zoneGreen)+t:"off"}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td></tr>`;})()+
-    (S.settings.wallExcl?(()=>{const t=infoTip(`Qualifying exterior wall thickness: ${S.rules.wallExcl.inches} in of the exterior walls is left out of floor area on each floor above grade, measured along the outline and the light well walls, and shared among the uses on that floor. It is already inside each floor's Deductions.`);
+    (S.settings.wallExcl?(()=>{const t=infoTip(`Qualifying exterior wall thickness (existing buildings only): ${S.rules.wallExcl.inches} in of the exterior walls is left out of floor area on each floor above grade, measured along the outline and the light well walls, and shared among the uses on that floor. It is already inside each floor's Deductions.`);
       return `<tr class="adj"><td>Exterior wall thickness${t}</td><td></td><td></td><td></td><td></td><td></td><td>${fmt(c.wallXT)}${t}</td><td></td><td></td><td></td></tr>`;})():"")+
     `<tr><td>Total above grade</td><td>${fmt(c.resZfa-affZ)}<small>of ${fmt(resGross-c.affT)} gross${mrTip}</small><small class="${mrDiff>0.5?"bad":"ok"}">${Math.abs(mrDiff)<0.5?"at permitted":`${fmt(Math.abs(mrDiff))} ${mrDiff>0?"over":"under"} permitted`}</small></td><td>${fmt(c.commZfa)}<small>of ${fmt(commGross)} gross</small></td><td>${fmt(c.cfZfa)}<small>of ${fmt(c.cfGrossT)} gross</small></td><td>${fmt(affZ)}${affZ>0.5?`<small>residential total ${fmt(c.resZfa)}</small>`:""}</td><td>${fmt(c.grossAbove)}</td><td>${fmt(c.grossAbove-c.total)}</td><td>${fmt(c.total)}</td><td>${fmt(c.sellRes+c.sellAff+c.sellComm+c.sellCf)}</td><td>${fmt(c.terrTotal)}</td></tr>`+
     `<tr class="adj"><td>Sellable efficiency<small>sellable ÷ gross of that use</small></td><td>${c.resGrossT?Math.round((c.sellRes+c.sellAff)/c.resGrossT*100)+"%":"–"}</td><td>${c.commGrossT?Math.round(c.sellComm/c.commGrossT*100)+"%":"–"}</td><td>${c.cfGrossT?Math.round(c.sellCf/c.cfGrossT*100)+"%":"–"}</td><td></td><td>${c.grossAbove?Math.round((c.sellRes+c.sellAff+c.sellComm+c.sellCf)/c.grossAbove*100)+"%":"–"}</td><td></td><td></td><td>FM ${fmt(c.sellRes)} · A ${fmt(c.sellAff)} · C ${fmt(c.sellComm)} · CF ${fmt(c.sellCf)}</td><td></td></tr>`;
@@ -2581,7 +2582,7 @@ function renderRules(){
      `${fmt(c.height)} ft tall, ${sideOffsetRaw(S).toFixed(2)} in, so <b>${+sideOffsetIn(S).toFixed(2)} in</b>`,
      "NYC Building Code 2022 §1613.4"],
     ["Amenity deduction cap",`${inp("amenityCap.pct",R.amenityCap.pct,0.5)}% of residential floor area`,`${fmt(c.amenCap)} SF cap, ${fmt(c.amenAllowed)} SF used`,"Project assumption, confirm"],
-    ["Exterior wall thickness exclusion",`${inp("wallExcl.inches",R.wallExcl.inches,1)} in of exterior wall excluded on each floor above grade, along the outline and the light well walls`,S.settings.wallExcl?`${fmt(c.wallXT)} SF`:"Off for this building","ZR 12-10 (floor area), qualifying exterior wall thickness: walls must beat the NYC Energy Code U-factors (DOB: wall U ≤ 80% and wall plus windows ≤ 90% of code); confirm"],
+    ["Exterior wall thickness exclusion",`${inp("wallExcl.inches",R.wallExcl.inches,1)} in of exterior wall excluded on each floor above grade, along the outline and the light well walls. Only for walls added to a building existing on 12/6/2023 (up to 12 in) or walls built 2012–2023`,S.settings.wallExcl?`${fmt(c.wallXT)} SF`:"Not available: new building","ZR 12-10, definitions of floor area and qualifying exterior wall thickness (City of Yes for Carbon Neutrality, 12/6/2023)"],
     ["Zone Green deduction",`${inp("zoneGreen.pct",R.zoneGreen.pct,0.5)}% of the zoning floor area above grade (before this exclusion), taken off the residential floor area`,S.settings.zoneGreen?`${fmt(c.zoneGreen)} SF`:"Off for this building","Project assumption, confirm"],
     ...["parking","mechanical","corridor100","corridor50","laundry"].map(k=>[`${AREA_TYPES[k].base} deduction`,`${inp("deductions."+k,R.deductions[k],5)}% of its area`,`${fmt(dedSum(k))} SF on all floors`,"Project assumption, confirm"]),
     ["Elevator and stair core","Counts as floor area on every floor. On commercial floors it counts as residential unless switched off for that floor",
