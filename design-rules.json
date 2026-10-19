@@ -207,6 +207,23 @@
       "label": "Residential affordable areas",
       "meaning": "Drawn inside the gross outline like a Residential area; counts as residential floor area and is tracked as affordable. When any are drawn, the market-rate residential check subtracts their total instead of the affordable unit zoning input.",
       "source": "Project modeling convention"
+    },
+    "facade": {
+      "label": "Façade (renderings)",
+      "meaning": "How a façade is generated from the floor outlines when the model has no façade design. Base (below envelope.baseFt): masonry with punched windows centred in bays of about bayFt, window width = bay - pierMinFt (at most windowMaxWFt), sill sillFt above the finished floor, head headBelowFt below the next floor, a precast sill, a bronze guard bar at 42 in and a soldier course at every slab. Commercial floors above grade: one wide opening per face (1'-7\" brick piers), glazed as a curtain wall. Floors at or above the base height, and floors with no gross outline (an amenity room on a terrace level): storey-high glass in bronze frames on curtainBayFt mullions. Ground floor on the street: retail glass with a recessed residential entry and canopy at the core end. Lot-line walls: the same brick with no openings and the slab soldier course. Terrace edges over masonry: brick upstand and coping with glass above; elsewhere frameless glass.",
+      "brickColor": "#ADA498",
+      "brickLengthIn": 12,
+      "brickCourseIn": 2,
+      "metalColor": "#3A3129",
+      "wallFt": 1.0,
+      "bayFt": 8.5,
+      "windowMaxWFt": 6.2,
+      "pierMinFt": 2.0,
+      "sillFt": 1.5,
+      "headBelowFt": 0.8,
+      "curtainBayFt": 5.0,
+      "thisBuilding": "Warm grey Roman brick (12 x 2 in courses) with dark bronze frames; floors 4-6 get three 6'-2\" windows per 24'-8\" face; floors 7-8 and the 3rd floor amenity room are glass and bronze",
+      "source": "Design assumption for the renderings (scripts/render/render_scene.py), not a design; replace with the architect's façade when there is one"
     }
   },
   "siteInputs246South2nd": {

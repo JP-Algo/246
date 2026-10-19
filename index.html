@@ -2067,9 +2067,9 @@ function renderPlan(){
   dm+=`</g>`;
 
   let wl="";
-  const WL={reg:showInt?cutWalls(f):[],core:showInt?coreWalls(f):[],court:showInt?courtWalls(f):[]};
+  const WL={reg:cutWalls(f).filter(wallShown),core:showInt?coreWalls(f):[],court:showInt?courtWalls(f):[]};
   const WE=new Map(drawEnds([...WL.reg,...WL.core,...WL.court]).map(d=>[d.w,d])),we=w=>WE.get(w)||{a:w.a,b:w.b};
-  const OPS=showInt?opsOf(f):[];
+  const OPS=opsOf(f);   // drawn only on walls that are shown
   // a wall line with its openings left out, then each opening's symbol
   const opSym=(a,u,t,s0,s1,op,col,ghost)=>{
     const n=[-u[1],u[0]],P=(sv,o)=>[a[0]+u[0]*sv+n[0]*o,a[1]+u[1]*sv+n[1]*o],f3=q=>q[0].toFixed(3)+" "+q[1].toFixed(3),sw=0.09*k;
@@ -2755,7 +2755,7 @@ function build3D(){
         g.walls.forEach(rc=>box(rc,top-base));
       });
     }
-    (!ui.layers.int?[]:drawEnds([...cutWalls(f),...coreWalls(f),...courtWalls(f)])).forEach(d=>{
+    drawEnds([...cutWalls(f).filter(wallShown),...(ui.layers.int?[...coreWalls(f),...courtWalls(f)]:[])]).forEach(d=>{
       const w=d.w,dx=d.b[0]-d.a[0],dz=d.b[1]-d.a[1],L=Math.hypot(dx,dz);
       if(L<0.05)return;
       // the wall in pieces: solid between openings; under each window a sill piece, over each opening a head piece, glass in windows
@@ -2890,7 +2890,7 @@ function renderLayers(){
     grp("Walls");
     f.walls.forEach(w=>{
       const on=sel&&sel.k==="wall"&&sel.id===w.id;
-      h+=`<div class="lrow ${on?"on":""} ${ui.layers.int?"":"hid"}" data-lk="wall" data-lid="${w.id}"><span class="sw" style="--c:var(--ink)"></span><span class="nm">${w.tag==="ext"?"Exterior wall":"Wall"} ${+(w.t*12).toFixed(1)} in</span><span class="sf">${fmtLen(dist(w.a,w.b))}</span></div>`;
+      h+=`<div class="lrow ${on?"on":""} ${wallShown(w)?"":"hid"}" data-lk="wall" data-lid="${w.id}"><span class="sw" style="--c:var(--ink)"></span><span class="nm">${w.tag==="ext"?"Exterior wall":isPartition(w)?"Partition":"Wall"} ${+(w.t*12).toFixed(1)} in</span><span class="sf">${fmtLen(dist(w.a,w.b))}</span></div>`;
     });
   }
   {
@@ -3001,7 +3001,8 @@ function renderLayers(){
 function selectFromLayers(k,id){
   // turn on the layer the item lives on, then select it
   if(k==="nbr"&&ui.layers.nbr===false)ui.layers.nbr=true;
-  if((k==="wall"||k==="block"||k==="op")&&!ui.layers.int)ui.layers.int=true;
+  if(k==="wall"){const w=cur().walls.find(x=>x.id===id);if(w&&isPartition(w))ui.layers.rooms=true;else ui.layers.int=true;}
+  if((k==="block"||k==="op")&&!ui.layers.int)ui.layers.int=true;
   if(k==="area"){const a=cur().areas.find(x=>x.id===id),T=a&&AREA_TYPES[a.type];if(T)ui.layers[kindLayer(T.kind)]=true;}
   ui.mode="select";ui.draft=null;ui.selVert=null;ui.sel={k,id};
   ui.pop=k==="wall"?{ref:"wall",id,fixed:0}:null;
@@ -3020,6 +3021,9 @@ function syncSettings(){
 }
 
 /* The Draw area list shows the area types of the layers that are on. */
+// room partitions (4-1/2" or thinner, or tagged) belong to the Rooms layer; other walls to Interiors
+const isPartition=w=>w.tag==="part"||(w.tag!=="ext"&&w.t<=0.4+1e-6);
+const wallShown=w=>isPartition(w)?!!ui.layers.rooms:!!ui.layers.int;
 const kindLayer=k=>k==="sell"?"sell":k==="room"?"rooms":"far";
 function menuTypes(){return MENU.filter(k=>ui.layers[kindLayer(AREA_TYPES[k].kind)]);}
 function fillAreaTypes(){
@@ -3033,7 +3037,7 @@ document.querySelectorAll("[data-layer]").forEach(b=>b.addEventListener("click",
   if(((ui.mode==="wall"||ui.mode==="block"||ui.mode==="op")&&!ui.layers.int)||(ui.mode==="area"&&!ui.layers.far&&!ui.layers.sell&&!ui.layers.rooms))ui.mode="select";
   if(ui.sel){
     const o=findSel(),kind=ui.sel.k==="area"&&o?(AREA_TYPES[o.type]||{}).kind:null;
-    if((ui.sel.k==="wall"&&!ui.layers.int)||(ui.sel.k==="area"&&!ui.layers[kindLayer(kind)]))ui.sel=null;
+    if((ui.sel.k==="wall"&&!(o&&wallShown(o)))||(ui.sel.k==="area"&&!ui.layers[kindLayer(kind)]))ui.sel=null;
   }
   ui.draft=null;ui.pop=null;savePrefs();renderAll();
 }));
