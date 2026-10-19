@@ -405,6 +405,7 @@ tfoot td{font-weight:600;border-bottom:0}
         <label>Height limit (ft)<input class="in" type="number" data-set="maxHeight" step="1"></label>
         <label>Offset from east and west lot lines (in), set by the design rule<input class="in" type="number" id="sideOff" readonly></label>
       </div>
+      <label class="check" style="margin-top:12px"><input type="checkbox" id="wallExcl"> Qualifying exterior wall thickness: exclude <span id="wxIn">8</span> in of the exterior walls on every floor above grade (walls must beat the energy code)</label>
       <label class="check" style="margin-top:12px"><input type="checkbox" id="zoneGreen"> Zone Green: deduct <span id="zgPct">5</span>% of the zoning floor area above grade (from residential)</label>
       <div class="row" style="margin-top:14px">
         <button class="btn" id="reset">Reset to the sketch</button>
@@ -510,6 +511,8 @@ const DEFAULT_RULES={
   sideOffset:{ratio:600,minIn:1,roundIn:1},          // 1 : 600 of building height = 1 in per 50 ft
   amenityCap:{pct:5},                                 // % of residential floor area
   zoneGreen:{pct:5},                                  // % of the zoning floor area above grade, before this exclusion
+  // Qualifying exterior wall thickness (ZR 12-10 floor area): up to 8 in of exterior wall excluded where the wall beats the energy code
+  wallExcl:{inches:8},
   deductions:{parking:100,mechanical:100,corridor100:100,corridor50:50,laundry:100},
   // Scissor stair: two interlocking stairs in one enclosure (NYC BC 2022 §1011.2, 1011.5.2, 1011.6, 1011.8, 1007.1.1 exc. 3)
   stair:{widthIn:44,sepIn:4,maxRiserIn:7,treadIn:11,landingMaxIn:48,maxFlightRiseFt:12},
@@ -1031,8 +1034,15 @@ function compute(){
       else if(f.use==="cf"){resGross=Math.min(gross,ovRes+coreRes);commGross=Math.min(ovComm,gross-resGross);cfGross=gross-resGross-commGross;}
       else{resGross=Math.min(gross,ovRes+coreRes);cfGross=Math.min(ovCf,gross-resGross);commGross=gross-resGross-cfGross;}
     }
+    // qualifying exterior wall thickness: the outline's perimeter (and the light well's walls) times the excluded depth, shared by use
+    let wallX=0;
+    if(!below&&st.wallExcl&&gross>0){
+      const per=f.areas.filter(a=>a.type==="gross"&&a.pts.length>=3).reduce((t,a)=>t+a.pts.reduce((u,q,i)=>u+dist(q,a.pts[(i+1)%a.pts.length]),0),0)+(cr?(cr.x1-cr.x0)+2*(cr.y1-cr.y0):0);
+      wallX=per*S.rules.wallExcl.inches/12;
+      ded.residential+=wallX*resGross/gross;ded.commercial+=wallX*commGross/gross;ded.cf+=wallX*cfGross/gross;
+    }
     const resPreF=below?0:Math.max(0,resGross-ded.residential),commPreF=below?0:Math.max(0,commGross-ded.commercial),cfPreF=below?0:Math.max(0,cfGross-ded.cf);
-    return {i,f,gross,court,terr,below,coreRes,amen:below?0:amen,sellRes,sellComm,sellAff,sellCf,aff:below?0:aff,resGross,commGross,cfGross,resPreF,commPreF,cfPreF};
+    return {i,f,gross,court,terr,below,coreRes,amen:below?0:amen,sellRes,sellComm,sellAff,sellCf,aff:below?0:aff,resGross,commGross,cfGross,resPreF,commPreF,cfPreF,wallX};
   });
   const resPre=rows.reduce((s,r)=>s+r.resPreF,0);
   const amenRaw=rows.reduce((s,r)=>s+r.amen,0);
@@ -1061,7 +1071,8 @@ function compute(){
   const height=S.floors.filter(f=>f.use!=="cellar"&&f.use!=="roof").reduce((s,f)=>s+f.height,0);
   const sellRes=rows.reduce((s,r)=>s+r.sellRes,0),sellComm=rows.reduce((s,r)=>s+r.sellComm,0),sellAff=rows.reduce((s,r)=>s+r.sellAff,0),sellCf=rows.reduce((s,r)=>s+r.sellCf,0),affT=rows.reduce((s,r)=>s+r.aff,0);
   const resGrossT=rows.reduce((s,r)=>s+r.resGross,0),commGrossT=rows.reduce((s,r)=>s+r.commGross,0),cfGrossT=rows.reduce((s,r)=>s+r.cfGross,0);
-  return {sellRes,sellComm,sellAff,sellCf,affT,resGrossT,commGrossT,cfGrossT,cfZfa,cfCap,rows,resPre,amenRaw,amenCap,amenAllowed,zoneGreen,zgBase,resZfa,commZfa,total,allowed,resCap,commCap,grossAbove,terrTotal,height};
+  const wallXT=rows.reduce((t,r)=>t+(r.wallX||0),0);
+  return {wallXT,sellRes,sellComm,sellAff,sellCf,affT,resGrossT,commGrossT,cfGrossT,cfZfa,cfCap,rows,resPre,amenRaw,amenCap,amenAllowed,zoneGreen,zgBase,resZfa,commZfa,total,allowed,resCap,commCap,grossAbove,terrTotal,height};
 }
 
 /* ---------- totals UI ---------- */
@@ -1108,6 +1119,8 @@ function renderTotals(){
       return `<tr class="adj"><td>Amenity deduction${t}</td><td></td><td></td><td></td><td></td><td></td><td>${fmt(c.amenAllowed)}${t}</td><td></td><td></td><td></td></tr>`;})()+
     (()=>{const t=infoTip(`${S.rules.zoneGreen.pct}% of the zoning floor area above grade (${fmt(c.zgBase)} SF, all uses, before this exclusion), the floor area exclusion for a qualifying ultra-low energy building. It is taken off the residential floor area.`);
       return `<tr class="adj"><td>Zone Green${t}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td><td></td><td></td><td>${S.settings.zoneGreen?fmt(c.zoneGreen)+t:"off"}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td></tr>`;})()+
+    (S.settings.wallExcl?(()=>{const t=infoTip(`Qualifying exterior wall thickness: ${S.rules.wallExcl.inches} in of the exterior walls is left out of floor area on each floor above grade, measured along the outline and the light well walls, and shared among the uses on that floor. It is already inside each floor's Deductions.`);
+      return `<tr class="adj"><td>Exterior wall thickness${t}</td><td></td><td></td><td></td><td></td><td></td><td>${fmt(c.wallXT)}${t}</td><td></td><td></td><td></td></tr>`;})():"")+
     `<tr><td>Total above grade</td><td>${fmt(c.resZfa-affZ)}<small>of ${fmt(resGross-c.affT)} gross${mrTip}</small><small class="${mrDiff>0.5?"bad":"ok"}">${Math.abs(mrDiff)<0.5?"at permitted":`${fmt(Math.abs(mrDiff))} ${mrDiff>0?"over":"under"} permitted`}</small></td><td>${fmt(c.commZfa)}<small>of ${fmt(commGross)} gross</small></td><td>${fmt(c.cfZfa)}<small>of ${fmt(c.cfGrossT)} gross</small></td><td>${fmt(affZ)}${affZ>0.5?`<small>residential total ${fmt(c.resZfa)}</small>`:""}</td><td>${fmt(c.grossAbove)}</td><td>${fmt(c.grossAbove-c.total)}</td><td>${fmt(c.total)}</td><td>${fmt(c.sellRes+c.sellAff+c.sellComm+c.sellCf)}</td><td>${fmt(c.terrTotal)}</td></tr>`+
     `<tr class="adj"><td>Sellable efficiency<small>sellable ÷ gross of that use</small></td><td>${c.resGrossT?Math.round((c.sellRes+c.sellAff)/c.resGrossT*100)+"%":"–"}</td><td>${c.commGrossT?Math.round(c.sellComm/c.commGrossT*100)+"%":"–"}</td><td>${c.cfGrossT?Math.round(c.sellCf/c.cfGrossT*100)+"%":"–"}</td><td></td><td>${c.grossAbove?Math.round((c.sellRes+c.sellAff+c.sellComm+c.sellCf)/c.grossAbove*100)+"%":"–"}</td><td></td><td></td><td>FM ${fmt(c.sellRes)} · A ${fmt(c.sellAff)} · C ${fmt(c.sellComm)} · CF ${fmt(c.sellCf)}</td><td></td></tr>`;
 
@@ -2568,6 +2581,7 @@ function renderRules(){
      `${fmt(c.height)} ft tall, ${sideOffsetRaw(S).toFixed(2)} in, so <b>${+sideOffsetIn(S).toFixed(2)} in</b>`,
      "NYC Building Code 2022 §1613.4"],
     ["Amenity deduction cap",`${inp("amenityCap.pct",R.amenityCap.pct,0.5)}% of residential floor area`,`${fmt(c.amenCap)} SF cap, ${fmt(c.amenAllowed)} SF used`,"Project assumption, confirm"],
+    ["Exterior wall thickness exclusion",`${inp("wallExcl.inches",R.wallExcl.inches,1)} in of exterior wall excluded on each floor above grade, along the outline and the light well walls`,S.settings.wallExcl?`${fmt(c.wallXT)} SF`:"Off for this building","ZR 12-10 (floor area), qualifying exterior wall thickness: walls must beat the NYC Energy Code U-factors (DOB: wall U ≤ 80% and wall plus windows ≤ 90% of code); confirm"],
     ["Zone Green deduction",`${inp("zoneGreen.pct",R.zoneGreen.pct,0.5)}% of the zoning floor area above grade (before this exclusion), taken off the residential floor area`,S.settings.zoneGreen?`${fmt(c.zoneGreen)} SF`:"Off for this building","Project assumption, confirm"],
     ...["parking","mechanical","corridor100","corridor50","laundry"].map(k=>[`${AREA_TYPES[k].base} deduction`,`${inp("deductions."+k,R.deductions[k],5)}% of its area`,`${fmt(dedSum(k))} SF on all floors`,"Project assumption, confirm"]),
     ["Elevator and stair core","Counts as floor area on every floor. On commercial floors it counts as residential unless switched off for that floor",
@@ -2750,6 +2764,7 @@ function renderAll(){fillAreaTypes();renderRules();renderTabs();renderToolbar();
 function syncSettings(){
   document.querySelectorAll("[data-set]").forEach(i=>{if(document.activeElement!==i)i.value=S.settings[i.dataset.set];});
   $("#zoneGreen").checked=!!S.settings.zoneGreen;
+  $("#wallExcl").checked=!!S.settings.wallExcl;$("#wxIn").textContent=S.rules.wallExcl.inches;
   $("#sideOff").value=+((S.settings.sideOffset||0)*12).toFixed(2);
   $("#zgPct").textContent=S.rules.zoneGreen.pct;
   if(document.activeElement!==$("#extT"))$("#extT").value=(S.rules.extWall&&S.rules.extWall.thickIn)||12;
@@ -2938,6 +2953,7 @@ $("#rulesBody").addEventListener("change",e=>{
   t.blur();commit();
 });
 $("#zoneGreen").addEventListener("change",e=>{pushHist();S.settings.zoneGreen=e.target.checked;commit();});
+$("#wallExcl").addEventListener("change",e=>{pushHist();S.settings.wallExcl=e.target.checked;commit();});
 let resetArmed=null;
 $("#reset").addEventListener("click",()=>{
   const b=$("#reset");

@@ -20,6 +20,22 @@
       "meaning": "Amenity space is deducted up to this % of residential floor area.",
       "source": "Project assumption from the original model, confirm with the zoning analysis"
     },
+    "wallExcl": {
+      "label": "Qualifying exterior wall thickness exclusion",
+      "inches": 8,
+      "meaning": "When on for a building, up to this many inches of exterior wall thickness is left out of floor area on every floor above grade, along the outline and the light well walls, shared among the uses on that floor.",
+      "condition": "The wall assembly must beat the NYC Energy Code: DOB's template requires the opaque wall U-factor at or below 80% of code and walls plus windows at or below 90%; if only one passes, nothing is excluded. Not available for cellar walls or walls next to areas that are not floor area.",
+      "thisBuilding": "About 1,200 SF on all floors above grade, about 860 SF of it residential (off until the envelope is confirmed)",
+      "source": "ZR 12-10 floor area (qualifying exterior wall thickness); DOB wall U-factor template; confirm with the energy consultant"
+    },
+    "mechanicalClosets": {
+      "label": "In-unit mechanical closets",
+      "sizeSF": 40,
+      "studioSF": 30,
+      "meaning": "Each unit gets a mechanical closet of about 40 SF (30 SF in a studio) holding a ducted heat-pump air handler, an ERV and a heat-pump water heater, with the code service clearance in front. Deducted 100% as accessory mechanical equipment space.",
+      "limit": "ZR 12-10 excludes floor space for accessory mechanical equipment plus the minimum space needed for maintenance and access. There is no square-foot cap in R6 (the caps are only in R1-2A to R5), but DOB only allows space that actually holds equipment and its required clearance, so the equipment schedule has to back up the size.",
+      "source": "ZR 12-10 floor area exclusions; NYC Mechanical Code access and working space; confirm with the MEP engineer"
+    },
     "zoneGreen": {
       "label": "Zone Green deduction",
       "pct": 5,
