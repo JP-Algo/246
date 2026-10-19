@@ -483,6 +483,8 @@ const AREA_TYPES={
   // a walkable glass floor is still floor area; a glass roof sits over this floor (drawn dashed, as overhead)
   glassFloor:{label:"Glass floor, walkable (floor area)",short:"Glass floor",kind:"room",glass:"floor",color:"--glass"},
   glassRoof:{label:"Glass roof over this floor, operable",short:"Operable glass roof",kind:"room",glass:"roof",color:"--glass"},
+  // a skylight set into this floor's deck or terrace: lights the floor below
+  skylight:{label:"Skylight in this floor's deck (lights the floor below)",short:"Skylight",kind:"room",glass:"sky",color:"--glass"},
   // Fixtures and furniture: show how a room is laid out (Rooms layer); h is their height in 3D
   fxCounter:{label:"Fixture: kitchen counter",short:"Counter",kind:"fixture",h:3,color:"--room"},
   fxIsland:{label:"Fixture: kitchen island",short:"Island",kind:"fixture",h:3,color:"--room"},
@@ -515,8 +517,8 @@ const AREA_TYPES={
   sellComm:{label:"Sellable area, commercial",short:"Sellable comm.",kind:"sell",use:"commercial",color:"--sell"},
   sellCf:{label:"Sellable area, community facility",short:"Sellable CF",kind:"sell",use:"cf",color:"--cf"}
 };
-const MENU=["gross","resArea","resAff","commArea","cfArea","parking","mechanical","corridor100","corridor50","laundry","amenity","terrace","balcony","openBelow","unit","sellRes","sellAff","sellComm","sellCf","rmLiving","rmBed","rmDen","rmKitchen","rmBath","rmCloset","rmLaundry","rmHall","rmOutdoor","glassFloor","glassRoof","fxCounter","fxIsland","fxTable","fxSofa","fxCoffee","fxBed","fxToilet","fxVanity","fxTub","fxShower","fxWD","fxAHU","fxWH","fxERV"];
-const ORDER=["gross","resArea","resAff","commArea","cfArea","terrace","balcony","openBelow","amenity","parking","mechanical","corridor50","corridor100","laundry","unit","sellRes","sellAff","sellComm","sellCf","rmLiving","rmBed","rmDen","rmKitchen","rmBath","rmCloset","rmLaundry","rmHall","rmOutdoor","glassFloor","glassRoof","fxCounter","fxIsland","fxTable","fxSofa","fxCoffee","fxBed","fxToilet","fxVanity","fxTub","fxShower","fxWD","fxAHU","fxWH","fxERV"];
+const MENU=["gross","resArea","resAff","commArea","cfArea","parking","mechanical","corridor100","corridor50","laundry","amenity","terrace","balcony","openBelow","unit","sellRes","sellAff","sellComm","sellCf","rmLiving","rmBed","rmDen","rmKitchen","rmBath","rmCloset","rmLaundry","rmHall","rmOutdoor","glassFloor","glassRoof","skylight","fxCounter","fxIsland","fxTable","fxSofa","fxCoffee","fxBed","fxToilet","fxVanity","fxTub","fxShower","fxWD","fxAHU","fxWH","fxERV"];
+const ORDER=["gross","resArea","resAff","commArea","cfArea","terrace","balcony","openBelow","amenity","parking","mechanical","corridor50","corridor100","laundry","unit","sellRes","sellAff","sellComm","sellCf","rmLiving","rmBed","rmDen","rmKitchen","rmBath","rmCloset","rmLaundry","rmHall","rmOutdoor","glassFloor","glassRoof","skylight","fxCounter","fxIsland","fxTable","fxSofa","fxCoffee","fxBed","fxToilet","fxVanity","fxTub","fxShower","fxWD","fxAHU","fxWH","fxERV"];
 
 const A=(type,pts)=>({id:uid(),type,pts:pts.map(p=>[p[0],p[1]])});
 const W=(a,b,t,tag)=>({id:uid(),a:[a[0],a[1]],b:[b[0],b[1]],t,tag:tag||""});
@@ -2838,6 +2840,9 @@ function build3D(){
       }
       if(T.glass==="floor"){const geo=new THREE.ExtrudeGeometry(toShape(a.pts),{depth:0.15,bevelEnabled:false});geo.rotateX(-Math.PI/2);
         const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:C("--glass"),transparent:true,opacity:0.35,roughness:0.05,metalness:0.2,depthWrite:false}));m.position.y=y+0.65;m.userData.floor=i;root.add(m);return;}
+      if(T.glass==="sky"){const geo=new THREE.ExtrudeGeometry(toShape(a.pts),{depth:0.5,bevelEnabled:false});geo.rotateX(-Math.PI/2);
+        const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:C("--glass"),transparent:true,opacity:0.45,roughness:0.05,metalness:0.2,depthWrite:false}));m.position.y=y+0.3;m.userData.floor=i;
+        m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:ink,transparent:true,opacity:0.5})));root.add(m);return;}
       if(T.glass==="roof"){const geo=new THREE.ExtrudeGeometry(toShape(a.pts),{depth:0.2,bevelEnabled:false});geo.rotateX(-Math.PI/2);
         const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:C("--glass"),transparent:true,opacity:0.4,roughness:0.05,metalness:0.2,depthWrite:false}));m.position.y=y+f.height+0.6;m.userData.floor=i;
         m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:ink,transparent:true,opacity:0.4})));root.add(m);return;}

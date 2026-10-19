@@ -152,7 +152,8 @@
       "source": "NYC Zoning Resolution 23-352",
       "measureAt": "floor",
       "measureMeaning": "Which height decides the 75 ft threshold: 'top' of each story (stricter, the default) or the story's 'floor' level. This building uses 'floor'; a plan examiner may read the rule as the top of the story, which would put the whole 8th floor above 75 ft.",
-      "walls": "Light well clear size is measured to its walls and the lot line; its walls sit outside the clear area. When moved along the building its edges snap to wall faces, the core and area corners."
+      "walls": "Light well clear size is measured to its walls and the lot line; its walls sit outside the clear area. When moved along the building its edges snap to wall faces, the core and area corners.",
+      "skylightBelow": "Where the light well lands on a terrace (the 2nd floor roof, 3rd floor level), put a skylight the size of the light well (20'-0\" x 8'-10\" inside the walls) so its daylight reaches the floor below (the 2nd floor library). It is a walk-on or guarded unit in the terrace deck and adds no floor area."
     },
     "corridorDeduction": {
       "label": "Corridor floor area exclusion",
