@@ -1165,6 +1165,9 @@ function compute(){
     r.zfa=r.below?0:r.resZfa+r.commZfa+r.cfZfa;
     r.dedTotal=r.below?r.gross:(r.gross-r.zfa);
   });
+  // the amenity deduction that actually comes off: a floor can only lose the residential floor area it has
+  const amenUsed=rows.reduce((t,r)=>t+(r.below?0:Math.min(r.amenAllowed||0,r.resPreF)),0);
+  const amenIdle=rows.reduce((t,r)=>t+(!r.below&&r.amen>0.5&&r.resPreF<0.5?r.amen:0),0);
   const resZfa0=rows.reduce((s,r)=>s+r.resZfa,0);
   // Zone Green: 5% of the zoning floor area above grade (all uses, before this exclusion), taken off the residential floor area
   const zgBase=rows.filter(r=>!r.below).reduce((s,r)=>s+r.resZfa+r.commZfa+r.cfZfa,0);
@@ -1181,7 +1184,7 @@ function compute(){
   const sellRes=rows.reduce((s,r)=>s+r.sellRes,0),sellComm=rows.reduce((s,r)=>s+r.sellComm,0),sellAff=rows.reduce((s,r)=>s+r.sellAff,0),sellCf=rows.reduce((s,r)=>s+r.sellCf,0),affT=rows.reduce((s,r)=>s+r.aff,0);
   const resGrossT=rows.reduce((s,r)=>s+r.resGross,0),commGrossT=rows.reduce((s,r)=>s+r.commGross,0),cfGrossT=rows.reduce((s,r)=>s+r.cfGross,0);
   const wallXT=rows.reduce((t,r)=>t+(r.wallX||0),0);
-  return {wallXT,sellRes,sellComm,sellAff,sellCf,affT,resGrossT,commGrossT,cfGrossT,cfZfa,cfCap,rows,resPre,amenRaw,amenCap,amenAllowed,zoneGreen,zgBase,resZfa,commZfa,total,allowed,resCap,commCap,grossAbove,terrTotal,height};
+  return {wallXT,sellRes,sellComm,sellAff,sellCf,affT,resGrossT,commGrossT,cfGrossT,cfZfa,cfCap,rows,resPre,amenRaw,amenCap,amenAllowed,amenUsed,amenIdle,zoneGreen,zgBase,resZfa,commZfa,total,allowed,resCap,commCap,grossAbove,terrTotal,height};
 }
 
 /* ---------- totals UI ---------- */
@@ -1211,11 +1214,11 @@ function renderTotals(){
   // how the market-rate residential total gets from gross to zoning floor area
   // market-rate checked the same way as the allowance bar: drawn affordable, or the affordable input when none is drawn
   const mrAllowed=S.settings.lot*S.settings.resFar,mrDiff=c.resZfa-(c.affT>0.5?c.affT:S.settings.affordable)-mrAllowed;
-  const mrGross=resGross-c.affT,mrZfa=c.resZfa-affZ,mrDed=Math.max(0,mrGross-c.amenAllowed-c.zoneGreen-mrZfa);
+  const mrGross=resGross-c.affT,mrZfa=c.resZfa-affZ,mrDed=Math.max(0,mrGross-c.amenUsed-c.zoneGreen-mrZfa);
   const mrTip=infoTip(`Market-rate residential zoning floor area above grade: ${fmt(resGross)} SF residential gross`+
     (c.affT>0.5?` less ${fmt(c.affT)} SF affordable = ${fmt(mrGross)} SF market-rate gross`:"")+
-    `, less ${fmt(mrDed)} SF of floor area deductions (walls, core, corridors and other deductions drawn)`+
-    (c.amenAllowed>0.5?`, less ${fmt(c.amenAllowed)} SF amenity deduction`:"")+
+    `, less ${fmt(mrDed)} SF of floor area deductions drawn on the residential floors (corridors, mechanical closets and the like)`+
+    (c.amenUsed>0.5?`, less ${fmt(c.amenUsed)} SF amenity deduction`:"")+
     (c.zoneGreen>0.5?`, less ${fmt(c.zoneGreen)} SF Zone Green`:"")+
     ` = ${fmt(mrZfa)} SF.`+
     ` Permitted market-rate: ${fmt(S.settings.lot)} SF lot × ${S.settings.resFar} FAR = ${fmt(mrAllowed)} SF`+
@@ -1224,8 +1227,8 @@ function renderTotals(){
     `. ${Math.abs(mrDiff)<0.5?"Exactly at the permitted amount.":`${fmt(Math.abs(mrDiff))} SF ${mrDiff>0?"over":"under"} the permitted amount.`}`);
   const commGross=c.rows.reduce((s,r)=>s+r.commGross,0);
   $("#tfoot").innerHTML=
-    (()=>{const t=infoTip(`Amenity space you draw (gym, lounge, shared laundry, etc.) is taken out of zoning floor area, up to ${S.rules.amenityCap.pct}% of the residential floor area (${fmt(c.amenCap)} SF here). ${fmt(c.amenRaw)} SF of amenity is drawn and ${fmt(c.amenAllowed)} SF is deducted.${c.amenRaw>c.amenCap+0.5?` ${fmt(c.amenRaw-c.amenAllowed)} SF over the cap still counts as floor area.`:""}`);
-      return `<tr class="adj"><td>Amenity deduction${t}</td><td></td><td></td><td></td><td></td><td></td><td>${fmt(c.amenAllowed)}${t}</td><td></td><td></td><td></td></tr>`;})()+
+    (()=>{const t=infoTip(`Amenity space you draw (gym, lounge, shared laundry, etc.) is taken out of zoning floor area, up to ${S.rules.amenityCap.pct}% of the residential floor area (${fmt(c.amenCap)} SF here). ${fmt(c.amenRaw)} SF of amenity is drawn and ${fmt(c.amenUsed)} SF is deducted.${c.amenRaw>c.amenCap+0.5?` ${fmt(c.amenRaw-c.amenAllowed)} SF over the cap still counts as floor area.`:""}${c.amenIdle>0.5?` ${fmt(c.amenIdle)} SF of it is on a floor with no residential floor area (no gross area drawn there), so it deducts nothing; move it to a residential floor to use it.`:""}`);
+      return `<tr class="adj"><td>Amenity deduction${t}</td><td></td><td></td><td></td><td></td><td></td><td>${fmt(c.amenUsed)}${t}</td><td></td><td></td><td></td></tr>`;})()+
     (()=>{const t=infoTip(`${S.rules.zoneGreen.pct}% of the zoning floor area above grade (${fmt(c.zgBase)} SF, all uses, before this exclusion), the floor area exclusion for a qualifying ultra-low energy building. It is taken off the residential floor area.`);
       return `<tr class="adj"><td>Zone Green${t}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td><td></td><td></td><td>${S.settings.zoneGreen?fmt(c.zoneGreen)+t:"off"}</td><td>${S.settings.zoneGreen?"−"+fmt(c.zoneGreen):"–"}</td><td></td><td></td></tr>`;})()+
     (S.settings.wallExcl?(()=>{const t=infoTip(`Qualifying exterior wall thickness (existing buildings only): ${S.rules.wallExcl.inches} in of the exterior walls is left out of floor area on each floor above grade, measured along the outline and the light well walls, and shared among the uses on that floor. It is already inside each floor's Deductions.`);
@@ -2823,7 +2826,7 @@ function renderRules(){
      `1 : ${inp("sideOffset.ratio",R.sideOffset.ratio,10)} of building height (1 in per ${+(R.sideOffset.ratio/12).toFixed(2)} ft), at least ${inp("sideOffset.minIn",R.sideOffset.minIn,0.25)} in, rounded up to ${inp("sideOffset.roundIn",R.sideOffset.roundIn,0.25)} in`,
      `${fmt(c.height)} ft tall, ${sideOffsetRaw(S).toFixed(2)} in, so <b>${+sideOffsetIn(S).toFixed(2)} in</b>`,
      "NYC Building Code 2022 §1613.4"],
-    ["Amenity deduction cap",`${inp("amenityCap.pct",R.amenityCap.pct,0.5)}% of residential floor area`,`${fmt(c.amenCap)} SF cap, ${fmt(c.amenAllowed)} SF used`,"Project assumption, confirm"],
+    ["Amenity deduction cap",`${inp("amenityCap.pct",R.amenityCap.pct,0.5)}% of residential floor area`,`${fmt(c.amenCap)} SF cap, ${fmt(c.amenUsed)} SF used`,"Project assumption, confirm"],
     ["Exterior wall thickness exclusion",`${inp("wallExcl.inches",R.wallExcl.inches,1)} in of exterior wall excluded on each floor above grade, along the outline and the light well walls. Only for walls added to a building existing on 12/6/2023 (up to 12 in) or walls built 2012–2023`,S.settings.wallExcl?`${fmt(c.wallXT)} SF`:"Not available: new building","ZR 12-10, definitions of floor area and qualifying exterior wall thickness (City of Yes for Carbon Neutrality, 12/6/2023)"],
     ["Zone Green deduction",`${inp("zoneGreen.pct",R.zoneGreen.pct,0.5)}% of the zoning floor area above grade (before this exclusion), taken off the residential floor area`,S.settings.zoneGreen?`${fmt(c.zoneGreen)} SF`:"Off for this building","Project assumption, confirm"],
     ...["parking","mechanical","corridor100","corridor50","laundry"].map(k=>[`${AREA_TYPES[k].base} deduction`,`${inp("deductions."+k,R.deductions[k],5)}% of its area`,`${fmt(dedSum(k))} SF on all floors`,"Project assumption, confirm"]),
