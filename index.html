@@ -467,6 +467,14 @@ const AREA_TYPES={
   fxSofa:{label:"Furniture: sofa",short:"Sofa",kind:"fixture",h:2.75,color:"--room"},
   fxCoffee:{label:"Furniture: coffee table",short:"Coffee table",kind:"fixture",h:1.5,color:"--room"},
   fxBed:{label:"Furniture: bed",short:"Bed",kind:"fixture",h:2,color:"--room"},
+  fxToilet:{label:"Fixture: toilet",short:"WC",kind:"fixture",h:2.5,color:"--room"},
+  fxVanity:{label:"Fixture: vanity and sink",short:"Vanity",kind:"fixture",h:2.83,color:"--room"},
+  fxTub:{label:"Fixture: bathtub",short:"Tub",kind:"fixture",h:1.83,color:"--room"},
+  fxShower:{label:"Fixture: shower",short:"Shower",kind:"fixture",h:0.33,color:"--room"},
+  fxWD:{label:"Fixture: washer / dryer (stacked)",short:"W/D",kind:"fixture",h:6.5,color:"--room"},
+  fxAHU:{label:"Fixture: air handler (heat pump)",short:"AHU",kind:"fixture",h:5,color:"--deduct"},
+  fxWH:{label:"Fixture: heat pump water heater",short:"HPWH",kind:"fixture",h:5.5,color:"--deduct"},
+  fxERV:{label:"Fixture: ERV",short:"ERV",kind:"fixture",h:2.5,color:"--deduct"},
   // a balcony projects past the wall below it (cantilevered); outdoor space like a terrace, built as a slab
   balcony:{label:"Balcony (outdoor, cantilevered)",short:"Balcony",kind:"terrace",color:"--terrace"},
   // Use areas sit inside the gross outline and set the use of that part of the floor
@@ -482,8 +490,8 @@ const AREA_TYPES={
   sellComm:{label:"Sellable area, commercial",short:"Sellable comm.",kind:"sell",use:"commercial",color:"--sell"},
   sellCf:{label:"Sellable area, community facility",short:"Sellable CF",kind:"sell",use:"cf",color:"--cf"}
 };
-const MENU=["gross","resArea","resAff","commArea","cfArea","parking","mechanical","corridor100","corridor50","laundry","amenity","terrace","balcony","unit","sellRes","sellAff","sellComm","sellCf","rmLiving","rmBed","rmDen","rmKitchen","rmBath","rmCloset","rmLaundry","rmHall","rmOutdoor","fxCounter","fxIsland","fxTable","fxSofa","fxCoffee","fxBed"];
-const ORDER=["gross","resArea","resAff","commArea","cfArea","terrace","balcony","amenity","parking","mechanical","corridor50","corridor100","laundry","unit","sellRes","sellAff","sellComm","sellCf","rmLiving","rmBed","rmDen","rmKitchen","rmBath","rmCloset","rmLaundry","rmHall","rmOutdoor","fxCounter","fxIsland","fxTable","fxSofa","fxCoffee","fxBed"];
+const MENU=["gross","resArea","resAff","commArea","cfArea","parking","mechanical","corridor100","corridor50","laundry","amenity","terrace","balcony","unit","sellRes","sellAff","sellComm","sellCf","rmLiving","rmBed","rmDen","rmKitchen","rmBath","rmCloset","rmLaundry","rmHall","rmOutdoor","fxCounter","fxIsland","fxTable","fxSofa","fxCoffee","fxBed","fxToilet","fxVanity","fxTub","fxShower","fxWD","fxAHU","fxWH","fxERV"];
+const ORDER=["gross","resArea","resAff","commArea","cfArea","terrace","balcony","amenity","parking","mechanical","corridor50","corridor100","laundry","unit","sellRes","sellAff","sellComm","sellCf","rmLiving","rmBed","rmDen","rmKitchen","rmBath","rmCloset","rmLaundry","rmHall","rmOutdoor","fxCounter","fxIsland","fxTable","fxSofa","fxCoffee","fxBed","fxToilet","fxVanity","fxTub","fxShower","fxWD","fxAHU","fxWH","fxERV"];
 
 const A=(type,pts)=>({id:uid(),type,pts:pts.map(p=>[p[0],p[1]])});
 const W=(a,b,t,tag)=>({id:uid(),a:[a[0],a[1]],b:[b[0],b[1]],t,tag:tag||""});
