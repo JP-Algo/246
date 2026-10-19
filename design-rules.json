@@ -18,7 +18,9 @@
       "label": "Amenity deduction cap",
       "pct": 5,
       "meaning": "Amenity space is deducted up to this % of residential floor area.",
-      "source": "Project assumption from the original model, confirm with the zoning analysis"
+      "source": "Project assumption from the original model, confirm with the zoning analysis",
+      "basis": "5% of the building's residential floor area, market-rate and affordable together, before the amenity itself is deducted (ZR 23-231). The amenity must be enclosed floor area on a floor that has floor area; amenity drawn on an open level deducts nothing.",
+      "thisBuilding": "3rd floor amenity room at the street, 32'-6\" x 13'-11\" = 452 SF, sized to the cap so it is fully deducted; reached from the elevator landing."
     },
     "wallExcl": {
       "label": "Qualifying exterior wall thickness exclusion",
@@ -61,7 +63,8 @@
       "auto": true,
       "wallIn": 6,
       "attach": "east",
-      "attachMeaning": "The core can use an exterior wall as one long side: it has no wall of its own there, and the stair's clear width is measured from the exterior wall's inside face."
+      "attachMeaning": "The core can use an exterior wall as one long side: it has no wall of its own there, and the stair's clear width is measured from the exterior wall's inside face.",
+      "countsEveryStory": "The core (stairs and elevator shaft) is floor area on every story it passes through, including a story with no other enclosed space; the model counts any part of it outside the drawn outline."
     },
     "cellar": {
       "label": "Cellar",
@@ -105,7 +108,8 @@
       "meaning": "Each unit has one living room of at least 150 SF; other habitable rooms (bedrooms) at least 80 SF with no side under 8 ft. Every habitable room needs a window onto a legal open space (the street, the rear yard or a terrace on our lot), with glass of at least 10% of its floor area. Windows on the light well give light but are not legally required windows (it is sized as a court without required windows); windows are not allowed in lot line walls. Dens, baths, closets and kitchens in an open plan do not need windows.",
       "openings": "Windows default to 5'-0\" wide, sill 2'-6\", head 8'-0\"; doors 2'-8\" (baths and closets 2'-6\"), entry doors 3'-0\", sliding doors 6'-0\", heads 7'-0\" (sliders 8'-0\").",
       "thisBuilding": "All residential floors laid out (2026-10-19). 4F affordable 1BR + den and 4R 1BR + den; 5F/6F 2BR/2BA with bedroom 2 on the light well (flagged: not a legal window) and 5R/6R 1BR + den; 7F studio with the dormer (window on the street, sliding door to the setback terrace) and 7R 1BR + den; PH 1BR/1.5BA: primary suite at the rear, living at the street, private U-stair to the roof. Roof: lounge, dining, sun deck, outdoor kitchen, screened heat pump condensers, private stair bulkhead.",
-      "source": "NYC Multiple Dwelling Law 30-31, Housing Maintenance Code, BC 1205 and 1208, BC 705.8; confirm with the architect"
+      "source": "NYC Multiple Dwelling Law 30-31, Housing Maintenance Code, BC 1205 and 1208, BC 705.8; confirm with the architect",
+      "fixtures": "Each living / dining / kitchen is laid out with a kitchen counter (25 in deep) and island, a dining table, a sofa and coffee table: kitchen on the inside wall, living at the windows."
     },
     "roof": {
       "label": "Roof level",
