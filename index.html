@@ -451,6 +451,7 @@ const AREA_TYPES={
   rmCloset:{label:"Room: closet",short:"Closet",kind:"room",color:"--room"},
   rmLaundry:{label:"Room: laundry / storage",short:"Laundry",kind:"room",color:"--room"},
   rmHall:{label:"Room: foyer / hall",short:"Foyer / hall",kind:"room",color:"--room"},
+  rmOutdoor:{label:"Room: outdoor zone (roof deck, terrace)",short:"Outdoor",kind:"room",color:"--terrace"},
   // a balcony projects past the wall below it (cantilevered); outdoor space like a terrace, built as a slab
   balcony:{label:"Balcony (outdoor, cantilevered)",short:"Balcony",kind:"terrace",color:"--terrace"},
   // Use areas sit inside the gross outline and set the use of that part of the floor
@@ -466,8 +467,8 @@ const AREA_TYPES={
   sellComm:{label:"Sellable area, commercial",short:"Sellable comm.",kind:"sell",use:"commercial",color:"--sell"},
   sellCf:{label:"Sellable area, community facility",short:"Sellable CF",kind:"sell",use:"cf",color:"--cf"}
 };
-const MENU=["gross","resArea","resAff","commArea","cfArea","parking","mechanical","corridor100","corridor50","laundry","amenity","terrace","balcony","unit","sellRes","sellAff","sellComm","sellCf","rmLiving","rmBed","rmDen","rmKitchen","rmBath","rmCloset","rmLaundry","rmHall"];
-const ORDER=["gross","resArea","resAff","commArea","cfArea","terrace","balcony","amenity","parking","mechanical","corridor50","corridor100","laundry","unit","sellRes","sellAff","sellComm","sellCf","rmLiving","rmBed","rmDen","rmKitchen","rmBath","rmCloset","rmLaundry","rmHall"];
+const MENU=["gross","resArea","resAff","commArea","cfArea","parking","mechanical","corridor100","corridor50","laundry","amenity","terrace","balcony","unit","sellRes","sellAff","sellComm","sellCf","rmLiving","rmBed","rmDen","rmKitchen","rmBath","rmCloset","rmLaundry","rmHall","rmOutdoor"];
+const ORDER=["gross","resArea","resAff","commArea","cfArea","terrace","balcony","amenity","parking","mechanical","corridor50","corridor100","laundry","unit","sellRes","sellAff","sellComm","sellCf","rmLiving","rmBed","rmDen","rmKitchen","rmBath","rmCloset","rmLaundry","rmHall","rmOutdoor"];
 
 const A=(type,pts)=>({id:uid(),type,pts:pts.map(p=>[p[0],p[1]])});
 const W=(a,b,t,tag)=>({id:uid(),a:[a[0],a[1]],b:[b[0],b[1]],t,tag:tag||""});
