@@ -2373,6 +2373,9 @@ svg.addEventListener("pointerdown",e=>{
       return;
     }
     else{
+      // the first click on an item only selects it; dragging moves it only once it is already selected,
+      // so a click-drag that starts on an unselected item pans the plan instead
+      const wasSel=!!(ui.sel&&ui.sel.k===k&&ui.sel.id===id);
       ui.sel={k,id};ui.selVert=null;
       // two clicks on the same wall within 450 ms open the wall box (the plan redraws between clicks,
       // so the browser's own dblclick never reaches the wall)
@@ -2389,7 +2392,7 @@ svg.addEventListener("pointerdown",e=>{
         }
       }else if(!(ui.pop&&ui.pop.ref==="wall"&&ui.pop.id===id))ui.pop=null;
       const o=findSel();
-      drag={k:"move",start:p,orig:clone(o),hist:false};
+      drag=wasSel?{k:"move",start:p,orig:clone(o),hist:false}:{k:"pan",sx:e.clientX,sy:e.clientY,cx:ui.view.cx,cy:ui.view.cy};
     }
     renderPlan();renderSel();return;
   }
