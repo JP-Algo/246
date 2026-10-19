@@ -109,11 +109,16 @@
       "cellarKind": "straight",
       "defaultKind": "u",
       "minWidthIn": 36,
-      "kinds": "straight (one flight, direct), straight2 (two flights in line with a landing), l (L-shaped, corner landing), u (U-shaped switchback, full-width turn landing), scissor (two interlocking stairs)",
+      "kinds": "straight (one flight, direct), straight2 (two flights in line with a landing), l (L-shaped, corner landing), u (U-shaped switchback, full-width turn landing), scissor (two interlocking stairs), helical (feature stair: treads fanned around an open well, tread depth measured on the walking line 12 in out from the well; stacked blocks continue from where the lower one ends)",
       "meaning": "A stair placed on a floor rises from that floor to the floor above, using the stair rule (max riser, tread, landing, max 12 ft per flight). The stair from the cellar to the 1st floor is a direct straight run, not a scissor stair. Each flight defaults to the stair rule width; under 36 in is flagged.",
       "sizing": "risers = ceil(floor height / max riser); straight: treads = risers - 1, length = treads x tread + 2 landings; two-flight types split the risers evenly, each flight has risers - 1 treads; landing = min(width, 48 in); turn landings are as deep as the stair is wide",
       "thisBuilding": "Cellar (12 ft) to 1st floor: straight run, 21 risers at 6.86 in, 20 treads at 11 in, 25'-8\" x 3'-8\" at 44 in wide including a landing at each end",
-      "source": "NYC Building Code 2022 §1011.2, 1011.5.2, 1011.6, 1011.8; project owner: direct stair from the cellar"
+      "source": "NYC Building Code 2022 §1011.2, 1011.5.2, 1011.6, 1011.8; project owner: direct stair from the cellar",
+      "helical": {
+        "wellFt": 6,
+        "meaning": "Default open well 6 ft across; width per the stair rule (44 in), so about 13'-4\" across overall. A convenience stair, not an exit stair: spiral and curved stairs count toward egress only in limited cases (BC 1011.9, 1011.10), and an open stair through three levels needs the floor openings protected (BC 1019 / 712): confirm with the architect.",
+        "thisBuilding": "Feature stair at 40 ft from the rear, centered across the lot: cellar to 1st (21 risers, 263 degrees) and 1st to 2nd (24 risers, 302 degrees), continuous."
+      }
     },
     "court": {
       "label": "Light well (small inner court with no legally required windows facing it)",

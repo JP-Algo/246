@@ -547,9 +547,23 @@ const STAIR_KINDS={
   straight2:{name:"Straight with landing",desc:"Two flights in line with a landing between them."},
   l:{name:"L-shaped",desc:"Two flights at a right angle, with a corner landing."},
   u:{name:"U-shaped (switchback)",desc:"Two flights side by side, turning back at a full-width landing."},
-  scissor:{name:"Scissor",desc:"Two interlocking stairs in one enclosure, as in the core."}
+  scissor:{name:"Scissor",desc:"Two interlocking stairs in one enclosure, as in the core."},
+  helical:{name:"Helical (feature)",desc:"A curved open stair around a central well; a showpiece between floors, not an exit stair."}
 };
+// helical stair: treads fan around an open well; the tread depth is measured on the walking line, 12 in out from the well
+function helixGeom(b,h){
+  const r=S.rules.stair,W=(b.widthIn||r.widthIn)/12,T=r.treadIn/12,rise=h*12;
+  const R=Math.max(2,Math.ceil(rise/r.maxRiserIn-1e-9)),treads=R-1,ri=(b.wellFt!=null?b.wellFt:5)/2,ro=ri+W,rw=ri+1;
+  const dA=T/rw,sweep=treads*dA,issues=[];
+  if(sweep>2*Math.PI)issues.push(`it turns ${Math.round(sweep*180/Math.PI)}°, so it passes under itself; check the headroom (80 in) or widen the well`);
+  if(W*12<S.rules.stairBlock.minWidthIn-1e-6)issues.push(`narrower than the ${S.rules.stairBlock.minWidthIn} in minimum stair width`);
+  const area=Math.PI*(ro*ro-ri*ri);
+  return {helix:true,P:[],walls:[],R,riserIn:rise/R,treads,flights:1,W,T,ri,ro,rw,dA,sweep,issues,bb:{u0:-ro,v0:-ro,u1:ro,v1:ro,w:2*ro,h:2*ro},area};
+}
+// plan angle (radians) of a helical stair's first tread edge, and its turning direction
+const helixStart=b=>((b.startDeg||0)+(b.rot||0))*Math.PI/180,helixDir=b=>b.flip?-1:1;
 function stairGeom(b,h){
+  if(b.kind==="helical")return helixGeom(b,h);
   const r=S.rules.stair,W=(b.widthIn||r.widthIn)/12,T=r.treadIn/12,rise=h*12,sep=r.sepIn/12;
   const R=Math.max(2,Math.ceil(rise/r.maxRiserIn-1e-9)),Ld=Math.min(W,r.landingMaxIn/12);
   const r1=Math.ceil(R/2),r2=R-r1,t1=r1-1,t2=Math.max(0,r2-1);
@@ -1424,13 +1438,15 @@ function renderSel(){
   if(ui.sel.k==="block"){
     const b=o,f=cur(),i=S.floors.indexOf(f),up=S.floors[i+1],g=stairGeom(b,f.height),sr=S.rules.stair;
     el.innerHTML=`<span><span class="k">Stair, ${STAIR_KINDS[b.kind].name}</span> ${up?`from the ${f.name.toLowerCase()} up to the ${up.name.toLowerCase()}`:"no floor above this one"}: ${g.R} risers at ${g.riserIn.toFixed(2)}", ${g.treads} treads at ${sr.treadIn}", ${g.flights} flight${g.flights>1?"s":""}, footprint ${fmtLen(g.bb.w)} × ${fmtLen(g.bb.h)}</span>
-      <div class="dimedit"><label>Type<select class="in" id="bKind">${Object.keys(STAIR_KINDS).map(k=>`<option value="${k}" ${k===b.kind?"selected":""}>${STAIR_KINDS[k].name}</option>`).join("")}</select></label><label>Width of each flight, in<input class="in" id="bW" value="${b.widthIn||sr.widthIn}"></label><label>Bottom corner from rear lot line<input class="in" data-bpos="x" value="${attrLen(b.x)}"></label><label>Bottom corner from top lot line<input class="in" data-bpos="y" value="${attrLen(b.y)}"></label></div>
+      <div class="dimedit"><label>Type<select class="in" id="bKind">${Object.keys(STAIR_KINDS).map(k=>`<option value="${k}" ${k===b.kind?"selected":""}>${STAIR_KINDS[k].name}</option>`).join("")}</select></label><label>Width of each flight, in<input class="in" id="bW" value="${b.widthIn||sr.widthIn}"></label><label>${b.kind==="helical"?"Center":"Bottom corner"} from rear lot line<input class="in" data-bpos="x" value="${attrLen(b.x)}"></label><label>${b.kind==="helical"?"Center":"Bottom corner"} from top lot line<input class="in" data-bpos="y" value="${attrLen(b.y)}"></label>${b.kind==="helical"?`<label>Open well across<input class="in" id="bWell" value="${attrLen(g.ri*2)}"></label><label>First tread at (degrees)<input class="in" id="bStart" type="number" step="15" value="${b.startDeg||0}"></label>`:""}</div>
       ${g.issues.length?`<p class="note" style="flex-basis:100%;margin:0;color:var(--over)">Check: ${g.issues.join("; ")}.</p>`:""}
       <button class="btn" id="bRot">Turn 90° (R)</button><button class="btn" id="bFlip">Flip</button>
       <button class="btn warn" id="bDel">Remove stair</button>`;
     $("#bKind").addEventListener("change",e=>{pushHist();b.kind=e.target.value;commit();});
     $("#bW").addEventListener("change",e=>{const v=parseFloat(e.target.value);if(!(v>0)){renderSel();return;}pushHist();if(Math.abs(v-sr.widthIn)<1e-6)delete b.widthIn;else b.widthIn=v;commit();});
     el.querySelectorAll("[data-bpos]").forEach(inp=>inp.addEventListener("change",e=>{const v=parseLen(e.target.value);if(!isFinite(v)){renderSel();return;}pushHist();b[e.target.dataset.bpos]=v;commit();}));
+    {const we=$("#bWell");if(we)we.addEventListener("change",e=>{const v=parseLen(e.target.value);if(!(v>=0)){renderSel();return;}pushHist();b.wellFt=v;commit();});
+     const sd=$("#bStart");if(sd)sd.addEventListener("change",e=>{const v=parseFloat(e.target.value);if(!isFinite(v)){renderSel();return;}pushHist();b.startDeg=v;commit();});}
     $("#bRot").addEventListener("click",()=>{pushHist();b.rot=((b.rot||0)+90)%360;commit();});
     $("#bFlip").addEventListener("click",()=>{pushHist();b.flip=!b.flip;if(!b.flip)delete b.flip;commit();});
     $("#bDel").addEventListener("click",deleteSel);
@@ -2011,7 +2027,31 @@ function renderPlan(){
     }
   }
   // stair blocks: this floor's stairs going up, and the floor below's arriving here (dashed, DN)
+  const helixSvg=(b,h,how)=>{
+    const g=stairGeom(b,h),sel=how==="sel",ghost=how==="ghost",below=how==="below",col=sel||ghost?"var(--sel)":"var(--ink)",sw=(sel?0.3:0.16)*k;
+    const dash=below||ghost?`stroke-dasharray:${0.9*k} ${0.6*k};`:"",cx=b.x,cy=b.y,a0=helixStart(b),dr=helixDir(b);
+    const P=(rad,a)=>[cx+rad*Math.cos(a),cy+rad*Math.sin(a)],f3=q=>q[0].toFixed(3)+" "+q[1].toFixed(3);
+    const circ=rad=>`M${cx-rad} ${cy}a${rad} ${rad} 0 1 0 ${2*rad} 0a${rad} ${rad} 0 1 0 ${-2*rad} 0Z`;
+    let o=`<g pointer-events="none" style="fill:none;stroke:${col};stroke-width:${sw};${dash}">`;
+    o+=`<path d="${circ(g.ro)}${circ(g.ri)}" style="fill:var(--core);fill-opacity:.1;fill-rule:evenodd"/>`;
+    if(!below){
+      for(let j=0;j<=g.treads;j++){const a=a0+dr*j*g.dA;o+=`<path d="M${f3(P(g.ri,a))}L${f3(P(g.ro,a))}" style="stroke-width:${sw*0.7}"/>`;}
+      // the walking line, with an arrowhead at the top
+      const n=Math.max(8,Math.ceil(g.sweep/0.12)),pts=[];for(let j=0;j<=n;j++)pts.push(P(g.rw,a0+dr*g.sweep*j/n));
+      const e2=pts[pts.length-1],e1=pts[pts.length-2],L=Math.hypot(e2[0]-e1[0],e2[1]-e1[1])||1,ux=(e2[0]-e1[0])/L,uy=(e2[1]-e1[1])/L,hh=0.7;
+      o+=`<path d="M${pts.map(f3).join("L")}M${e2[0]-ux*hh-uy*hh*0.7} ${e2[1]-uy*hh+ux*hh*0.7}L${f3(e2)}L${e2[0]-ux*hh+uy*hh*0.7} ${e2[1]-uy*hh-ux*hh*0.7}" style="stroke-width:${0.14*k};stroke-dasharray:none"/>`;
+    }
+    o+=`</g>`;
+    if(!ghost)o+=`<path data-k="block" data-id="${b.id}" d="${circ(g.ro)}" pointer-events="${below?"none":"all"}" style="fill:transparent;stroke:none"/>`;
+    if(!b.hideLabel||ghost){
+      const f2=LF(b),st=`text-anchor="middle" pointer-events="none" style="fill:${col};paint-order:stroke;stroke:var(--panel);stroke-width:${f2*0.25}px;`;
+      o+=`<text x="${cx}" y="${cy-f2*0.15}" ${st}font-size:${f2*0.8}px;font-weight:700">${below?"DN":ghost?"Helical":"UP"}</text>`;
+      if(!below)o+=`<text x="${cx}" y="${cy+f2*0.85}" ${st}font-size:${f2*0.66}px">${g.R} R at ${g.riserIn.toFixed(2)}"</text>`;
+    }
+    return o;
+  };
   const stairSvg=(b,h,how)=>{
+    if(b.kind==="helical")return helixSvg(b,h,how);
     const g=stairGeom(b,h),M=q=>stairMap(b,q),poly=r=>{const c=[[r[0],r[1]],[r[2],r[1]],[r[2],r[3]],[r[0],r[3]]].map(M);return "M"+c.map(q=>q[0].toFixed(3)+" "+q[1].toFixed(3)).join("L")+"Z";};
     const sel=how==="sel",ghost=how==="ghost",below=how==="below",col=sel||ghost?"var(--sel)":"var(--ink)",sw=(sel?0.3:0.16)*k;
     const dash=below||ghost?`stroke-dasharray:${0.9*k} ${0.6*k};`:"";
@@ -2547,6 +2587,18 @@ function build3D(){
           m.position.set((x0+x1)/2-CX,base+hh/2,(z0+z1)/2-CZ);m.userData.floor=i;
           m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),lmat));root.add(m);pickables.push(m);
         };
+        if(g.helix){
+          // floating treads fanned around the well, each one riser higher, and a handrail along the outside
+          const a0=helixStart(b),dr=helixDir(b),mid=(g.ri+g.ro)/2,chord=2*mid*Math.sin(g.dA/2)+0.05;
+          for(let j=0;j<g.treads;j++){
+            const a=a0+dr*(j+0.5)*g.dA,geo=new THREE.BoxGeometry(g.ro-g.ri,0.17,chord),m=new THREE.Mesh(geo,isB?smatSel:smat);
+            m.position.set(b.x+mid*Math.cos(a)-CX,base+(j+1)*r-0.085,b.y+mid*Math.sin(a)-CZ);m.rotation.y=-a;m.userData.floor=i;
+            m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),lmat));root.add(m);pickables.push(m);
+          }
+          const rail=[];for(let j=0;j<=g.treads*3;j++){const t=j/3,a=a0+dr*t*g.dA;rail.push(new THREE.Vector3(b.x+(g.ro-0.1)*Math.cos(a)-CX,base+(t+1)*r+3,b.y+(g.ro-0.1)*Math.sin(a)-CZ));}
+          root.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(rail),new THREE.LineBasicMaterial({color:ink})));
+          return;
+        }
         let lv=0;
         g.P.forEach(q=>{
           if(q.t==="land"){box(q.r,b.kind==="scissor"?0.08:lv);return;}
@@ -2831,6 +2883,7 @@ document.querySelectorAll("[data-layer]").forEach(b=>b.addEventListener("click",
 }));
 /* Block menu: Stairs (with its types), Light well, Core */
 function stairThumb(kind){
+  if(kind==="helical")return `<svg class="thumb" viewBox="0 0 46 30" aria-hidden="true"><circle cx="23" cy="15" r="13" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width=".8"/><circle cx="23" cy="15" r="5" fill="none" stroke="currentColor" stroke-width=".8"/>${Array.from({length:12},(_,j)=>{const a=j*Math.PI/7;return `<path d="M${(23+5*Math.cos(a)).toFixed(1)} ${(15+5*Math.sin(a)).toFixed(1)}L${(23+13*Math.cos(a)).toFixed(1)} ${(15+13*Math.sin(a)).toFixed(1)}" stroke="currentColor" stroke-width=".4"/>`;}).join("")}</svg>`;
   const b={kind,x:0,y:0,rot:0},g=stairGeom(b,10),sc=Math.min(42/g.bb.w,26/g.bb.h),ox=(46-g.bb.w*sc)/2-g.bb.u0*sc,oy=(30-g.bb.h*sc)/2-g.bb.v0*sc;
   const R=r=>`<rect x="${(ox+r[0]*sc).toFixed(1)}" y="${(oy+r[1]*sc).toFixed(1)}" width="${((r[2]-r[0])*sc).toFixed(1)}" height="${((r[3]-r[1])*sc).toFixed(1)}"`;
   let o=`<svg class="thumb" viewBox="0 0 46 30" aria-hidden="true">`;
