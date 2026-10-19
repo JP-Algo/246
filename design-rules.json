@@ -163,6 +163,14 @@
       "thisBuilding": "Floors 1-6 rise to 64'-11\" at the street line; the 7th and 8th floors' street sides are 15'-0\" back, at 105'-0\" from the rear lot line.",
       "source": "NYC Zoning Resolution 23-432, 23-433"
     },
+    "rearYard": {
+      "label": "Rear yard",
+      "ft": 30,
+      "meaning": "Every story above the ground floor keeps its rear wall (outside face) at least this far from the rear lot line. The ground floor may extend into the rear yard as a one-story permitted obstruction (check the district's limit, about 23 ft above curb for non-residential).",
+      "rule": "ZR 23-342: attached or semi-detached buildings on lots under 40 ft wide need 30 ft at every rear lot line. 20 ft applies only to detached and zero lot line buildings, or to lots 40 ft or wider (at or below 75 ft). The R6 20 ft modification in 23-723 is limited to Brooklyn Community District 12.",
+      "thisBuilding": "25 ft wide attached lot: 30 ft. Floors 4-7 moved from 29'-4\" to 29'-10\" back to 30'-0\" (2026-10-19). The 2nd floor still covers the full lot depth and needs review.",
+      "source": "ZR 23-342, 23-344, 23-723 (as amended 12/5/2024)"
+    },
     "affordable": {
       "label": "Residential affordable areas",
       "meaning": "Drawn inside the gross outline like a Residential area; counts as residential floor area and is tracked as affordable. When any are drawn, the market-rate residential check subtracts their total instead of the affordable unit zoning input.",

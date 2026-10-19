@@ -521,7 +521,10 @@ const DEFAULT_RULES={
   // Light well = small inner court with no legally required windows (ZR 23-352). Clear dimensions, walls are outside it.
   extWall:{thickIn:12},
   // Height and setback (R6, narrow street, qualifying affordable housing): ZR 23-432, 23-433. Max height is the zoning input.
-  envelope:{baseFt:65,setbackFt:15},                               // exterior walls: outside face on the building envelope
+  envelope:{baseFt:65,setbackFt:15},
+  // Rear yard (ZR 23-342): attached building on a lot under 40 ft wide, 30 ft at every rear lot line; only the ground story may
+  // sit in it (a one-story permitted obstruction), so every story above the ground floor is checked
+  rearYard:{ft:30},                               // exterior walls: outside face on the building envelope
   // Units: sellable SF to the outside face of exterior walls and the centerline of demising/corridor walls (offering plan);
   // minimum interior SF by bedroom count for affordable units (HPD design guidelines, confirm)
   units:{measure:"offering",minSF:{0:400,1:575,2:775,3:1000}},
@@ -1143,6 +1146,9 @@ function renderTotals(){
     cap("Commercial",c.commZfa,c.commCap,"SF")+
     cap(`Community facility (${S.settings.cfFar} FAR)`,c.cfZfa,c.cfCap,"SF")+
     cap("Building height above grade",c.height,S.settings.maxHeight,"ft")+
+    (()=>{const ry=S.rules.rearYard.ft,bad=S.floors.map((f,i)=>{if(f.use==="cellar"||f.use==="roof"||floorTop(i)-f.height<=0.5)return null;
+        const xs=f.areas.filter(a=>a.type==="gross"&&a.pts.length>=3).flatMap(a=>a.pts.map(q=>q[0]));if(!xs.length)return null;const mn=Math.min(...xs);return mn<ry-0.01?`${f.name} ${fmtLen(ry-mn)} into it`:null;}).filter(Boolean);
+      return `<div class="cap ${bad.length?"over":""}"><div class="l"><span>Rear yard, ${fmtLen(ry)} from the rear lot line<small style="display:block;color:var(--muted);font-size:11.5px">Every story above the ground floor; the ground floor may extend into it as a one-story permitted obstruction</small></span><span>${bad.length?bad.join(", "):"all upper floors clear"}</span></div></div>`;})()+
     (()=>{const bad=S.floors.filter(f=>setbackIssue(f));const e=S.rules.envelope;
       return `<div class="cap ${bad.length?"over":""}"><div class="l"><span>Street setback above ${fmtLen(e.baseFt)}</span><span>${bad.length?bad.map(f=>`${f.name} ${fmtLen(setbackIssue(f).over)} past`).join(", "):`all floors at least ${fmtLen(e.setbackFt)} back`}</span></div></div>`;})();
 
