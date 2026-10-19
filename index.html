@@ -1551,18 +1551,46 @@ function renderSel(){
   const el=$("#sel"),o=findSel();
   if(!o){el.innerHTML=`<span class="k">Nothing selected</span>`;return;}
   if(ui.sel.k==="op"){
-    const op=o,f=cur(),K=OP_KINDS[op.kind],h=hostOf(f,[op.x,op.y],0.3),out=opOutlook(f,op),fl=v=>`<input class="in" data-opv="${v}" value="${attrLen(opDef(op,v))}">`;
-    const ends=h?[h.s-opDef(op,"w")/2,h.L-h.s-opDef(op,"w")/2]:null;
-    el.innerHTML=`<span><span class="k">${K.name}</span> ${fmtLen(opDef(op,"w"))} wide${K.glass?`, sill ${fmtLen(opDef(op,"sill"))}, head ${fmtLen(opDef(op,"head"))}`:""}${out&&out!=="inside"?`, looks onto the ${out}`:""}${ends?`; ${fmtLen(ends[0])} and ${fmtLen(ends[1])} to the wall's ends`:""}</span>
-      <div class="dimedit"><label>Type<select class="in" id="opKind">${Object.keys(OP_KINDS).map(k2=>`<option value="${k2}" ${k2===op.kind?"selected":""}>${OP_KINDS[k2].name}</option>`).join("")}</select></label><label>Width${fl("w")}</label>${K.glass?`<label>Sill above floor${fl("sill")}</label>`:""}<label>Head above floor${fl("head")}</label></div>
+    const op=o,f=cur(),K=OP_KINDS[op.kind],h=hostOf(f,[op.x,op.y],0.3),out=opOutlook(f,op),W=opDef(op,"w");
+    const fl=(v,lab)=>`<label>${lab}<input class="in" data-opv="${v}" value="${attrLen(opDef(op,v))}"></label>`;
+    // ends of the wall, named by where they are on the plan
+    const endName=q=>h&&Math.abs(h.ux)>=Math.abs(h.uy)?(q[0]<(h.a[0]+h.b[0])/2?"rear":"street"):(q[1]<(h.a[1]+h.b[1])/2?"west":"east");
+    const e0=h?h.s-W/2:0,e1=h?h.L-h.s-W/2:0,n0=h?endName(h.a):"",n1=h?endName(h.b):"";
+    const presets=(K.glass?[2,3,4,5,6,8,10]:op.kind==="double"?[4,5,6]:op.kind==="slider"?[5,6,8]:op.kind==="bifold"?[3,4,5,6]:[2,2.333,2.5,2.667,2.833,3]);
+    const others=S.floors.filter(x=>x!==f&&x.use!=="cellar");
+    el.innerHTML=`<span><span class="k">${escH(op.tag?op.tag+" · ":"")}${K.name}</span> ${fmtLen(W)} wide${K.glass?`, sill ${fmtLen(opDef(op,"sill"))}`:""}, head ${fmtLen(opDef(op,"head"))}${out&&out!=="inside"?`; looks onto the ${out}`:""}</span>
+      <div class="dimedit">
+        <label>Type<select class="in" id="opKind">${Object.keys(OP_KINDS).map(k2=>`<option value="${k2}" ${k2===op.kind?"selected":""}>${OP_KINDS[k2].name}</option>`).join("")}</select></label>
+        <label>Width<select class="in" id="opPreset"><option value="">Standard sizes…</option>${presets.map(v=>`<option value="${v}" ${Math.abs(v-W)<0.01?"selected":""}>${fmtLen(v)}</option>`).join("")}</select></label>
+        ${fl("w","Width, exact")}
+        ${K.glass?fl("sill","Sill above floor"):""}${fl("head","Head above floor")}
+        <label>Tag<input class="in" id="opTag" maxlength="12" placeholder="e.g. D1, W3" value="${escH(op.tag||"")}"></label>
+      </div>
+      ${h?`<div class="dimedit"><label>From the ${n0} end of the wall<input class="in" data-opend="0" value="${attrLen(e0)}"></label><label>From the ${n1} end of the wall<input class="in" data-opend="1" value="${attrLen(e1)}"></label><button class="btn" id="opCenter">Center on the wall</button></div>`:""}
+      ${K.swing?`<span class="seg" role="group" aria-label="Swing"><button data-opsw="1" aria-pressed="${(op.swing||1)>0}">Swings one way</button><button data-opsw="-1" aria-pressed="${(op.swing||1)<0}">Swings the other way</button></span>`:""}
+      ${(K.swing&&op.kind!=="double"&&op.kind!=="bifold")||op.kind==="pocket"?`<span class="seg" role="group" aria-label="Hinge"><button data-ophg="1" aria-pressed="${(op.hinge||1)>0}">${op.kind==="pocket"?"Pocket":"Hinge"} at the ${n0||"first"} end</button><button data-ophg="-1" aria-pressed="${(op.hinge||1)<0}">${op.kind==="pocket"?"Pocket":"Hinge"} at the ${n1||"other"} end</button></span>`:""}
       ${out==="lot line"?`<p class="note" style="flex-basis:100%;margin:0;color:var(--over)">Lot line window: it needs a protected (fire-rated) opening under the Building Code's exterior wall rules and is often paired with a light and air easement from the neighbor. It adds light but does not count as a legally required window.</p>`:out==="light well"&&K.glass?`<p class="note" style="flex-basis:100%;margin:0">Faces the light well: fine for light, but it does not count as a legally required window.</p>`:""}
-      ${K.swing?`<button class="btn" id="opSwing">Swing to the other side</button>`:""}${K.swing&&op.kind!=="double"&&op.kind!=="bifold"||op.kind==="pocket"?`<button class="btn" id="opHinge">${op.kind==="pocket"?"Pocket on the other side":"Hinge on the other end"}</button>`:""}
-      <button class="btn warn" id="delSel">Remove ${K.name.toLowerCase()}</button>
-      <span class="note" style="margin:0">Drag it along the wall to move it</span>`;
+      <div class="dimedit" style="align-items:end"><button class="btn" id="opDup">Duplicate beside it</button>
+        <label>Copy to the same spot on<select class="in" id="opCopyTo"><option value="">Choose floors…</option><option value="above">Every floor above</option><option value="below">Every floor below</option>${others.map(x=>`<option value="${x.id}">${x.name}</option>`).join("")}</select></label>
+        <button class="btn warn" id="delSel">Remove ${K.name.toLowerCase()}</button></div>
+      <span class="note" style="margin:0;flex-basis:100%">Drag it along its wall, or onto another wall nearby. Arrow keys nudge it 1 inch (Shift: 1 foot). Delete removes it.</span>`;
+    const setS=sv=>{if(!h)return;const c=Math.max(Math.min(W/2,h.L/2),Math.min(h.L-W/2,sv));op.x=h.a[0]+h.ux*c;op.y=h.a[1]+h.uy*c;};
     $("#opKind").addEventListener("change",e=>{pushHist();op.kind=e.target.value;["w","sill","head"].forEach(k2=>delete op[k2]);clampOp(f,op);commit();});
+    $("#opPreset").addEventListener("change",e=>{const v=parseFloat(e.target.value);if(!(v>0))return;pushHist();op.w=v;clampOp(f,op);commit();});
     el.querySelectorAll("[data-opv]").forEach(inp=>inp.addEventListener("change",e=>{const v=parseLen(e.target.value);if(!(v>=0)){renderSel();return;}pushHist();op[e.target.dataset.opv]=v;clampOp(f,op);commit();}));
-    const sw=$("#opSwing");if(sw)sw.addEventListener("click",()=>{pushHist();op.swing=-(op.swing||1);commit();});
-    const hg=$("#opHinge");if(hg)hg.addEventListener("click",()=>{pushHist();op.hinge=-(op.hinge||1);commit();});
+    el.querySelectorAll("[data-opend]").forEach(inp=>inp.addEventListener("change",e=>{const v=parseLen(e.target.value);if(!(v>=0)||!h){renderSel();return;}pushHist();setS(e.target.dataset.opend==="0"?v+W/2:h.L-v-W/2);commit();}));
+    const ce=$("#opCenter");if(ce)ce.addEventListener("click",()=>{pushHist();setS(h.L/2);commit();});
+    $("#opTag").addEventListener("change",e=>{const v=e.target.value.trim();pushHist();if(v)op.tag=v;else delete op.tag;commit();});
+    el.querySelectorAll("[data-opsw]").forEach(b=>b.addEventListener("click",()=>{const v=+b.dataset.opsw;if((op.swing||1)===v)return;pushHist();op.swing=v;commit();}));
+    el.querySelectorAll("[data-ophg]").forEach(b=>b.addEventListener("click",()=>{const v=+b.dataset.ophg;if((op.hinge||1)===v)return;pushHist();op.hinge=v;commit();}));
+    $("#opDup").addEventListener("click",()=>{if(!h)return;pushHist();const c=JSON.parse(JSON.stringify(op));c.id=uid();delete c.tag;
+      const room=h.L-h.s-W/2>=W+0.5,sv=room?h.s+W+0.5:h.s-W-0.5;c.x=h.a[0]+h.ux*sv;c.y=h.a[1]+h.uy*sv;f.openings.push(c);clampOp(f,c);ui.sel={k:"op",id:c.id};commit();});
+    $("#opCopyTo").addEventListener("change",e=>{const v=e.target.value;if(!v)return;const i=S.floors.indexOf(f);
+      const tgt=v==="above"?S.floors.slice(i+1):v==="below"?S.floors.slice(0,i):S.floors.filter(x=>x.id===v);
+      const ok=tgt.filter(x=>x.use!=="cellar"&&x.use!=="roof"&&hostOf(x,[op.x,op.y],0.3));
+      if(!ok.length){alert("No wall at this spot on those floors.");renderSel();return;}
+      pushHist();ok.forEach(x=>{const c=JSON.parse(JSON.stringify(op));c.id=uid();x.openings=opsOf(x).filter(q=>Math.hypot(q.x-op.x,q.y-op.y)>0.25).concat([c]);});
+      commit();alert(`Copied to ${ok.map(x=>x.name).join(", ")}.`);});
     $("#delSel").addEventListener("click",deleteSel);
     return;
   }
@@ -2636,9 +2664,13 @@ svg.addEventListener("pointermove",e=>{
     else if(ui.sel.k==="block"){o.x=drag.orig.x+dx;o.y=drag.orig.y+dy;}
     else if(ui.sel.k==="nbr"){}
     else if(ui.sel.k==="op"){
-      // slide along its wall
-      const h=hostOf(cur(),[drag.orig.x,drag.orig.y],0.3);
-      if(h){const w=opDef(o,"w"),sv=Math.max(w/2,Math.min(h.L-w/2,h.s+(p[0]-drag.start[0])*h.ux+(p[1]-drag.start[1])*h.uy)),sr=Math.round(sv*12)/12;o.x=h.a[0]+h.ux*sr;o.y=h.a[1]+h.uy*sr;}
+      // slide along its wall; pull it well away from the wall and it moves to the nearest other wall
+      const h=hostOf(cur(),[drag.orig.x,drag.orig.y],0.3),w=opDef(o,"w");
+      const along=h?h.s+(p[0]-drag.start[0])*h.ux+(p[1]-drag.start[1])*h.uy:0,off=h?Math.abs((p[0]-h.a[0])*h.uy-(p[1]-h.a[1])*h.ux):99;
+      let H=h,sv=along;
+      if(!h||off>Math.max(1.2,h.t/2+1)){const h2=hostOf(cur(),p,1.2);if(h2){H=h2;sv=h2.s;}}
+      if(H){sv=Math.max(Math.min(w/2,H.L/2),Math.min(H.L-w/2,sv));const sr=Math.round(sv*12)/12;o.x=H.a[0]+H.ux*sr;o.y=H.a[1]+H.uy*sr;
+        if(H!==h){drag.orig={...drag.orig,x:o.x,y:o.y};drag.start=p;}}
     }
     else if(ui.sel.k==="core"){o.x0=drag.orig.x0+dx;o.x1=drag.orig.x1+dx;o.y0=drag.orig.y0+dy;o.y1=drag.orig.y1+dy;}
     else o.pts=drag.orig.pts.map(q=>[q[0]+dx,q[1]+dy]);
@@ -3363,6 +3395,12 @@ document.addEventListener("keydown",e=>{
     e.preventDefault();
     if(ui.mode==="block"){ui.blockRot=((ui.blockRot||0)+90)%360;renderPlan();return;}
     const b=findSel();if(b){pushHist();b.rot=((b.rot||0)+90)%360;commit();}return;
+  }
+  if(ui.sel&&ui.sel.k==="op"&&ui.mode==="select"&&/^Arrow/.test(e.key)&&!(e.target&&e.target.closest&&e.target.closest("input,select,textarea"))){
+    const op=findSel(),f=cur(),h=op&&hostOf(f,[op.x,op.y],0.3);
+    if(h){e.preventDefault();const d=e.shiftKey?1:1/12,dx=e.key==="ArrowRight"?d:e.key==="ArrowLeft"?-d:0,dy=e.key==="ArrowDown"?d:e.key==="ArrowUp"?-d:0,st=dx*h.ux+dy*h.uy;
+      if(st){pushHist();const w=opDef(op,"w"),sv=Math.max(w/2,Math.min(h.L-w/2,h.s+st));op.x=h.a[0]+h.ux*sv;op.y=h.a[1]+h.uy*sv;commit();}}
+    return;
   }
   if(lk==="d"&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!draftFrom()){e.preventDefault();startOpTool();return;}
   if((lk==="w"||lk==="a")&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
