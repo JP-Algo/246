@@ -523,7 +523,7 @@ const DEFAULT_RULES={
   // Light well = small inner court with no legally required windows (ZR 23-352). Clear dimensions, walls are outside it.
   extWall:{thickIn:12},
   // Height and setback (R6, narrow street, qualifying affordable housing): ZR 23-432, 23-433. Max height is the zoning input.
-  envelope:{baseFt:65,setbackFt:15},
+  envelope:{baseFt:65,setbackFt:15,dormerPct:60,dormerFlatPct:40},   // dormers in the setback (ZR 23-413): 60% of the street wall, less 1% per ft above the base, or a flat 40%
   // Rear yard (ZR 23-342): attached building on a lot under 40 ft wide, 30 ft at every rear lot line; only the ground story may
   // sit in it (a one-story permitted obstruction), so every story above the ground floor is checked
   rearYard:{ft:30,obstructionStories:1},   // obstructionStories: stories above grade allowed to fill the rear yard                               // exterior walls: outside face on the building envelope
@@ -692,7 +692,8 @@ function ensureRules(st){
   // #242's court yard is open down to its cellar (added after the first survey trace)
   st.neighbors.forEach(n=>n.parts.forEach(p2=>{if(n.id==="n242"&&p2.kind==="court"&&p2.down==null)p2.down=12;}));
   if(!Array.isArray(st.units))st.units=[];
-  if(st.settings&&st.settings.cfFar==null)st.settings.cfFar=4.8;   // community facility FAR, added after the first save
+  if(st.settings&&st.settings.cfFar==null)st.settings.cfFar=4.8;
+  if(st.rules&&st.rules.envelope&&st.rules.envelope.dormerPct==null){st.rules.envelope.dormerPct=60;st.rules.envelope.dormerFlatPct=40;}   // community facility FAR, added after the first save
   if(!st.rules)st.rules=JSON.parse(JSON.stringify(DEFAULT_RULES));
   const r=st.rules;
   Object.keys(DEFAULT_RULES).forEach(k=>{if(r[k]==null)r[k]=JSON.parse(JSON.stringify(DEFAULT_RULES[k]));});
@@ -836,12 +837,22 @@ function drawEnds(list){
 /* Street-side setback: any floor that rises above the max base height must keep its street side
    setbackFt back from the street line. */
 function setbackLimit(){return FRONT-S.rules.envelope.setbackFt;}
-function setbackIssue(f){
+/* A floor above the base height that reaches past the setback line is a dormer: allowed if its width across the street
+   wall is within the dormer limit at the top of that story (ZR 23-413). */
+function dormerInfo(f){
   const i=S.floors.indexOf(f);if(i<0||f.use==="cellar"||f.use==="roof")return null;
-  if(floorTop(i)<=S.rules.envelope.baseFt+1e-6)return null;
-  const g=f.areas.filter(a=>a.type==="gross"&&a.pts.length>=3);if(!g.length)return null;
-  const mx=Math.max(...g.flatMap(a=>a.pts.map(q=>q[0]))),lim=setbackLimit();
-  return mx>lim+0.01?{over:mx-lim,lim}:null;
+  const e=S.rules.envelope,top=floorTop(i);if(top<=e.baseFt+1e-6)return null;
+  const lim=setbackLimit(),g=f.areas.filter(a=>a.type==="gross"&&a.pts.length>=3);if(!g.length)return null;
+  const parts=g.map(a=>clipConvex(a.pts,rect(lim,-50,FRONT+50,80))).filter(q=>q.length>=3);if(!parts.length)return null;
+  // only the points actually past the line count (the clip leaves a zero-depth edge along the line itself)
+  const past=parts.flat().filter(q=>q[0]>lim+0.01);if(!past.length)return null;
+  const ys=past.map(q=>q[1]),width=Math.max(...ys)-Math.min(...ys),depth=Math.max(...past.map(q=>q[0]))-lim;
+  const wall=25-2*(S.settings.sideOffset||0),pct=Math.max((e.dormerPct||0)-(top-e.baseFt),e.dormerFlatPct||0);
+  return {width,depth,area:parts.reduce((t,q)=>t+polyArea(q),0),allowed:wall*pct/100,pct,top};
+}
+function setbackIssue(f){
+  const d=dormerInfo(f);if(!d)return null;
+  return d.width>d.allowed+0.01?{over:d.depth,lim:setbackLimit(),dormer:d}:null;
 }
 function coreIssues(f){
   const c=coreRectFor(f);if(!c||f.use==="cellar")return [];
@@ -1154,7 +1165,7 @@ function renderTotals(){
         const xs=f.areas.filter(a=>a.type==="gross"&&a.pts.length>=3).flatMap(a=>a.pts.map(q=>q[0]));if(!xs.length)return null;const mn=Math.min(...xs);return mn<ry-0.01?`${f.name} ${fmtLen(ry-mn)} into it`:null;}).filter(Boolean);
       return `<div class="cap ${bad.length?"over":""}"><div class="l"><span>Rear yard, ${fmtLen(ry)} from the rear lot line<small style="display:block;color:var(--muted);font-size:11.5px">Every story above the ${obs===1?"ground floor":ord(obs)+" floor"}; ${obs===1?"the ground floor":"the lowest "+obs+" stories"} may fill the rear yard</small></span><span>${bad.length?bad.join(", "):"all upper floors clear"}</span></div></div>`;})()+
     (()=>{const bad=S.floors.filter(f=>setbackIssue(f));const e=S.rules.envelope;
-      return `<div class="cap ${bad.length?"over":""}"><div class="l"><span>Street setback above ${fmtLen(e.baseFt)}</span><span>${bad.length?bad.map(f=>`${f.name} ${fmtLen(setbackIssue(f).over)} past`).join(", "):`all floors at least ${fmtLen(e.setbackFt)} back`}</span></div></div>`;})();
+      return `<div class="cap ${bad.length?"over":""}"><div class="l"><span>Street setback above ${fmtLen(e.baseFt)}</span><span>${bad.length?bad.map(f=>{const d=setbackIssue(f).dormer;return `${f.name}: ${fmtLen(d.width)} wide past the setback, over the ${fmtLen(d.allowed)} dormer limit`;}).join(", "):(()=>{const ds=S.floors.map(f=>[f,dormerInfo(f)]).filter(x=>x[1]);return ds.length?ds.map(([f,d])=>`${f.name} dormer ${fmtLen(d.width)} × ${fmtLen(d.depth)}, ${fmt(d.area)} SF (limit ${fmtLen(d.allowed)}, ${Math.round(d.pct)}% of the street wall)`).join("; "):`all floors at least ${fmtLen(e.setbackFt)} back`;})()}</span></div></div>`;})();
 
   renderUnits();
   const r=c.rows[ui.floor];

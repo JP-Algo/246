@@ -161,7 +161,11 @@
       "maxHeightFt": 85,
       "meaning": "The street wall may rise to the max base height (min 30 ft, max 65 ft); any floor that rises above it must sit at least 15 ft back from the street line on a narrow street (10 ft on a wide street; reduced 1 ft per ft the street wall is set back, never under 7 ft); max building height 85 ft. Standard (non-qualifying) R6 on a narrow street is 45 ft base and 55 ft max height. Within 100 ft of a wide street the affordable limits are 65 ft base and 95 ft max.",
       "thisBuilding": "Floors 1-6 rise to 64'-11\" at the street line; the 7th and 8th floors' street sides are 15'-0\" back, at 105'-0\" from the rear lot line.",
-      "source": "NYC Zoning Resolution 23-432, 23-433"
+      "source": "NYC Zoning Resolution 23-432, 23-433",
+      "dormerPct": 60,
+      "dormerFlatPct": 40,
+      "dormers": "A story above the base height may reach past the setback line as a dormer (ZR 23-413): its width along the street wall may be up to 60% of the street wall width at the base height, less 1% of the street wall for each foot above the base height (checked at the top of the story), or a flat 40% at any height. Dormers count as floor area.",
+      "dormerThisBuilding": "7th floor dormer 12'-4\" wide x 6'-4\" deep (78 SF) on the east half of the street setback, added to unit 7F; sized to use the last of the market-rate residential floor area (7,446 of 7,447 SF). The 7th floor top is 74'-11\", so the limit is 50% of the 24'-8\" street wall = 12'-4\"."
     },
     "rearYard": {
       "label": "Rear yard",
