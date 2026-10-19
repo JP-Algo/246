@@ -95,6 +95,18 @@
       "numbering": "New units are numbered by floor and letter (3A, 3B ...); copying a floor makes new units with that floor's numbers.",
       "source": "Project owner: offering plan measurement, units can span floors; minimum sizes from the HPD design guidelines, confirm"
     },
+    "rooms": {
+      "label": "Habitable rooms and windows",
+      "livingMinSF": 150,
+      "roomMinSF": 80,
+      "minDimFt": 8,
+      "glassPct": 10,
+      "partitionIn": 4.5,
+      "meaning": "Each unit has one living room of at least 150 SF; other habitable rooms (bedrooms) at least 80 SF with no side under 8 ft. Every habitable room needs a window onto a legal open space (the street, the rear yard or a terrace on our lot), with glass of at least 10% of its floor area. Windows on the light well give light but are not legally required windows (it is sized as a court without required windows); windows are not allowed in lot line walls. Dens, baths, closets and kitchens in an open plan do not need windows.",
+      "openings": "Windows default to 5'-0\" wide, sill 2'-6\", head 8'-0\"; doors 2'-8\" (baths and closets 2'-6\"), entry doors 3'-0\", sliding doors 6'-0\", heads 7'-0\" (sliders 8'-0\").",
+      "thisBuilding": "5th floor drafted: 5F 2BR/2BA (living and primary bedroom on the street, bedroom 2 on the light well, flagged), 5R 1BR + den (living and bedroom on the rear yard, den on the light well).",
+      "source": "NYC Multiple Dwelling Law 30-31, Housing Maintenance Code, BC 1205 and 1208, BC 705.8; confirm with the architect"
+    },
     "roof": {
       "label": "Roof level",
       "bulkheadFt": 10,
