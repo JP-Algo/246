@@ -117,6 +117,10 @@ input.in{width:84px}
 .statusbar #snapTo{display:inline-flex;gap:2px;padding-left:4px;border-left:1px solid var(--line)}
 .statusbar .typed{font-size:11.5px}
 .statusbar .typed:empty{display:none}
+.statusbar .sb-export{margin-left:auto;padding-left:8px;border-left:1px solid var(--line)}
+.statusbar .sb-export button{color:var(--ink);font-weight:600}
+.statusbar .expmsg{font-size:11px;color:var(--muted);max-width:340px}
+.statusbar .expmsg:empty{display:none}
 .planrow .planwrap{flex:1 1 auto;min-width:0}
 .planwrap{position:relative;border:1px solid var(--line);border-radius:8px;background:var(--panel);overflow:hidden}
 .layers{flex:0 0 260px;max-height:clamp(260px,44vh,440px);display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:12.5px;min-width:0}
@@ -355,6 +359,11 @@ tfoot td{font-weight:600;border-bottom:0}
           <button id="tSnap" aria-pressed="true" title="Snap to a 6 inch grid and to existing corners. F9 toggles">Snap</button>
           <span id="snapTo" role="group" aria-label="Snap to walls at" title="Which parts of walls to snap to"><button data-snapto="c">Centers</button><button data-snapto="f">Faces</button><button data-snapto="m" title="Snap to the middle of walls and area edges">Midpoints</button></span>
           <button id="tDims" aria-pressed="true" title="Show dimensions on the plan">Dimensions</button>
+        </span>
+        <span class="sb-group sb-export" role="group" aria-label="Export drawings"><span id="expMsg" class="expmsg"></span>Export
+          <button data-exp="plans" title="Cover sheet and a floor plan of every floor, 36 x 24 in sheets at 3/16 in = 1 ft">Floor plans</button>
+          <button data-exp="elevations" title="Street, rear, west and east elevations and a building section">Elevations</button>
+          <button data-exp="full" title="The full schematic set: cover, zoning and area schedules, plans, elevations, section, door and window and room schedules, notes">Drawing set</button>
         </span>
       </div>
       </div>
@@ -2048,15 +2057,15 @@ function orthoPt(a,b){
 function renderPlan(){
   const v=vb();
   svg.setAttribute("viewBox",`${v.x.toFixed(2)} ${v.y.toFixed(2)} ${v.w.toFixed(2)} ${v.h.toFixed(2)}`);
-  const f=cur(),k=v.w/130,hr=Math.max(v.w/40,22/Math.max(v.pxPerFt,0.01)),vr=v.w/115,fs=v.w/60;
+  const f=cur(),k=ui.exporting?v.w/420:v.w/130,hr=Math.max(v.w/40,22/Math.max(v.pxPerFt,0.01)),vr=v.w/115,fs=ui.exporting?v.w/150:v.w/60;
   // an item's label size: its own % of the normal size, which stays the same on screen unless locked to the drawing
   const LF=o=>(o&&o.labLock>0?o.labLock:fs)*((o&&o.labSize)||100)/100;ui.planFs=fs;
   const showFar=ui.layers.far,showInt=ui.layers.int,showSell=ui.layers.sell;
   const areaShown=a=>!!ui.layers[kindLayer((AREA_TYPES[a.type]||{}).kind)];
   let g=`<g pointer-events="none">`;
   const x0=Math.floor(v.x/5)*5,y0=Math.floor(v.y/5)*5;
-  for(let x=x0;x<=v.x+v.w;x+=5)g+=`<line x1="${x}" y1="${v.y}" x2="${x}" y2="${v.y+v.h}" style="stroke:var(--grid);stroke-width:${(x%25===0?0.2:0.08)*k}"/>`;
-  for(let y=y0;y<=v.y+v.h;y+=5)g+=`<line x1="${v.x}" y1="${y}" x2="${v.x+v.w}" y2="${y}" style="stroke:var(--grid);stroke-width:${(y%25===0?0.2:0.08)*k}"/>`;
+  if(!ui.exporting)for(let x=x0;x<=v.x+v.w;x+=5)g+=`<line x1="${x}" y1="${v.y}" x2="${x}" y2="${v.y+v.h}" style="stroke:var(--grid);stroke-width:${(x%25===0?0.2:0.08)*k}"/>`;
+  if(!ui.exporting)for(let y=y0;y<=v.y+v.h;y+=5)g+=`<line x1="${v.x}" y1="${y}" x2="${v.x+v.w}" y2="${y}" style="stroke:var(--grid);stroke-width:${(y%25===0?0.2:0.08)*k}"/>`;
   const SI=ensureSite(S),selLot=ui.sel&&ui.sel.k==="lot"&&ui.mode==="select";
   if(!SI.hide.lot)g+=`<path d="${pathOf(LOT)}" style="fill:none;stroke:${selLot?"var(--sel)":"var(--muted)"};stroke-width:${(selLot?0.35:0.22)*k};stroke-dasharray:${1.4*k} ${0.9*k}"/>`;
   {
@@ -2571,6 +2580,7 @@ document.addEventListener("click",e=>{
   b.setAttribute("aria-expanded","true");
 });
 // the layers list and the options shown for its selected row share their handlers
+document.querySelectorAll("[data-exp]").forEach(b=>b.addEventListener("click",()=>exportSet(b.dataset.exp)));
 $("#ppClose").addEventListener("click",()=>{ui.sel=null;ui.pop=null;renderAll();});
 function onLayerUI(ev,fn){["#layerList","#layerOpts"].forEach(q=>$(q).addEventListener(ev,fn));}
 onLayerUI("click",e=>{
@@ -3212,6 +3222,207 @@ function selectFromLayers(k,id){
 }
 // drawn as a small SVG so the "i" sits exactly in the middle of its circle
 function infoTip(text){return `<button class="info" type="button" data-tip="${escH(text)}" aria-label="What this means"><svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5.3" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="6" cy="3.5" r="0.8" fill="currentColor"/><rect x="5.35" y="5.1" width="1.3" height="4" rx="0.4" fill="currentColor"/></svg></button>`;}
+/* ---------- drawing set export: floor plans, elevations, a section and schedules as 36 x 24 in sheets ----------
+   The set is one HTML file: each sheet is drawn to scale (3/16" = 1'-0" at full size) with a title block, and it prints
+   to PDF from the browser (landscape, 36 x 24, no margins). It is generated from the model as it stands: schematic,
+   not for permit or construction. */
+const EXP_VARS="--paper:#FFFFFF;--panel:#FFFFFF;--ink:#1E2528;--muted:#5A666B;--line:#C8D0CD;--grid:#DCE2DF;--gross:#2D6BAA;--deduct:#B27410;--amenity:#6A57B8;--terrace:#2E7D50;--core:#0E7C86;--comm:#9C3D54;--cf:#5E7F1A;--room:#8C6D46;--glass:#3B82B8;--aff:#C2571A;--sell:#44505A;--over:#B3261E;--sel:#C2307A;";
+const EXP_IN=3/16;   // inches of sheet per foot of building
+// each opening's mark: its own tag, or a letter for its kind and the floor number, numbered along the floor
+function opMarks(){
+  const m={};S.floors.forEach((f,i)=>{const n={};opsOf(f).forEach(o=>{const L=o.kind==="window"?"W":o.kind==="garage"?"G":o.kind==="slider"?"S":"D";n[L]=(n[L]||0)+1;m[o.id]=o.tag||`${L}${floorNo(f,i)}${String(n[L]).padStart(2,"0")}`;});});return m;
+}
+// the plan of every floor, drawn by the plan renderer itself with drawing-sheet line weights and text
+function capturePlans(){
+  const keep={floor:ui.floor,view:ui.view,layers:{...ui.layers},dims:ui.dims,sel:ui.sel,pop:ui.pop,mode:ui.mode,draft:ui.draft,hover:ui.hover},st=svg.getAttribute("style")||"";
+  const W=140,H=58,out=[];
+  try{
+    Object.assign(ui,{exporting:true,sel:null,pop:null,mode:"select",draft:null,hover:null,dims:true,view:{cx:60,cy:12.5,w:W}});
+    ui.layers={far:false,int:true,sell:false,rooms:true,furn:true,nbr:true};
+    svg.style.width=W*10+"px";svg.style.height=H*10+"px";svg.style.flex="none";
+    S.floors.forEach((f,i)=>{ui.floor=i;renderPlan();out.push({f,i,vb:svg.getAttribute("viewBox"),body:svg.innerHTML.replace(/nbrHatch/g,"nbrHatch"+i)});});
+  }finally{
+    Object.assign(ui,keep);ui.exporting=false;svg.setAttribute("style",st);renderAll();
+  }
+  return out;
+}
+// an elevation of one face: floors as their outline seen from that side (nearer floors drawn over farther ones),
+// openings on the walls that face out that way at their sill and head, neighbors dashed, levels and limits
+function elevSVG(face){
+  const E=elevations(),M={street:{u:q=>-q[1],d:q=>q[0],par:w=>Math.abs(w.a[0]-w.b[0])<0.02,dir:[1,0]},rear:{u:q=>q[1],d:q=>-q[0],par:w=>Math.abs(w.a[0]-w.b[0])<0.02,dir:[-1,0]},
+    west:{u:q=>-q[0],d:q=>-q[1],par:w=>Math.abs(w.a[1]-w.b[1])<0.02,dir:[0,-1]},east:{u:q=>q[0],d:q=>q[1],par:w=>Math.abs(w.a[1]-w.b[1])<0.02,dir:[0,1]}}[face];
+  const fl=[];let top=0,bot=0;
+  S.floors.forEach((f,i)=>{const gs=f.areas.filter(a=>a.type==="gross"&&a.pts.length>=3);if(!gs.length)return;const P=gs.flatMap(a=>a.pts);
+    const us=P.map(M.u),z0=E[i],z1=E[i]+f.height;top=Math.max(top,z1);bot=Math.min(bot,z0);
+    fl.push({f,i,gs,u0:Math.min(...us),u1:Math.max(...us),d:Math.max(...P.map(M.d)),z0,z1});});
+  const nb=[];(S.neighbors||[]).forEach(n=>n.parts.forEach(p=>{if(!p.h||p.kind==="court")return;const us=p.pts.map(M.u);nb.push({u0:Math.min(...us),u1:Math.max(...us),h:p.h,label:p.label});top=Math.max(top,p.h);}));
+  const allU=fl.flatMap(r=>[r.u0,r.u1]).concat(face==="street"||face==="rear"?nb.flatMap(n=>[n.u0,n.u1]):[]);
+  const U0=Math.min(...allU)-4,U1=Math.max(...allU)+26,Z1=Math.max(top,S.settings.maxHeight||0)+6,Z0=bot-4;
+  const k=1/(EXP_IN*72)*0.9;   // ~0.9 pt in feet
+  let o="";
+  if(face==="street"||face==="rear")nb.forEach(n=>{o+=`<rect x="${n.u0}" y="${-n.h}" width="${n.u1-n.u0}" height="${n.h}" style="fill:none;stroke:#8A9499;stroke-width:${k};stroke-dasharray:${4*k} ${3*k}"/><text x="${(n.u0+n.u1)/2}" y="${-n.h-1}" text-anchor="middle" style="font-size:1.6px;fill:#5A666B">${escH(n.label||"")}</text>`;});
+  const dMax=Math.max(...fl.map(r=>r.d));
+  fl.sort((a,b)=>a.d-b.d).forEach(r=>{
+    const below=r.f.use==="cellar",far=r.d<dMax-1;
+    o+=`<rect x="${r.u0}" y="${-r.z1}" width="${r.u1-r.u0}" height="${r.z1-r.z0}" style="fill:${below?"none":far?"#EEF1F0":"#FFFFFF"};stroke:#1E2528;stroke-width:${(far?1:1.6)*k};${below?`stroke-dasharray:${5*k} ${3*k};`:""}"/>`;
+    o+=`<line x1="${r.u0}" y1="${-r.z0-0.8}" x2="${r.u1}" y2="${-r.z0-0.8}" style="stroke:#1E2528;stroke-width:${0.5*k}"/>`;
+    // openings on walls that face out on this side
+    r.f.walls.forEach(w=>{if(!M.par(w)||w.hidden)return;const mid=[(w.a[0]+w.b[0])/2+M.dir[0]*(w.t/2+0.6),(w.a[1]+w.b[1])/2+M.dir[1]*(w.t/2+0.6)];
+      if(r.gs.some(g=>pointInPoly(mid,g.pts)))return;
+      spansOn(w.a,w.b,w.t,opsOf(r.f).filter(x=>!x.hidden)).forEach(([s0,s1,op])=>{const L=Math.hypot(w.b[0]-w.a[0],w.b[1]-w.a[1]),ux=(w.b[0]-w.a[0])/L,uy=(w.b[1]-w.a[1])/L;
+        const ua=M.u([w.a[0]+ux*s0,w.a[1]+uy*s0]),ub=M.u([w.a[0]+ux*s1,w.a[1]+uy*s1]),sl=opDef(op,"sill"),hd=Math.min(opDef(op,"head"),r.f.height-0.8),K=OP_KINDS[op.kind]||{};
+        const x=Math.min(ua,ub),wd=Math.abs(ub-ua),y=-(r.z0+0.8+hd),h=hd-sl;
+        o+=`<rect x="${x}" y="${y}" width="${wd}" height="${h}" style="fill:${K.glass?"#CFE2F1":"#FFFFFF"};stroke:#1E2528;stroke-width:${0.8*k}"/>`;
+        if(K.glass&&op.kind==="window"&&wd>3.5)o+=`<line x1="${x+wd/2}" y1="${y}" x2="${x+wd/2}" y2="${y+h}" style="stroke:#1E2528;stroke-width:${0.5*k}"/>`;
+        if(op.kind==="garage")for(let p=1;p<4;p++)o+=`<line x1="${x}" y1="${y+h*p/4}" x2="${x+wd}" y2="${y+h*p/4}" style="stroke:#1E2528;stroke-width:${0.5*k}"/>`;
+        if(!K.glass)o+=`<path d="M${x+wd*0.15} ${y+h}L${x+wd/2} ${y+h*0.1}L${x+wd*0.85} ${y+h}" style="fill:none;stroke:#8A9499;stroke-width:${0.4*k};stroke-dasharray:${2*k} ${2*k}"/>`;
+      });});
+  });
+  // grade, levels, the height limit and the base height
+  o+=`<line x1="${U0}" y1="0" x2="${U1-20}" y2="0" style="stroke:#1E2528;stroke-width:${2.4*k}"/><text x="${U0+0.5}" y="1.8" style="font-size:1.4px;fill:#5A666B">Grade (curb level assumed)</text>`;
+  const lv=[...new Set(fl.map(r=>r.i))].sort((a,b)=>a-b);
+  lv.forEach(i=>{const z=E[i]+0.8,f=S.floors[i];o+=`<line x1="${U1-21}" y1="${-z}" x2="${U1-18}" y2="${-z}" style="stroke:#1E2528;stroke-width:${0.6*k}"/><text x="${U1-17.5}" y="${-z+0.5}" style="font-size:1.35px;fill:#1E2528">${escH(f.name)}  ${z-0.8>=0?"+":"−"}${fmtLen(Math.abs(E[i]))}</text>`;});
+  const mh=S.settings.maxHeight,bh=S.rules.envelope.baseFt;
+  if(mh)o+=`<line x1="${U0}" y1="${-mh}" x2="${U1-20}" y2="${-mh}" style="stroke:#B3261E;stroke-width:${0.8*k};stroke-dasharray:${6*k} ${3*k}"/><text x="${U0+0.5}" y="${-mh-0.5}" style="font-size:1.35px;fill:#B3261E">Max. height ${fmtLen(mh)}</text>`;
+  if(bh)o+=`<line x1="${U0}" y1="${-bh}" x2="${U1-20}" y2="${-bh}" style="stroke:#B3261E;stroke-width:${0.5*k};stroke-dasharray:${2*k} ${2*k}"/><text x="${U0+0.5}" y="${-bh-0.5}" style="font-size:1.35px;fill:#B3261E">Max. base height ${fmtLen(bh)}</text>`;
+  const ends={street:["East (#248)","West (#242)"],rear:["West (#242)","East (#248)"],west:["Street","Rear"],east:["Rear","Street"]}[face];
+  o+=`<text x="${U0+0.5}" y="${Z0+1.5}" style="font-size:1.5px;fill:#5A666B">← ${ends[0]}</text><text x="${U1-21}" y="${Z0+1.5}" text-anchor="end" style="font-size:1.5px;fill:#5A666B">${ends[1]} →</text>`;
+  const w=U1-U0,h=Z1-Z0;
+  return {svg:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${U0} ${-Z1} ${w} ${h}" width="${(w*EXP_IN).toFixed(2)}in" height="${(h*EXP_IN).toFixed(2)}in" style="font-family:Archivo,Arial,sans-serif">${o}</svg>`,w,h};
+}
+// a section along the lot, cut at y: slabs (open to below and glass floors shown), cut exterior walls, roofs, levels
+function sectionSVG(yc){
+  const E=elevations(),k=1/(EXP_IN*72)*0.9;let o="",top=0,bot=0;
+  const cutX=P=>{const xs=[];P.forEach((a,i)=>{const b=P[(i+1)%P.length];if((a[1]>yc)!==(b[1]>yc))xs.push(a[0]+(yc-a[1])*(b[0]-a[0])/(b[1]-a[1]));});xs.sort((p,q)=>p-q);const s=[];for(let i=0;i+1<xs.length;i+=2)s.push([xs[i],xs[i+1]]);return s;};
+  const segsOf=f=>f.areas.filter(a=>a.type==="gross"&&a.pts.length>=3).flatMap(a=>cutX(a.pts));
+  const minus=(S0,cuts)=>{let s=S0;cuts.forEach(([c0,c1])=>{s=s.flatMap(([a,b])=>c1<=a||c0>=b?[[a,b]]:[[a,Math.max(a,c0)],[Math.min(b,c1),b]].filter(([p,q])=>q-p>0.05));});return s;};
+  S.floors.forEach((f,i)=>{
+    const seg=segsOf(f);if(!seg.length)return;const z=E[i];top=Math.max(top,z+f.height);bot=Math.min(bot,z);
+    const voids=f.areas.filter(a=>(AREA_TYPES[a.type]||{}).kind==="void"&&a.pts.length>=3).flatMap(a=>cutX(a.pts));
+    const glass=f.areas.filter(a=>(AREA_TYPES[a.type]||{}).glass==="floor"&&a.pts.length>=3).flatMap(a=>cutX(a.pts));
+    minus(minus(seg,voids),glass).forEach(([a,b])=>{o+=`<rect x="${a}" y="${-(z+0.8)}" width="${b-a}" height="0.8" style="fill:#1E2528"/>`;});
+    glass.forEach(([a,b])=>{o+=`<rect x="${a}" y="${-(z+0.8)}" width="${b-a}" height="0.4" style="fill:#7DB8E8;stroke:#1E2528;stroke-width:${0.4*k}"/>`;});
+    voids.forEach(([a,b])=>{o+=`<text x="${(a+b)/2}" y="${-(z+0.2)}" text-anchor="middle" style="font-size:1.1px;fill:#5A666B">open to below</text>`;});
+    // the walls the cut passes through, at their thickness, from this slab to the next
+    f.walls.forEach(w=>{if(w.hidden||Math.abs(w.a[0]-w.b[0])>0.02)return;const y0=Math.min(w.a[1],w.b[1]),y1=Math.max(w.a[1],w.b[1]);if(yc<y0-0.01||yc>y1+0.01)return;
+      o+=`<rect x="${w.a[0]-w.t/2}" y="${-(z+f.height)}" width="${w.t}" height="${f.height-0.8}" style="fill:${w.t>=0.6?"#1E2528":"#8A9499"}"/>`;});
+    // the roof over the parts no floor above covers (a glass roof where one is drawn)
+    const up=S.floors[i+1],cover=up?segsOf(up):[],roof=minus(seg,cover),gr=f.areas.filter(a=>(AREA_TYPES[a.type]||{}).glass==="roof"&&a.pts.length>=3).flatMap(a=>cutX(a.pts));
+    if(f.use!=="roof")minus(roof,gr).forEach(([a,b])=>{o+=`<rect x="${a}" y="${-(z+f.height+0.8)}" width="${b-a}" height="0.8" style="fill:#1E2528"/><line x1="${a}" y1="${-(z+f.height+0.8)-3.5}" x2="${b}" y2="${-(z+f.height+0.8)-3.5}" style="stroke:#1E2528;stroke-width:${0.5*k}"/>`;});
+    gr.forEach(([a,b])=>{o+=`<rect x="${a}" y="${-(z+f.height+0.6)}" width="${b-a}" height="0.35" style="fill:#7DB8E8;stroke:#1E2528;stroke-width:${0.5*k}"/><text x="${(a+b)/2}" y="${-(z+f.height+1.4)}" text-anchor="middle" style="font-size:1.1px;fill:#1E2528">operable glass roof</text>`;});
+    o+=`<text x="${Math.max(...seg.map(s=>s[1]))+3}" y="${-(z+0.8)+0.4}" style="font-size:1.35px;fill:#1E2528">${escH(f.name)}  ${z>=0?"+":"−"}${fmtLen(Math.abs(z))}</text>`;
+  });
+  o+=`<line x1="-6" y1="0" x2="128" y2="0" style="stroke:#1E2528;stroke-width:${2.4*k}"/>`;
+  const mh=S.settings.maxHeight;if(mh)o+=`<line x1="-6" y1="${-mh}" x2="128" y2="${-mh}" style="stroke:#B3261E;stroke-width:${0.8*k};stroke-dasharray:${6*k} ${3*k}"/><text x="-5.5" y="${-mh-0.6}" style="font-size:1.35px;fill:#B3261E">Max. height ${fmtLen(mh)}</text>`;
+  o+=`<text x="-5.5" y="${-bot+3}" style="font-size:1.5px;fill:#5A666B">← Rear lot line</text><text x="121" y="${-bot+3}" style="font-size:1.5px;fill:#5A666B">Street →</text>`;
+  const U0=-8,U1=145,Z1=Math.max(top,mh||0)+6,Z0=bot-5,w=U1-U0,h=Z1-Z0;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${U0} ${-Z1} ${w} ${h}" width="${(w*EXP_IN).toFixed(2)}in" height="${(h*EXP_IN).toFixed(2)}in" style="font-family:Archivo,Arial,sans-serif">${o}</svg>`;
+}
+function buildDrawingSet(kind){
+  const today=new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}),c=compute(),marks=opMarks();
+  const sheets=[];const add=(no,title,body,scale)=>sheets.push({no,title,body,scale});
+  const tbl=(head,rows,cls)=>`<table class="${cls||""}"><thead><tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(v=>`<td>${v}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  const plans=kind!=="elevations"?capturePlans():[];
+  const planNo=p=>"A-1"+String(p.i).padStart(2,"0");
+  // the area schedule
+  const areaRows=c.rows.map(r=>[escH(r.f.name),r.f.use,fmtLen(r.f.height),fmt(r.gross),fmt(r.dedTotal),fmt(r.zfa),fmt(r.resZfa),fmt(r.commZfa),fmt(r.cfZfa)]);
+  areaRows.push(["<b>Total</b>","","","<b>"+fmt(c.rows.reduce((t,r)=>t+r.gross,0))+"</b>","","<b>"+fmt(c.total)+"</b>","<b>"+fmt(c.resZfa)+"</b>","<b>"+fmt(c.commZfa)+"</b>","<b>"+fmt(c.cfZfa)+"</b>"]);
+  const unitRows=(S.units||[]).map(u=>{let sf=0;S.floors.forEach(f=>f.areas.forEach(a=>{if(a.type==="unit"&&a.unit===u.id&&a.pts.length>=3)sf+=polyArea(a.pts);}));
+    return [escH(u.no),{fm:"Free-market",aff:"Affordable",comm:"Commercial",cf:"Community facility"}[u.tenure]||u.tenure,u.beds===0?"Studio":u.beds+" BR",u.baths,fmt(sf),escH(u.extra||"")];});
+  // the index, written once the sheet list is known
+  const idx=()=>tbl(["Sheet","Title"],sheets.map(s=>[s.no,escH(s.title)]),"idx");
+  add("G-001","Cover sheet, drawing index and project data",()=>`<div class="cols"><div>
+      <h1>246 South 2nd Street</h1><p class="sub">Brooklyn, New York · ${kind==="plans"?"Floor plans":kind==="elevations"?"Elevations and section":"Schematic design drawing set"}</p>
+      ${axon?`<img class="axon" src="${axon}" alt="">`:""}
+      <h3>Project data</h3>${tbl(["Item","Value"],[["Zoning district","R6, narrow street (qualifying affordable housing)"],["Lot area",fmt(S.settings.lot)+" SF"],["Max. FAR / floor area",S.settings.far+" / "+fmt(c.allowed)+" SF"],
+        ["Zoning floor area, this design",fmt(c.total)+" SF ("+fmt(c.allowed-c.total)+" SF under)"],["Residential / commercial / community facility",fmt(c.resZfa)+" / "+fmt(c.commZfa)+" / "+fmt(c.cfZfa)+" SF"],
+        ["Stories / height",S.floors.filter(f=>f.use!=="cellar"&&f.use!=="roof").length+" stories and cellar, "+fmtLen(c.height)+" to the roof"],["Dwelling units",(S.units||[]).length+""],["Date",today]])}
+    </div><div><h3>Drawing index</h3>${idx()}
+      <p class="note">Schematic design, generated from the zoning floor area model. Not for permit or construction. Dimensions are to wall centerlines or faces as drawn; verify in the field. Zoning and Building Code items noted here are to be confirmed by the architect and code consultant of record.</p></div></div>`);
+  if(kind==="full"){
+    add("G-002","Zoning analysis, area and unit schedules",()=>`<div class="cols"><div><h3>Floor area by floor (SF)</h3>${tbl(["Floor","Use","Height","Gross","Deductions","Zoning floor area","Residential","Commercial","Comm. facility"],areaRows)}
+      <p class="note">Amenity deduction ${fmt(c.amenUsed)} SF of a ${fmt(c.amenCap)} SF cap (5%). Zone Green ${fmt(c.zoneGreen)} SF. Residential cap ${fmt(c.resCap)} SF; commercial cap ${fmt(c.commCap)} SF.</p></div>
+      <div><h3>Unit schedule</h3>${tbl(["Unit","Tenure","Bedrooms","Baths","Sellable SF","Notes"],unitRows)}</div></div>`);
+  }
+  plans.forEach(p=>{const [x,y,w,h]=p.vb.split(" ").map(Number);
+    add(planNo(p),`${p.f.name} plan`,()=>`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${p.vb}" width="${(w*EXP_IN).toFixed(2)}in" height="${(h*EXP_IN).toFixed(2)}in" class="plan">${p.body}</svg>
+      <div class="north">N ↑ is to the right (the street); plan shown with the west lot line at top</div>`,`3/16" = 1'-0"`);});
+  if(kind!=="plans"){
+    [["street","Street elevation (South 2nd Street)"],["rear","Rear elevation"],["west","West elevation (toward #242)"],["east","East elevation (toward #248)"]].forEach(([f,t],j)=>{const e=elevSVG(f);add("A-20"+j,t,()=>e.svg,`3/16" = 1'-0"`);});
+    add("A-300","Building section A-A, along the lot at 12'-6\" from the west lot line",()=>sectionSVG(12.5),`3/16" = 1'-0"`);
+  }
+  if(kind==="full"){
+    const opRows=[];S.floors.forEach((f,i)=>opsOf(f).forEach(o=>{const K=OP_KINDS[o.kind]||{},out=opOutlook(f,o);opRows.push([marks[o.id],escH(f.name),K.name||o.kind,fmtLen(opDef(o,"w")),K.glass?fmtLen(opDef(o,"sill")):"—",fmtLen(opDef(o,"head")),out||"—",out==="lot line"?"Fire-protected opening; light and air easement":""]);}));
+    add("A-600","Door and window schedule",()=>`<h3>Doors and windows</h3>${tbl(["Mark","Floor","Type","Width","Sill","Head","Faces","Remarks"],opRows,"small")}`);
+    const rmRows=[];S.floors.forEach(f=>f.areas.forEach(a=>{const T=AREA_TYPES[a.type]||{};if(T.kind!=="room"||a.pts.length<3)return;const xs=a.pts.map(q=>q[0]),ys=a.pts.map(q=>q[1]),iss=roomIssues(f,a);
+      rmRows.push([escH(f.name),escH(a.name||T.short),`${fmtLen(Math.max(...ys)-Math.min(...ys))} × ${fmtLen(Math.max(...xs)-Math.min(...xs))}`,fmt(polyArea(a.pts)),iss.length?escH(iss.join("; ")):"OK"]);}));
+    add("A-601","Room schedule",()=>`<h3>Rooms</h3>${tbl(["Floor","Room","Size","SF","Light, air and size check"],rmRows,"small")}`);
+    add("G-003","General notes and code notes",()=>`<div class="cols"><div><h3>General notes</h3><ol>
+      <li>These drawings are schematic and generated from the zoning floor area model. They are not for permit, bidding or construction.</li>
+      <li>Do not scale the drawings; written dimensions govern. Dimensions are to wall centerlines or faces as noted on the plans.</li>
+      <li>All work to comply with the NYC Building Code (2022), the Zoning Resolution and all applicable rules; the architect of record to confirm all zoning and code items.</li>
+      <li>Floor-to-floor heights: ${S.floors.map(f=>`${escH(f.name)} ${fmtLen(f.height)}`).join(", ")}.</li>
+      <li>Walls: exterior 12 in; partitions 4½ in unless noted. Fire ratings, assemblies and finishes to be developed in design development.</li></ol></div>
+      <div><h3>Zoning and code notes</h3><ol>
+      <li>Rear yard 30 ft above the ground floor (ZR 23-342); the 1st and 2nd floors fill the rear yard as permitted obstructions per the owner's direction (to be confirmed).</li>
+      <li>Max. base height ${fmtLen(S.rules.envelope.baseFt)}, setback ${fmtLen(S.rules.envelope.setbackFt)} from the street above it, max. building height ${fmtLen(S.settings.maxHeight)}.</li>
+      <li>Light well (court without legally required windows) 20 ft × 10 ft from the 4th floor up; windows onto it and lot-line windows are not legally required windows.</li>
+      <li>Lot-line windows need fire-protected openings and a recorded light and air easement from the adjoining owner.</li>
+      <li>Atrium (cellar to 2nd floor, three stories): BC 404 smoke control, sprinklers and guards at every opening edge; glass floor rated for the floor live load.</li>
+      <li>Garage: the separation BC 406 requires between the garage and the live/work space (rated door or fire shutter at the inside garage door).</li>
+      <li>Habitable rooms: living rooms 150 SF min., bedrooms 80 SF min., no side under 8 ft, glass 10% of the floor area onto a legal open space.</li></ol></div></div>`);
+  }
+  const css=`:root{${EXP_VARS}}*{box-sizing:border-box}body{margin:0;font-family:Archivo,Arial,sans-serif;color:#1E2528;background:#7d8588}
+@page{size:36in 24in;margin:0}
+.sheet{width:36in;height:24in;position:relative;background:#fff;page-break-after:always;break-after:page;overflow:hidden;border:0.02in solid #fff}
+.frame{position:absolute;inset:0.4in;border:0.03in solid #1E2528}
+.draw{position:absolute;left:0.7in;top:0.7in;right:4.1in;bottom:0.7in;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.2in;overflow:hidden}
+.draw.doc{align-items:stretch;justify-content:flex-start;font-size:13pt}
+.tb{position:absolute;top:0.4in;right:0.4in;bottom:0.4in;width:3.4in;border-left:0.03in solid #1E2528;padding:0.3in 0.25in;display:flex;flex-direction:column;gap:0.18in;font-size:11pt}
+.tb .pn{font-size:16pt;font-weight:700;line-height:1.2}.tb .sm{color:#5A666B;font-size:9.5pt}.tb .no{margin-top:auto;font-size:40pt;font-weight:700}.tb .tt{font-size:14pt;font-weight:600}
+.tb .stamp{border:0.02in dashed #8A9499;padding:0.12in;font-size:9pt;color:#5A666B}
+h1{font-size:44pt;margin:0}.sub{font-size:16pt;color:#5A666B;margin:0.05in 0 0.25in}h3{font-size:16pt;margin:0.15in 0 0.1in}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:0.6in}
+table{border-collapse:collapse;width:100%;font-size:12pt}th,td{border:0.01in solid #C8D0CD;padding:0.05in 0.08in;text-align:left;vertical-align:top}th{background:#EEF1F0}
+table.small{font-size:9.5pt;column-count:1}table.idx{font-size:12pt}
+.axon{max-width:100%;max-height:8in;display:block;margin:0 0 0.2in}
+.note{color:#5A666B;font-size:11pt}.north{font-size:11pt;color:#5A666B}
+.plan text{font-family:Archivo,Arial,sans-serif}
+.scale{font-size:11pt}
+.bar{position:sticky;top:0;z-index:2;background:#1E2528;color:#fff;padding:10px 16px;font:14px Archivo,Arial,sans-serif;display:flex;gap:12px;align-items:center}
+.bar button{font:inherit;padding:6px 12px;border-radius:6px;border:0;cursor:pointer}
+@media screen{.sheet{zoom:.36;margin:24px auto;box-shadow:0 4px 18px rgba(0,0,0,.35)}}
+@media print{.bar{display:none}body{background:#fff}}`;
+  const body=sheets.map(s=>{const doc=!/^A-[12]|^A-3/.test(s.no);
+    return `<section class="sheet"><div class="frame"></div><div class="draw ${doc?"doc":""}">${s.body()}</div>
+      <div class="tb"><div class="pn">246 South 2nd Street</div><div class="sm">Brooklyn, NY · Block and lot per survey No. 6097</div>
+      <div><div class="sm">Drawing</div><div class="tt">${escH(s.title)}</div></div>
+      ${s.scale?`<div><div class="sm">Scale</div><div class="scale">${s.scale} when printed at 36 × 24 in</div></div>`:""}
+      <div><div class="sm">Date</div>${today}</div>
+      <div class="stamp">SCHEMATIC DESIGN<br>Not for permit or construction.<br>Generated from the floor area model.</div>
+      <div class="no">${s.no}</div></div></section>`;}).join("");
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>246 South 2nd Street — ${kind==="full"?"drawing set":kind}</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&display=swap" rel="stylesheet"><style>${css}</style></head><body>
+<div class="bar"><b>246 South 2nd Street</b><span>${sheets.length} sheets, 36 × 24 in</span><button onclick="print()">Print or save as PDF</button><span style="opacity:.75">In the print dialog choose a 36 × 24 in (ARCH D) landscape page, no margins, background graphics on.</span></div>
+${body}</body></html>`;
+}
+let axon="";
+async function exportSet(kind){
+  const b=$("#expMsg");b.textContent="Building the sheets…";
+  await new Promise(r=>setTimeout(r,30));
+  try{axon="";if(renderer&&scene&&camera){renderer.render(scene,camera);axon=renderer.domElement.toDataURL("image/png");if(axon.length<3000)axon="";}}catch(e){axon="";}
+  let html;try{html=buildDrawingSet(kind);}catch(e){b.textContent="Could not build the sheets: "+e.message;return;}
+  const name=`246-South-2nd-${kind==="full"?"drawing-set":kind}-${new Date().toISOString().slice(0,10)}.html`;
+  const dl=window.claude&&await window.claude.use("downloads").catch(()=>null);
+  if(dl){try{await dl.save({filename:name,data:html});b.textContent="Saved. Open the file and use Print or save as PDF (36 × 24 in).";}catch(e){b.textContent=e&&e.code==="declined"?"Not saved.":"Could not save here ("+(e&&e.code||"error")+").";}return;}
+  // outside claude.ai: open it in a new tab, or download it directly
+  try{const url=URL.createObjectURL(new Blob([html],{type:"text/html"}));
+    if(window.open(url,"_blank"))b.textContent="Opened in a new tab.";
+    else{const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();b.textContent="Downloaded "+name+".";}
+    setTimeout(()=>URL.revokeObjectURL(url),120000);}
+  catch(e){b.textContent="Downloads are not available in this view.";}
+}
+
 function renderAll(){fillAreaTypes();renderRules();renderTabs();renderToolbar();renderPlan();renderSel();renderTotals();build3D();syncSettings();renderLayers();}
 function syncSettings(){
   document.querySelectorAll("[data-set]").forEach(i=>{if(document.activeElement!==i)i.value=S.settings[i.dataset.set];});
