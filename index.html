@@ -140,34 +140,37 @@ input.in{width:84px}
 .layers .sw{width:10px;height:10px;border-radius:2px;background:var(--c)}
 .layers .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .layers .sf{color:var(--muted)}
-.layers .lsize{display:grid;gap:6px}
-.layers .lopts .lsize label{display:flex;align-items:center;gap:8px;font-size:12.5px}
-.layers .lsize input[type=range]{flex:1;min-width:0}
-.layers .lsize .fontpt{width:64px;flex:none}
-.layers .lsize small{color:var(--muted);font-size:11.5px}
-.layers .lsize output{min-width:3.2em;text-align:right;color:var(--muted);font-size:12px}
-.layers .lsize .seg button{font-size:11.5px;padding:3px 8px}
-.layers .lsize .btn{justify-self:start}
-.layers .lspec{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:2px 0;font-size:12px}
-.layers .lspec dt{color:var(--muted)}
-.layers .lspec dd{margin:0}
-.layers .lopts{grid-column:1 / 5;display:grid;gap:6px;padding:6px 0 4px 16px;cursor:default}
-.layers .lopts label{display:grid;gap:2px;font-size:11.5px;color:var(--muted)}
-.layers .lopts label.ck{display:flex;align-items:center;gap:6px;color:var(--ink);font-size:12.5px}
-.layers .lopts .in{width:100%;padding:3px 6px;font-size:12px;color:var(--ink)}
-.layers .lopts .btn{padding:3px 8px;font-size:12px}
-.layers .lhint{font-size:11.5px;color:var(--muted)}
-/* side column: layers above, the selected item's properties below; together as tall as the plan */
-.sidecol{flex:0 0 290px;display:flex;flex-direction:column;gap:8px;min-width:0;min-height:0;max-height:calc(clamp(260px,44vh,440px) + 2px)}
-.sidecol .layers{flex:1 1 0;max-height:none;min-height:90px}
-.sidecol .layers.closed{flex:0 0 auto;min-height:0}
-.props{flex:1.5 1 0;min-height:140px;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:12.5px;min-width:0}
+:is(.layers,.props) .lsize{display:grid;gap:6px}
+:is(.layers,.props) .lopts .lsize label{display:flex;align-items:center;gap:8px;font-size:12.5px}
+:is(.layers,.props) .lsize input[type=range]{flex:1;min-width:0}
+:is(.layers,.props) .lsize .fontpt{width:64px;flex:none}
+:is(.layers,.props) .lsize small{color:var(--muted);font-size:11.5px}
+:is(.layers,.props) .lsize output{min-width:3.2em;text-align:right;color:var(--muted);font-size:12px}
+:is(.layers,.props) .lsize .seg button{font-size:11.5px;padding:3px 8px}
+:is(.layers,.props) .lsize .btn{justify-self:start}
+:is(.layers,.props) .lspec{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:2px 0;font-size:12px}
+:is(.layers,.props) .lspec dt{color:var(--muted)}
+:is(.layers,.props) .lspec dd{margin:0}
+:is(.layers,.props) .lopts{grid-column:1 / 5;display:grid;gap:6px;padding:6px 0 4px 16px;cursor:default}
+:is(.layers,.props) .lopts label{display:grid;gap:2px;font-size:11.5px;color:var(--muted)}
+:is(.layers,.props) .lopts label.ck{display:flex;align-items:center;gap:6px;color:var(--ink);font-size:12.5px}
+:is(.layers,.props) .lopts .in{width:100%;padding:3px 6px;font-size:12px;color:var(--ink)}
+:is(.layers,.props) .lopts .btn{padding:3px 8px;font-size:12px}
+:is(.layers,.props) .lhint{font-size:11.5px;color:var(--muted)}
+/* Properties column (shown while something is selected) left of the layers list; both as tall as the plan */
+.props{flex:0 0 290px;max-height:clamp(260px,44vh,440px);display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:12.5px;min-width:0}
+.props[hidden]{display:none}
 .props .lhd{padding:6px 8px;border-bottom:1px solid var(--line);font-weight:600}
-.props .sel{margin:0;padding:8px;overflow-y:auto;min-height:0;flex:1 1 auto;align-content:flex-start;font-size:12.5px;gap:8px}
+.props .pbody{overflow-y:auto;min-height:0;flex:1 1 auto;padding:8px}
+.props .sel{margin:0;align-content:flex-start;font-size:12.5px;gap:8px}
 .props .sel .dimedit{grid-template-columns:repeat(auto-fill,minmax(118px,1fr))}
 .props .sel .seg{flex-wrap:wrap}
-.editor.fs .sidecol{max-height:none}
-@media (max-width:720px){.planrow{flex-direction:column}.sidecol{flex-basis:auto;max-height:none}.layers,.sidecol .layers,.props{flex:0 0 auto;max-height:260px}.props{max-height:none}}
+.props .popts{margin-top:12px;border-top:1px solid var(--line);padding-top:8px}
+.props .popts[hidden]{display:none}
+.props .phd{font-weight:600;margin-bottom:6px}
+.props .lopts{padding:0}
+.editor.fs .props{max-height:none}
+@media (max-width:720px){.planrow{flex-direction:column}.layers,.props{flex-basis:auto;max-height:260px}.props{max-height:none}}
 #plan{display:block;width:100%;height:clamp(260px,44vh,440px);touch-action:none;cursor:crosshair;user-select:none;-webkit-user-select:none}
 #plan.select{cursor:default}
 .zoom{position:absolute;right:8px;bottom:8px;display:flex;gap:4px}
@@ -329,17 +332,16 @@ tfoot td{font-weight:600;border-bottom:0}
           <button class="btn" id="zFull" aria-label="Full screen" title="Full screen (Esc to exit)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg></button>
         </div>
       </div>
-      <div class="sidecol">
+      <!-- the selected item's settings in their own column, beside the plan (and in full screen); the layers list keeps the full height -->
+      <section class="props" id="propsPanel" aria-label="Selected item" hidden>
+        <div class="lhd">Properties</div>
+        <div class="pbody"><div class="sel" id="sel"></div>
+          <div class="popts" id="layerOptsWrap" hidden><div class="phd">Label and display</div><div id="layerOpts"></div></div></div>
+      </section>
       <aside class="layers" id="layersPanel" aria-label="Layers on this floor">
         <div class="lhd">Layers on this floor<button id="lpToggle" title="Hide or show the layers list">Hide</button></div>
         <div class="lbody" id="layerList"></div>
       </aside>
-      <!-- the selected item's settings, beside the plan so they stay in reach in full screen -->
-      <section class="props" id="propsPanel" aria-label="Selected item">
-        <div class="lhd">Properties</div>
-        <div class="sel" id="sel"></div>
-      </section>
-      </div>
       </div>
       <!-- drawing settings as a small status bar under the plan -->
       <div class="statusbar" id="statusbar">
@@ -1579,7 +1581,8 @@ function findSel(){
 }
 function renderSel(){
   setTimeout(renderLayers,0);
-  const el=$("#sel"),o=findSel();
+  const el=$("#sel"),o=findSel(),pp=$("#propsPanel");
+  if(pp.hidden===!!o){pp.hidden=!o;requestAnimationFrame(renderPlan);}
   if(!o){el.innerHTML=`<span class="k">Nothing selected</span>`;return;}
   if(ui.sel.k==="op"){
     const op=o,f=cur(),K=OP_KINDS[op.kind],h=hostOf(f,[op.x,op.y],0.3),out=opOutlook(f,op),W=opDef(op,"w");
@@ -2555,7 +2558,9 @@ document.addEventListener("click",e=>{
   t.style.top=(r.bottom+6+h>innerHeight?r.top-h-6:r.bottom+6)+"px";
   b.setAttribute("aria-expanded","true");
 });
-$("#layerList").addEventListener("click",e=>{
+// the layers list and the options shown for its selected row share their handlers
+function onLayerUI(ev,fn){["#layerList","#layerOpts"].forEach(q=>$(q).addEventListener(ev,fn));}
+onLayerUI("click",e=>{
   const eb=e.target.closest("[data-eye]");
   if(eb){e.stopPropagation();const [k,id]=eb.dataset.eye.split(":");
     if(k==="layer"){ui.layers[id]=ui.layers[id]===false?true:!ui.layers[id];savePrefs();layersKey="";renderAll();return;}
@@ -2573,7 +2578,7 @@ $("#layerList").addEventListener("click",e=>{
   if(e.target.closest(".lopts"))return;
   const r=e.target.closest(".lrow");if(r)selectFromLayers(r.dataset.lk,r.dataset.lid);
 });
-$("#layerList").addEventListener("change",e=>{
+onLayerUI("change",e=>{
   if(e.target.closest("[data-lsz]")){labSliding=false;e.target.blur();layersKey="";commit();return;}
   const lf=e.target.closest("[data-lfont]");
   if(lf){
@@ -2614,7 +2619,7 @@ function labPt(o,kind){const fs=ui.planFs||1,ft=(o&&o.labLock>0?o.labLock:fs)*((
 function labTarget(ref){const [kind,id]=ref.split(":");
   return kind==="nbr"?(S.neighbors||[]).find(x=>x.id===id):kind==="block"?blocksOf(cur()).find(x=>x.id===id):kind==="area"?cur().areas.find(x=>x.id===id):kind==="core"?S.core:kind==="court"?S.lightwell:kind==="lot"?ensureSite(S):null;}
 let labSliding=false;
-$("#layerList").addEventListener("input",e=>{
+onLayerUI("input",e=>{
   const r=e.target.closest("[data-lsz]");if(!r)return;
   const o=labTarget(r.dataset.lsz);if(!o)return;
   if(!labSliding){pushHist();labSliding=true;}
@@ -2622,7 +2627,7 @@ $("#layerList").addEventListener("input",e=>{
   r.nextElementSibling.textContent=v+"%";renderPlan();
   const fp=r.closest(".lsize").querySelector("[data-lfont]");if(fp)fp.value=labPt(o,r.dataset.lsz.split(":")[0]);
 });
-$("#layerList").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches("[data-lname]")){e.preventDefault();e.target.blur();}});
+onLayerUI("keydown",e=>{if(e.key==="Enter"&&e.target.matches("[data-lname]")){e.preventDefault();e.target.blur();}});
 $("#lpToggle").addEventListener("click",()=>{
   const p2=$("#layersPanel"),closed=p2.classList.toggle("closed");$("#lpToggle").textContent=closed?"Show":"Hide";
   try{localStorage.setItem("s2nd-layers-closed",closed?"1":"");}catch(err){}
@@ -3030,7 +3035,7 @@ function renderLayers(){
   const areas=[...f.areas].sort((a,b)=>MENU.indexOf(a.type)-MENU.indexOf(b.type));
   const key=JSON.stringify([ui.floor,sel,[f.areas,f.walls,opsOf(f),blocksOf(f)].map(L=>L.filter(x=>x.hidden).map(x=>x.id)),ui.layers,areas.map(a=>[a.id,a.type,a.name||"",Math.round(polyArea(a.pts)),!!a.hideLabel,!!a.lab,a.labSize,a.labLock]),JSON.stringify(f.blocks||[]),JSON.stringify(f.openings||[]),f.height,JSON.stringify((S.neighbors||[]).map(n=>[n.id,n.hide,n.hideLabel,n.labSize,n.labLock,n.parts.map(p2=>p2.h)])),ui.layers.nbr,f.walls.map(w=>[w.id,w.tag,Math.round(w.t*12),Math.round(dist(w.a,w.b)*10)]),!!S.core,!!courtRectFor(f),JSON.stringify(ensureSite(S)),S.lightwell&&[S.lightwell.labSize,S.lightwell.labLock,!!S.lightwell.hideLabel,!!S.lightwell.hideDims,JSON.stringify(courtRectFor(f))],S.core&&[S.core.labSize,S.core.labLock,!!S.core.hideLabel,!!S.core.hideDims,JSON.stringify(coreRectFor(f)),S.core.elevW,S.core.elevSide,S.core.attach,S.core.auto,f.height,f.use,f.coreRes]]);
   if(key===layersKey)return;
-  if(box.contains(document.activeElement)&&/^(SELECT|INPUT)$/.test(document.activeElement.tagName))return;
+  if((box.contains(document.activeElement)||$("#layerOpts").contains(document.activeElement))&&/^(SELECT|INPUT)$/.test(document.activeElement.tagName))return;
   layersKey=key;
   const kindShown=k=>!!ui.layers[kindLayer(k)];
   let h="";
@@ -3175,6 +3180,7 @@ function renderLayers(){
     const it=eyeItem(k,id),hidden=!!(it&&(k==="nbr"?it.hide:it.hidden));
     return a.replace('class="lrow','class="lrow'+(hidden?" off":""))+b+eyeBtn(`${k}:${id}`,!hidden,"Show or hide this item");});
   box.innerHTML=h||`<div class="lgrp">Nothing drawn on this floor yet</div>`;
+  {const lo=box.querySelector(".lopts"),dst=$("#layerOpts");dst.innerHTML="";if(lo)dst.appendChild(lo);$("#layerOptsWrap").hidden=!lo;}
   const onRow=box.querySelector(".lrow.on");if(onRow)onRow.scrollIntoView({block:"nearest"});
 }
 const EYE_ON='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 8s2.6-4.5 7-4.5S15 8 15 8s-2.6 4.5-7 4.5S1 8 1 8z" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="2.1" fill="currentColor"/></svg>';
