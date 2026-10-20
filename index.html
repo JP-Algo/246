@@ -1020,7 +1020,7 @@ function coreIssues(f){
     const T=AREA_TYPES[a.type];if(!T||T.kind==="gross"||T.kind==="terrace")return;
     const r=rectOf(a.pts);if(!r)return;
     const ov=Math.max(0,Math.min(r.x1,c.x1)-Math.max(r.x0,c.x0))*Math.max(0,Math.min(r.y1,c.y1)-Math.max(r.y0,c.y0));
-    if(ov>0.5)out.push(`overlaps ${T.short} by ${fmt(ov)} SF`);
+    if(ov>0.5)out.push(`overlaps ${a.name?`“${a.name}”`:T.short} by ${fmt(ov)} SF; trim it back to the core's wall`);
   });
   return out;
 }
