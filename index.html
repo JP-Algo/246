@@ -2193,8 +2193,10 @@ function renderPlan(){
   const opSym=(a,u,t,s0,s1,op,col,ghost)=>{
     const n=[-u[1],u[0]],P=(sv,o)=>[a[0]+u[0]*sv+n[0]*o,a[1]+u[1]*sv+n[1]*o],f3=q=>q[0].toFixed(3)+" "+q[1].toFixed(3),sw=0.09*k;
     const sel=!ghost&&ui.sel&&ui.sel.k==="op"&&ui.sel.id===op.id,c=sel||ghost?"var(--sel)":col;let o=`<g pointer-events="none" style="fill:none;stroke:${c};stroke-width:${sw}">`;
+    // the gap in the wall is paper-coloured, so the symbol reads over any area fill (an atrium, a terrace)
+    o+=`<path d="M${f3(P(s0,-t/2))}L${f3(P(s1,-t/2))}L${f3(P(s1,t/2))}L${f3(P(s0,t/2))}Z" style="fill:var(--panel);stroke:none"/>`;
     o+=`<path d="M${f3(P(s0,-t/2))}L${f3(P(s0,t/2))}M${f3(P(s1,-t/2))}L${f3(P(s1,t/2))}"/>`;
-    if(op.kind==="window")o+=`<path d="M${f3(P(s0,-t/6))}L${f3(P(s1,-t/6))}M${f3(P(s0,t/6))}L${f3(P(s1,t/6))}" style="stroke:var(--glass);stroke-width:${sw*1.3}"/>`;
+    if(op.kind==="window")o+=`<path d="M${f3(P(s0,-t/2))}L${f3(P(s1,-t/2))}M${f3(P(s0,t/2))}L${f3(P(s1,t/2))}" style="stroke-width:${sw*0.8}"/><path d="M${f3(P(s0,-t/6))}L${f3(P(s1,-t/6))}M${f3(P(s0,t/6))}L${f3(P(s1,t/6))}" style="stroke:var(--glass);stroke-width:${sw*1.8}"/>`;
     else if(op.kind==="garage"){const sg=op.swing||1,dp=Math.min(8,opDef(op,"head"))*sg;   // glass panel in the wall; the overhead track runs inside, dashed
       o+=`<path d="M${f3(P(s0,0))}L${f3(P(s1,0))}" style="stroke:var(--glass);stroke-width:${sw*1.8}"/><path d="M${f3(P(s0+0.15,t/2*sg))}L${f3(P(s0+0.15,dp))}L${f3(P(s1-0.15,dp))}L${f3(P(s1-0.15,t/2*sg))}" style="stroke-dasharray:${0.5*k} ${0.35*k}"/>`;}
     else if(op.kind==="slider"){const m=(s0+s1)/2;o+=`<path d="M${f3(P(s0,-t/8))}L${f3(P(m+0.25,-t/8))}M${f3(P(m-0.25,t/8))}L${f3(P(s1,t/8))}" style="stroke:var(--glass);stroke-width:${sw*1.6}"/>`;}
