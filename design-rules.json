@@ -222,6 +222,23 @@
       "frame": {
         "meaning": "Clean lines for a high-end boutique street wall. Limestone ashlar from the storefront head to parapetFt above the first setback floor, with pierFt piers at the lot lines and bays equal bays split by mullionFt stone mullions that run unbroken through each group of floors. Consecutive floors of the same class form a group: the commercial and amenity floors make a double-height base, the residential floors below the setback a single giant order; a bandFt stone band separates the groups. Glass sits glassDepthFt behind the stone face in slim bronze frames, each floor with a fixed and an operable lite and a bronze guard rail at 42 in; bronze spandrel panels sit spandrelDepthFt back at each slab inside a group. The parapet carries one bronze shadow line and a smooth stone coping. Nothing projects past the street line. Setback floors: storey-high glass and bronze.",
         "stoneColor": "#DCD4C6",
+        "cladding": "vertical-thin-brick",
+        "spandrelColor": "#A88E6E",
+        "spandrelMeaning": "Floor-line spandrels in a light champagne bronze, brighter than the window frames",
+        "windowBoxes": true,
+        "windowBoxMeaning": "A slim bronze window box at the foot of each front bay on the floors inside a group (not the first floor of a group), planted with trailing greenery that falls 2-8 ft over the spandrel below",
+        "thinBrick": {
+          "lengthIn": 21,
+          "heightIn": 1.5,
+          "jointIn": 0.375,
+          "bond": "running, laid on end",
+          "color1": "#E8CFA8",
+          "color2": "#C9A27A",
+          "mortar": "#ECE4D6",
+          "meaning": "The frame (piers, mullions, bands, parapet) in long thin bricks (about 21 x 1.5 in face, Kolumba-like) laid vertically, a warm buff-to-honey blend with a slightly recessed joint; replaces the limestone so the street wall reads residential, not office. Coping stays smooth stone."
+        },
+        "partyBrick": "brick_wall_09",
+        "partyMeaning": "Lot-line walls (no openings) in a face brick toned between the neighbours (here #242's buff and the church's red), lightly weathered, not the street-wall stone",
         "pierFt": 1.6,
         "mullionFt": 0.7,
         "bays": 3,
@@ -266,6 +283,19 @@
       "headBelowFt": 0.8,
       "curtainBayFt": 5.0,
       "thisBuilding": "Warm grey Roman brick (12 x 2 in courses) with dark bronze frames; floors 4-6 get three 6'-2\" windows per 24'-8\" face; floors 7-8 and the 3rd floor amenity room are glass and bronze",
+      "retail": {
+        "style": "boutique",
+        "spotW": 500,
+        "meaning": "Shop interiors seen through the storefront: plaster ceiling at the storefront head with small warm (about 3000 K) recessed downlights on a 5.5 ft grid, a light oak slatted back wall washed by a cove, polished concrete floor, a stone display table under glass globe pendants; the lobby in the same light and oak. No panel lights."
+      },
+      "interiors": {
+        "on": true,
+        "meaning": "Every floor behind the street glass is furnished as a lived-in front room 20 ft deep: plaster ceiling with warm (3000 K) downlights on a 6 ft grid, an oak or plaster back wall with art and shelving, a linen sofa on a rug, a stone coffee table, a floor lamp, a potted tree by the window; commercial floors a long oak table under globe pendants. Glass IOR 1.45 and few sheers, so the rooms read from the street. No panel lights."
+      },
+      "landscape": {
+        "on": true,
+        "meaning": "Every terrace, balcony and roof deck gets wood decking and planters with shrubs along its open edges; larger ones a dining set; the penthouse roof a pergola over a dining area at the street end, a fire pit and potted trees"
+      },
       "source": "Design assumption for the renderings (scripts/render/render_scene.py), not a design; frame style chosen by the owner for clean lines, 10/19/2026 (a Zaha-like ribbon skin was tried first). Replace with the architect's façade when there is one"
     },
     "liveWorkTriplex": {
@@ -280,6 +310,12 @@
       ],
       "lotLineWindows": "Cellar, 1st and 2nd floors (the #242 court is open down to its cellar, about 12 ft): lot-line windows on the west wall where it faces #242's court yard (44'-4\" to 83'-8\" from the rear), kept 6 in clear of the court's ends. They give daylight to the gallery, office 3 and the library, but they are not legal windows. They need protected (fire-rated) openings and, under the Building Code's fire separation rules, a recorded light-and-air easement from #242 so the court stays open. Cellar: four 6 ft windows, 3 ft sill and 9'-6\" head, two in the live/work cellar past the stair and two in the community facility space.",
       "rearLotLineWindows": "1st and 2nd floors: three 6 ft lot-line windows in the rear wall (on the rear lot line) onto the atrium, centered 5'-6\", 15'-0\" and 24'-6\" from the west lot line. 1st floor sill 3 ft, head 11 ft; 2nd floor sill 2'-6\", head 9 ft. Like all lot-line windows they need fire-protected glazing and a light-and-air easement, here from the lot behind; they are not legal windows."
+    },
+    "recessedTerrace": {
+      "label": "Recessed rear terrace with a balcony beyond",
+      "source": "ZR 12-10 floor area exclusion 9 (balconies and terraces); project owner 2026-10-22; tried on the 5th floor rear unit",
+      "rule": "A terrace recessed into the rear of a unit is not floor area only if no more than 67% of its perimeter is enclosed (lot-line walls, including the neighbor's, count as enclosure; parapets up to 4 ft, railings up to 4'-6\" and 50% open, and glass guards up to 10 ft and 90% transparent do not). Open on the rear side only, with walls on the other three sides: depth <= 0.515 x width (6'-7\" at 12'-10\"). A balcony may continue beyond it, up to 7'-0\" from the rear wall and 50% of the rear wall width per story. Each is tested on its own (the conservative reading). Under a roofed portion, the open side needs an opening at least 40% of the floor-to-ceiling height.",
+      "thisBuilding": "5th floor rear (5R): 6'-7\" x 12'-10\" recessed terrace (84 SF, 66.95% enclosed) plus a 7'-0\" x 12'-4\" balcony, 13'-7\" of outdoor depth in all."
     }
   },
   "siteInputs246South2nd": {
@@ -307,6 +343,67 @@
     "rearUnitBathCloset": {
       "source": "user layout on the 6th floor rear unit, copied to floors 4, 5, 7 (2026-10-19)",
       "rule": "Behind the bedroom: a linen closet (about 2 ft 10 in deep) opening to the bedroom with a 3 ft slider, then the bath (about 5 ft 6 in x 7 ft 6 in) with the tub across the far (east) end, the WC and vanity along the mech-closet wall, a 2 ft 6 in door from the foyer, and a 2 ft 4 in slider between the closet and the bath. The stacked W/D goes in the mechanical closet instead of a separate laundry room."
+    }
+  },
+  "interiors": {
+    "label": "Interior design package (finishes, FF&E, interior renderings)",
+    "decided": "2026-10-20, project owner",
+    "market": "Condominium for sale. Goal: record pricing for a boutique (non-waterfront) Williamsburg building.",
+    "pricingContext": "Williamsburg record: One Domino Square penthouse, $3,313/SF (Feb 2026, waterfront, Two Trees); previous record $3,046/SF, same building (2025). Proforma base $1,750-$1,900/SF. Set the target from the comps pull, not from this note.",
+    "inspiration": "Soho Home (Soho House's furniture line): warm, layered, club-like rooms that look collected over time, not staged. Use as a reference only: no Soho House / Soho Home names or marks in the marketing. Individual Soho Home pieces may be specified in the FF&E schedule.",
+    "palette": {
+      "floors": "Wide-plank European white oak, fumed or smoked oil finish, laid in herringbone in living/dining (stand-in for chevron until a chevron pattern is modelled); straight plank in bedrooms",
+      "walls": "Lime plaster or limewash in warm neutrals; one saturated accent per unit (bottle green, oxblood, ochre or ink) on a den, powder room or millwork",
+      "metals": "Unlacquered brass (left to patinate) for plumbing fittings and hardware; aged bronze for window and door frames",
+      "stone": "Kitchens: full-height book-matched slab backsplash and waterfall island in a characterful marble (Calacatta Viola or Arabescato class). Baths: honed marble floors with handmade zellige or glazed terracotta walls",
+      "millwork": "Reeded or fluted oak and painted panelled cabinetry with inset doors; walnut or dark-stained oak in dens and bars",
+      "textiles": "Velvet, boucle, linen, leather; cane and rattan accents; vintage-style hand-knotted rugs",
+      "lighting": "2700 K, dimmable, layered: sconces, picture lights, table and floor lamps, under-shelf light; minimal recessed downlights, never a grid"
+    },
+    "tiers": {
+      "rule": "Finish level follows the unit, not the floor. Signature: PH and the townhouse (custom millwork, slab stone, specialist plaster). Residence: all other market units (same materials, standard millwork). Affordable: the same finish package as Residence unless the affordable housing agency allows otherwise (confirm with HPD).",
+      "budget": "Interior $/SF per tier set from the priced FF&E schedule; feeds the proforma"
+    },
+    "renderings": {
+      "heroViews": [
+        "PH living/kitchen toward the South 2nd windows",
+        "PH private roof at dusk",
+        "Townhouse around the atrium",
+        "Lobby and elevator landing",
+        "Primary bath (5F/6F)",
+        "Kitchen detail: stone, brass, millwork"
+      ],
+      "engine": "Blender Cycles from the same model (scripts/render), interiors built from the drawn units, rooms, openings and fixtures; views out of the windows from the Google 3D Tiles context",
+      "hardware": "RTX 2060 with 4 GB VRAM: cap textures at 2K for drafts; finals may need CPU rendering or a rented GPU",
+      "disclosure": "Label renderings as artist's renderings; finishes shown must match the offering plan specification (confirm with the offering plan attorney)."
+    },
+    "package": [
+      "Design narrative",
+      "Material boards per space",
+      "Hero renderings",
+      "Furniture, ceiling/lighting and finish plans",
+      "Interior elevations: kitchens, baths, millwork",
+      "Millwork details",
+      "FF&E, plumbing, hardware, appliance, lighting and finish schedules (.xlsx)",
+      "Interior budget by tier -> proforma"
+    ],
+    "format": "HTML -> PDF in the OM's style, plus a shareable web version; schedules in .xlsx",
+    "furniture": {
+      "decided": "2026-10-21, project owner: model every piece in-house rather than buying 3D models",
+      "rule": "Each FF&E piece is built in code (scripts/render/interior_lib.py) at the size its reference product publishes, so a renamed or resized product only changes numbers. Pieces are our own drawings in the reference's spirit, not replicas. CC0 Poly Haven scans supply surface detail (fabric, wood, plaster); stone, brass, cane and velvet are procedural.",
+      "references": "Soho Home US product pages (checked 2026-10-21): Mossley sofa 92x39x30, Sydney cane armchair 39x33x34, Ewan leather armchair 32x36x29, Ramsey travertine coffee table 55.1x31.5x15, Cavern side table 20x20x18, Elliot travertine dining table 87x39x29, Molina cane dining chair 20x23x31, Wardell counter stool 15x15x25, Penny pendant 28 dia, Oregan wall light 5.3x5.9x8, Reno table lamp 14x14x24, Calabria floor lamp 15x15x66 (inches)",
+      "review": "render/interior/furniture_sheet.png via scripts/render/furniture_sheet.py"
+    },
+    "phGreatRoom": {
+      "decided": "2026-10-21, project owner (chose 'island is the dining' over a separate table)",
+      "rule": "In a great room under about 12 x 15 ft, the island is the dining: no separate table. Kitchen run on the inside (lot line) wall, a 6 x 3 ft island with 12 in overhang and three counter stools, a 3'-3\" aisle between run and island, and the living group at the street windows with the path to the balcony slider kept clear.",
+      "thisBuilding": "PH (8th floor): run 92'-4 1/2\" to 101'-3\" on the west wall (carried past the drawn counter so the 6 ft lot line window is centred over it); panelled refrigerator column at the left end; sink under the window; island 93'-3\" to 99'-3\" x 6'-3\" to 9'-3\" with a flush induction cooktop on the kitchen side; 76 in velvet sofa backed to the street wall under the 3 ft window, travertine coffee table, cane lounge chair, side table and lamp by the slider, money tree in the corner.",
+      "flag": "The room is small for record pricing (about 11'-7\" x 14'-7\" plus the foyer, with the open stair to the roof beside it). A larger great room would need a plan change."
+    },
+    "kitchen": {
+      "rule": "Painted inset Shaker cabinetry in the unit's accent colour (bottle green in the PH) with unlacquered brass pulls; 1 1/4 in book-matched marble counters, a full-height slab backsplash and a waterfall island; fluted (reeded) oak island base; panelled refrigerator; fireclay undermount sink with a brass bridge faucet; flush induction cooktop in the island (no hood over a window).",
+      "windowOverCounter": "A window over a counter has its sill at 3'-6\" (counter at 36 in plus a 6 in stone ledge), not the 2'-6\" default.",
+      "lighting": "Two bubbled-glass globe pendants on brass rods over the island, sconces flanking the street window, lamps rather than recessed downlights."
     }
   }
 }
