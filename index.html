@@ -2663,7 +2663,10 @@ svg.addEventListener("contextmenu",e=>{
   e.preventDefault();const o=findSel();if(o&&o.pts)deleteVert(o,+t.dataset.i);
 });
 svg.addEventListener("auxclick",e=>{if(e.button===1)e.preventDefault();});
+let lastMoveEv=null;
+svg.addEventListener("pointerleave",()=>{ui.overPlan=false;});
 svg.addEventListener("pointermove",e=>{
+  if(e.isTrusted){lastMoveEv={clientX:e.clientX,clientY:e.clientY,pointerId:e.pointerId,shiftKey:e.shiftKey};ui.overPlan=true;}
   if(pointers.has(e.pointerId))pointers.set(e.pointerId,[e.clientX,e.clientY]);
   if(pinch&&pointers.size===2){
     const [p1,p2]=[...pointers.values()];
@@ -2674,6 +2677,8 @@ svg.addEventListener("pointermove",e=>{
   shiftHeld=e.shiftKey;
   const p=toPlan(e);
   if(!drag){
+    if((ui.mode==="furn"||ui.mode==="block")&&(!ui.lastP||dist(ui.lastP,p)*vb().pxPerFt>3))ui.snapIdx=0;
+    if(ui.mode==="furn"||ui.mode==="block")ui.lastP=p;
     if(ui.mode==="furn"){const q=placePt(null,p);ui.furnGhost=q;ui.hover={pt:q,kind:snapInfo.kind,desc:snapInfo.desc};renderPlan();return;}
     if(ui.mode==="op"){const h=hostOf(cur(),p,1.5);ui.opGhost=h?{...h,s:Math.round(h.s*12)/12}:null;renderPlan();return;}
     if(ui.mode==="block"){const q=placePt(null,p);ui.ghost=q;ui.hover={pt:q,kind:snapInfo.kind,desc:snapInfo.desc};renderPlan();return;}
@@ -2695,6 +2700,7 @@ svg.addEventListener("pointermove",e=>{
     renderPlan();return;
   }
   const o=findSel();if(!o)return;
+  if(drag.k==="end"||drag.k==="vert"){if(!drag.lastP||dist(drag.lastP,p)*vb().pxPerFt>3)ui.snapIdx=0;drag.lastP=p;}   // a real move starts again from the nearest snap
   if(!drag.hist){pushHist();drag.hist=true;}
   if(drag.k==="end"){
     const other=drag.end==="a"?o.b:o.a;
@@ -3657,22 +3663,28 @@ $("#tExplode").addEventListener("click",e=>{ui.explode=!ui.explode;e.currentTarg
 $("#tAbove").addEventListener("click",e=>{ui.above=!ui.above;e.currentTarget.setAttribute("aria-pressed",String(ui.above));build3D();});
 document.addEventListener("keydown",e=>{
   const tag=(e.target.tagName||"").toLowerCase();
-  if(tag==="input"||tag==="select"||tag==="textarea")return;
-  if(e.key==="Shift"){shiftHeld=true;}
-  if(e.key==="F8"){e.preventDefault();toggleOrtho();return;}
-  if(e.key==="Tab"&&(ui.mode==="wall"||ui.mode==="area")&&ui.lastP&&ui.snap){
-    // step to the next snap point near the cursor
-    e.preventDefault();ui.snapIdx=(ui.snapIdx||0)+1;
+  // Tab steps through the snap points near the cursor (Shift+Tab goes back): while drawing walls or areas,
+  // placing furniture or a block, or dragging a corner or wall end. It works even if a toolbar list kept the focus.
+  if(e.key==="Tab"&&!e.ctrlKey&&!e.altKey&&!e.metaKey&&ui.snap&&ui.overPlan&&lastMoveEv&&
+     ((drag&&(drag.k==="end"||drag.k==="vert"))||["wall","area","furn","block"].includes(ui.mode))&&
+     !(e.target.closest&&e.target.closest("#propsPanel,.dimpop,#layersPanel"))&&!(tag==="input"&&e.target.type==="text")&&tag!=="textarea"){
+    e.preventDefault();if(tag==="select"||tag==="input"||tag==="button")e.target.blur();
+    ui.snapIdx=Math.max(0,(ui.snapIdx||0)+(e.shiftKey?-1:1));
     const L=ui.lastPlace,d=ui.draft;
-    if(L&&d&&dist(L.p,ui.lastP)*vb().pxPerFt<4){
+    if(!drag&&(ui.mode==="wall"||ui.mode==="area")&&L&&d&&ui.lastP&&dist(L.p,ui.lastP)*vb().pxPerFt<4){
       // the point was just clicked: swap it for the next snap option there
       const q=placePt(L.from,L.p);
       if(L.which==="wallStart"&&d.kind==="wall")d.a=q;
       else if(L.which==="areaPt"&&d.kind==="area"&&d.pts.length)d.pts[d.pts.length-1]=q;
       ui.hover={pt:q,kind:snapInfo.kind,desc:snapInfo.desc};renderPlan();renderToolbar();return;
     }
-    const q=placePt(draftFrom(),ui.lastP);ui.hover={pt:q,kind:snapInfo.kind,desc:snapInfo.desc};if(d)d.cur=q;renderPlan();return;
+    // redo the last pointer move at the same spot, now with the next snap option
+    svg.dispatchEvent(new PointerEvent("pointermove",{clientX:lastMoveEv.clientX,clientY:lastMoveEv.clientY,pointerId:lastMoveEv.pointerId,shiftKey:lastMoveEv.shiftKey,bubbles:true}));
+    return;
   }
+  if(tag==="input"||tag==="select"||tag==="textarea")return;
+  if(e.key==="Shift"){shiftHeld=true;}
+  if(e.key==="F8"){e.preventDefault();toggleOrtho();return;}
   const lk=e.key.length===1?e.key.toLowerCase():"";
   if(lk==="r"&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&(ui.mode==="furn"||(ui.mode==="select"&&ui.sel&&ui.sel.k==="area"))){
     e.preventDefault();
