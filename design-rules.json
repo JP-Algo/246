@@ -217,8 +217,9 @@
     },
     "facade": {
       "label": "Façade (renderings)",
-      "style": "frame",
-      "styles": "frame: a limestone giant order over the street wall (below), the owner's choice; ribbon: a sculpted white GFRC skin (tried and set aside 10/19/2026, too busy); masonry: the punched-window brick base described in meaning",
+      "style": "openings",
+      "openingsMeaning": "The owner draws the windows and doors in the floor area model (10/22/2026), and the renderings follow them: every exterior wall in the vertical thin brick (party brick on lot lines), punched where the model has an opening, at its width, sill and head. Windows sit in a champagne metal surround (a liner through the reveal and a thin projecting picture frame on street and terrace faces) with bronze-framed glass about 9 in behind the brick face, mullions about 4.5 ft apart and a transom on tall windows; sliders and glass doors full height; solid doors in oak; the garage a glass sectional door. Street windows on residential floors keep the planted window boxes. A wall with no drawn openings falls back to the previous treatment (glass on the setback floors).",
+      "styles": "openings: the model's own windows and doors punched in thin brick (in use); frame: a giant order over the street wall (below), used until 10/22/2026; ribbon: a sculpted white GFRC skin (tried and set aside 10/19/2026, too busy); masonry: the punched-window brick base described in meaning",
       "frame": {
         "meaning": "Clean lines for a high-end boutique street wall. Limestone ashlar from the storefront head to parapetFt above the first setback floor, with pierFt piers at the lot lines and bays equal bays split by mullionFt stone mullions that run unbroken through each group of floors. Consecutive floors of the same class form a group: the commercial and amenity floors make a double-height base, the residential floors below the setback a single giant order; a bandFt stone band separates the groups. Glass sits glassDepthFt behind the stone face in slim bronze frames, each floor with a fixed and an operable lite and a bronze guard rail at 42 in; bronze spandrel panels sit spandrelDepthFt back at each slab inside a group. The parapet carries one bronze shadow line and a smooth stone coping. Nothing projects past the street line. Setback floors: storey-high glass and bronze.",
         "stoneColor": "#DCD4C6",
@@ -406,5 +407,11 @@
       "windowOverCounter": "A window over a counter has its sill at 3'-6\" (counter at 36 in plus a 6 in stone ledge), not the 2'-6\" default.",
       "lighting": "Two bubbled-glass globe pendants on brass rods over the island, sconces flanking the street window, lamps rather than recessed downlights."
     }
+  },
+  "designs": {
+    "meaning": "Each design is its own model (artifact db model/<id>; A is model/current), listed in designs/index; saved versions are in versions/<design>~<time>. JSON backups of each design are in models/.",
+    "A": "Current scheme: commercial live/work triplex (cellar-2nd), 3rd floor enclosed amenity, 9 units (2 per floor 4-6, studio + 1BR on 7, PH), light well floors 4-8, recessed rear terraces on 5R/6R/7R and a front loggia on 5F.",
+    "B": "3rd floor apartments (3F market, 3R affordable with a roof terrace over the 2nd floor); light well from the 3rd floor; floors 3-6 street facade set back 10'-0\" with full-width front terraces, 2'-6\" deeper on the west 7'-4\" on the market floors (70% of the street wall stays within 10 ft, ZR 23-431); 4R recessed terrace; 5F/6F are 1BR + den (their second bedroom only had a light-well window). Affordable 4F + 3R. Market-rate residential 7,446 of 7,453 SF.",
+    "C": "No light well. Floors 4-6 each one floor-through 3BR/2.5BA entered by 5'-6\" double doors in the corridor's north wall; kitchen and dining in the former light well strip with lot-line windows onto #242's court; 4'-0\" front loggia on floors 4-6; 4th floor affordable. The elevator corridor has no glazing in a floor-through plan, so it is taken at the 50% (distance) exclusion, not 100%. 7th floor and PH keep A's plans with dens where the well was. Market-rate residential 7,364 of 7,490 SF."
   }
 }
