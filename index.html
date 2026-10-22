@@ -2846,6 +2846,11 @@ function build3D(){
   const ink=C("--ink");
   const elev=elevations();
   const toShape=pts=>new THREE.Shape(pts.map(p=>new THREE.Vector2(p[0]-CX,CZ-p[1])));
+  // the light well is open from floor to sky: cut it out of the slab (kept a hair inside the outline so the hole is valid)
+  const courtHole=(sh,pts,cw)=>{if(!cw)return;const xs=pts.map(q=>q[0]),ys=pts.map(q=>q[1]),e=0.03;
+    const x0=Math.max(cw.x0,Math.min(...xs)+e),x1=Math.min(cw.x1,Math.max(...xs)-e),y0=Math.max(cw.y0,Math.min(...ys)+e),y1=Math.min(cw.y1,Math.max(...ys)-e);
+    const R4=[[x0,y0],[x1,y0],[x1,y1],[x0,y1]];
+    if(x1-x0>0.1&&y1-y0>0.1&&R4.every(q=>pointInPoly(q,pts)))sh.holes.push(new THREE.Path(R4.map(p=>new THREE.Vector2(p[0]-CX,CZ-p[1]))));};
   S.floors.forEach((f,i)=>{
     if(!ui.above&&i>ui.floor)return;
     const y=elev[i],isSel=i===ui.floor;
@@ -2886,7 +2891,7 @@ function build3D(){
       if(T.kind==="sell")return;
       if(T.kind==="gross"){
         // openings in the floor and glass floors are cut out of the slab
-        const sh=toShape(a.pts);f.areas.forEach(v=>{const TV=AREA_TYPES[v.type]||{};if((TV.kind==="void"||TV.glass==="floor")&&v.pts.length>=3&&v.pts.every(q=>pointInPoly(q,a.pts)||onPolyEdge(q,a.pts)))sh.holes.push(new THREE.Path(v.pts.map(p=>new THREE.Vector2(p[0]-CX,CZ-p[1]))));});
+        const sh=toShape(a.pts);courtHole(sh,a.pts,courtRectFor(f));f.areas.forEach(v=>{const TV=AREA_TYPES[v.type]||{};if((TV.kind==="void"||TV.glass==="floor")&&v.pts.length>=3&&v.pts.every(q=>pointInPoly(q,a.pts)||onPolyEdge(q,a.pts)))sh.holes.push(new THREE.Path(v.pts.map(p=>new THREE.Vector2(p[0]-CX,CZ-p[1]))));});
         const geo=new THREE.ExtrudeGeometry(sh,{depth:0.8,bevelEnabled:false});
         geo.rotateX(-Math.PI/2);
         const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:isSel?selCol:slabCol,roughness:0.9,metalness:0}));
@@ -2900,7 +2905,8 @@ function build3D(){
     });
     if(f.use==="roof"&&i>0){
       S.floors[i-1].areas.filter(a=>a.type==="gross"&&a.pts.length>=3).forEach(a=>{
-        const geo=new THREE.ExtrudeGeometry(toShape(a.pts),{depth:0.8,bevelEnabled:false});geo.rotateX(-Math.PI/2);
+        const sh=toShape(a.pts);courtHole(sh,a.pts,courtRectFor(S.floors[i-1]));
+        const geo=new THREE.ExtrudeGeometry(sh,{depth:0.8,bevelEnabled:false});geo.rotateX(-Math.PI/2);
         const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:isSel?selCol:slabCol,roughness:0.9,metalness:0}));
         m.position.y=y;m.userData.floor=i;root.add(m);pickables.push(m);
       });
@@ -2918,7 +2924,8 @@ function build3D(){
       const lw=courtRectFor(f);
       if(lw){
         const geo=new THREE.BoxGeometry(lw.x1-lw.x0,h+0.8,lw.y1-lw.y0);
-        const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:C("--terrace"),transparent:true,opacity:isSel?0.35:0.18,depthWrite:false}));
+        // open to the sky: drawn as its outline only, so it never reads as a floor
+        const m=new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:C("--terrace"),transparent:true,opacity:isSel?0.9:0.55}));
         m.position.set((lw.x0+lw.x1)/2-CX,y+(h+0.8)/2+0.02,(lw.y0+lw.y1)/2-CZ);m.userData.floor=i;root.add(m);
       }
     }
