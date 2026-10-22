@@ -206,6 +206,24 @@ tfoot td{font-weight:600;border-bottom:0}
 .settings label{display:grid;gap:4px;font-size:12.5px;color:var(--muted)}
 .settings input.in{width:100%;color:var(--ink)}
 .check{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--ink)}
+.designbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px}
+.designbar .btn{padding:3px 9px;font-size:12.5px}
+.top{position:relative}
+.dspanel{position:absolute;z-index:40;top:100%;left:16px;width:min(560px,calc(100vw - 32px));max-height:min(78vh,720px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.2);padding:12px 14px;font-size:13px}
+.dspanel[hidden]{display:none}
+.dspanel h3{font-size:13px;margin:10px 0 6px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.dspanel .drow{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px}
+.dspanel .drow.on{background:color-mix(in srgb,var(--sel) 12%,transparent)}
+.dspanel .drow .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dspanel .drow small{color:var(--muted)}
+.dspanel .drow button{font-size:12px;padding:2px 8px}
+.dspanel .new{display:flex;gap:6px;margin:6px 0}
+.dspanel .new input{flex:1}
+.dspanel table{width:100%;border-collapse:collapse;font-size:12px}
+.dspanel th,.dspanel td{border-bottom:1px solid var(--line);padding:4px 6px;text-align:right;white-space:nowrap}
+.dspanel th:first-child,.dspanel td:first-child{text-align:left}
+.dspanel .over{color:var(--over);font-weight:600}
+.dspanel .msg{color:var(--muted);font-size:12px;margin:6px 0}
 .savestate{margin:3px 0 0;font-size:12.5px;color:var(--muted)}
 .savestate::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px;background:var(--muted)}
 .savestate.ok::before{background:var(--terrace)}
@@ -268,7 +286,9 @@ tfoot td{font-weight:600;border-bottom:0}
   <div>
     <h1>246 South 2nd Street</h1>
     <p class="sub">Zoning floor area model, traced from the floor plan sketch</p>
-    <p class="savestate" id="saveState" aria-live="polite">Loading…</p>
+    <div class="designbar"><button class="btn" id="dsBtn" aria-haspopup="dialog" aria-expanded="false" title="Designs: switch, save as new, versions, compare">Design: <b id="dsName">A – current</b> ▾</button>
+      <p class="savestate" id="saveState" aria-live="polite">Loading…</p></div>
+    <div class="dspanel" id="dsPanel" role="dialog" aria-label="Designs" hidden></div>
   </div>
   <div class="meter" aria-live="polite">
     <div class="figs">
@@ -464,6 +484,9 @@ const fmt=n=>Math.round(n).toLocaleString("en-US");
 let uidN=0;
 const uid=()=>"i"+Date.now().toString(36)+(uidN++).toString(36);
 const KEY="s2nd-floor-model-v1";
+// Designs: each is its own model document (model/<id>; design A is model/current), listed in designs/index.
+let designId=(()=>{try{const h=(location.hash.match(/design=([\w-]+)/)||[])[1];if(h)return h;return localStorage.getItem("s2nd-design")||"current";}catch(e){return "current";}})();
+const keyD=()=>designId==="current"?KEY:KEY+":"+designId;
 
 /* ---------- geometry seed (feet). x: rear 0 -> street front, y: across the lot ---------- */
 const FRONT=120, CX=60, CZ=15;
@@ -1056,14 +1079,14 @@ function applySideOffset(st,ft){
 }
 
 function load(){
-  try{const t=localStorage.getItem(KEY);if(t){const o=JSON.parse(t);if(o&&Array.isArray(o.floors)&&o.settings)return o;}}catch(e){}
+  try{const t=localStorage.getItem(keyD());if(t){const o=JSON.parse(t);if(o&&Array.isArray(o.floors)&&o.settings)return o;}}catch(e){}
   return null;
 }
 const CLIENT=uid();
-let docRef=null,dbState="pending",writing=false,writeAgain=false,saveTimer=null,lastSavedJSON=null,retried=false;
+let dbRef=null,docRef=null,dbState="pending",writing=false,writeAgain=false,saveTimer=null,lastSavedJSON=null,retried=false;
 function setSaveState(t,cls){const el=$("#saveState");if(!el)return;el.textContent=t;el.className="savestate "+(cls||"");}
 function save(){
-  try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}
+  try{localStorage.setItem(keyD(),JSON.stringify(S));}catch(e){}
   if(dbState==="pending"){setSaveState("Saved in this browser, connecting…","warn");return;}
   if(!docRef){setSaveState(dbState==="readonly"?"View only: your changes stay in this browser":"Saved in this browser only","warn");return;}
   setSaveState("Saving…","warn");
@@ -1096,7 +1119,8 @@ async function connectDb(){
   let db=null;
   try{if(window.claude&&typeof window.claude.use==="function")db=await window.claude.use("db");}catch(e){}
   if(!db){dbState="none";setSaveState("Saved in this browser only","warn");return;}
-  docRef=db.doc("model/current");dbState="live";
+  dbRef=db;docRef=db.doc("model/"+designId);dbState="live";
+  watchDesigns();
   let first=true;
   docRef.onSnapshot(snap=>{
     if(snap.metadata&&snap.metadata.hasPendingWrites)return;
@@ -1116,7 +1140,7 @@ async function connectDb(){
     ensureCore(o);ensureRules(o);syncDerived(o);ensureLightwell(o);ensureWallRefs(o);
     first=false;
     S=o;lastSavedJSON=d.state;
-    try{localStorage.setItem(KEY,d.state);}catch(e){}
+    try{localStorage.setItem(keyD(),d.state);}catch(e){}
     ui.floor=Math.min(ui.floor,S.floors.length-1);
     if(!findSel())ui.sel=null;
     renderAll();
@@ -1128,6 +1152,129 @@ async function connectDb(){
   });
 }
 window.addEventListener("pagehide",()=>{if(saveTimer)flush();});
+
+/* ---------- Designs: variations of the building, saved versions, compare, export / import ----------
+   designs/index holds {list:[{id,name,createdAt,archived}]}; each design's model is model/<id> (A is model/current);
+   versions/<design>~<time> holds a frozen copy {design,label,savedAt,state}. The open design is per viewer. */
+let designs=[{id:"current",name:"A – current"}],dsMsg="",dsVersions=null,dsCompare=null;
+const dsName=id=>(designs.find(d=>d.id===id)||{}).name||id;
+function watchDesigns(){
+  dbRef.doc("designs/index").onSnapshot(snap=>{
+    const L=snap.exists&&Array.isArray((snap.data()||{}).list)?snap.data().list:[];
+    designs=L.length?L:[{id:"current",name:"A – current"}];
+    if(!designs.some(d=>d.id==="current"))designs.unshift({id:"current",name:"A – current"});
+    $("#dsName").textContent=dsName(designId);if(!$("#dsPanel").hidden)renderDesigns();
+  },()=>{});
+}
+async function putIndex(list){await dbRef.doc("designs/index").set({list,updatedAt:new Date().toISOString()});designs=list;}
+async function switchDesign(id){
+  if(saveTimer||writing)await flush();
+  try{localStorage.setItem("s2nd-design",id);}catch(e){}
+  location.hash=id==="current"?"":"design="+id;location.reload();
+}
+async function newDesign(name,fromState){
+  if(!dbRef){dsMsg="Designs need the live connection (open the artifact in claude.ai).";renderDesigns();return;}
+  if(saveTimer||writing)await flush();
+  const id="d"+Date.now().toString(36);
+  await dbRef.doc("model/"+id).set({state:JSON.stringify(fromState||S),by:CLIENT,savedAt:new Date().toISOString(),format:1});
+  await putIndex([...designs,{id,name:name||("Design "+String.fromCharCode(65+designs.length)),createdAt:new Date().toISOString(),from:designId}]);
+  switchDesign(id);
+}
+async function saveVersion(label){
+  if(!dbRef){dsMsg="Saved versions need the live connection.";renderDesigns();return;}
+  if(saveTimer||writing)await flush();
+  const t=new Date().toISOString();
+  await dbRef.doc("versions/"+designId+"~"+t.replace(/[:.]/g,"-")).set({design:designId,label:label||"Saved version",savedAt:t,state:JSON.stringify(S)});
+  dsMsg=`Saved "${label||"Saved version"}".`;dsVersions=null;loadVersions();
+}
+async function loadVersions(){
+  if(!dbRef){dsVersions=[];dsMsg="Designs and versions need the live connection (open the artifact in claude.ai).";renderDesigns();return;}
+  try{const q=await dbRef.collection("versions").where("design","==",designId).get();
+    dsVersions=q.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||""));}catch(e){dsVersions=[];}
+  renderDesigns();
+}
+async function restoreVersion(id){
+  const v=(dsVersions||[]).find(x=>x.id===id);if(!v)return;
+  let o=null;try{o=JSON.parse(v.state);}catch(e){}
+  if(!validState(o)){dsMsg="That version could not be read.";renderDesigns();return;}
+  await saveVersion("Before restoring "+v.label);
+  pushHist();ensureCore(o);ensureRules(o);syncDerived(o);ensureLightwell(o);ensureWallRefs(o);S=o;ui.sel=null;commit();
+  dsMsg=`Restored "${v.label}". The design as it was is kept as a version too.`;renderDesigns();
+}
+// the numbers for every design, worked out with the same calculations
+function designMetrics(st){
+  const keep=S;try{S=st;ensureCore(S);ensureRules(S);syncDerived(S);ensureLightwell(S);const c=compute();
+    const units=(S.units||[]);let sellU=0;S.floors.forEach(f=>f.areas.forEach(a=>{if(a.type==="unit"&&a.pts.length>=3)sellU+=polyArea(a.pts);}));
+    const mr=c.resZfa+c.zoneGreen-(c.affT||0),mrCap=S.settings.lot*S.settings.resFar+c.zoneGreen;
+    const terr=S.floors.reduce((t,f)=>t+f.areas.filter(a=>(AREA_TYPES[a.type]||{}).kind==="terrace"&&a.pts.length>=3).reduce((u,a)=>u+polyArea(a.pts),0),0);
+    return {zfa:c.total,allowed:c.allowed,gross:c.grossAbove,res:c.resZfa,resCap:c.resCap,mr,mrCap,comm:c.commZfa,units:units.length,
+      mix:["0","1","2","3"].map(b=>units.filter(u=>String(u.beds||0)===b||(b==="3"&&(u.beds||0)>=3)).length),aff:c.affT||0,sell:sellU,terr,height:c.height,floors:S.floors.filter(f=>f.use!=="cellar"&&f.use!=="roof").length};
+  }finally{S=keep;}
+}
+async function loadCompare(){
+  dsCompare="loading";renderDesigns();
+  const rows=[];
+  for(const d of designs.filter(x=>!x.archived)){
+    let st=null;
+    if(d.id===designId)st=JSON.parse(JSON.stringify(S));
+    else if(dbRef){try{const g=await dbRef.doc("model/"+d.id).get();if(g.exists){st=JSON.parse(g.data().state);}}catch(e){}}
+    if(validState(st))rows.push({d,m:designMetrics(st)});
+  }
+  dsCompare=rows;renderDesigns();
+}
+function renderDesigns(){
+  const el=$("#dsPanel"),act=designs.filter(d=>!d.archived),arch=designs.filter(d=>d.archived);
+  const row=d=>`<div class="drow ${d.id===designId?"on":""}"><span class="nm">${escH(d.name)}${d.id===designId?" <small>(open)</small>":""}</span>
+      ${d.id===designId?"":`<button class="btn" data-ds-open="${d.id}">Open</button>`}
+      <button class="btn" data-ds-ren="${d.id}">Rename</button>
+      ${d.id==="current"?"":`<button class="btn" data-ds-arch="${d.id}">${d.archived?"Restore":"Archive"}</button>`}</div>`;
+  const f=n=>Math.round(n).toLocaleString("en-US");
+  let cmp="";
+  if(dsCompare==="loading")cmp=`<p class="msg">Working out the numbers…</p>`;
+  else if(Array.isArray(dsCompare)&&dsCompare.length){
+    const R=dsCompare,line=(lab,fn)=>`<tr><td>${lab}</td>${R.map(r=>`<td>${fn(r.m)}</td>`).join("")}</tr>`;
+    cmp=`<table><thead><tr><th></th>${R.map(r=>`<th>${escH(r.d.name)}</th>`).join("")}</tr></thead><tbody>
+      ${line("Zoning floor area",m=>`${f(m.zfa)} <small>of ${f(m.allowed)}</small>`)}
+      ${line("Market-rate residential",m=>`<span class="${m.mr>m.mrCap+0.5?"over":""}">${f(m.mr)}</span> <small>of ${f(m.mrCap)}</small>`)}
+      ${line("Residential (2.2 FAR + affordable)",m=>`<span class="${m.res>m.resCap+0.5?"over":""}">${f(m.res)}</span> <small>of ${f(m.resCap)}</small>`)}
+      ${line("Affordable",m=>f(m.aff))}${line("Commercial",m=>f(m.comm))}
+      ${line("Gross above grade",m=>f(m.gross))}${line("Sellable (units)",m=>f(m.sell))}
+      ${line("Units (studio / 1 / 2 / 3+ BR)",m=>`${m.units} <small>(${m.mix.join(" / ")})</small>`)}
+      ${line("Terraces and balconies",m=>f(m.terr))}${line("Stories / height",m=>`${m.floors} / ${fmtLen(m.height)}`)}</tbody></table>`;
+  }
+  el.innerHTML=`<h3>Designs</h3>${act.map(row).join("")}
+    <div class="new"><input class="in" id="dsNewName" placeholder="Name for a copy of this design, e.g. B – 3rd floor units"><button class="btn" id="dsNew">Save as new design</button></div>
+    ${arch.length?`<details><summary class="msg">${arch.length} archived</summary>${arch.map(row).join("")}</details>`:""}
+    <h3>Saved versions of this design</h3>
+    <div class="new"><input class="in" id="dsVerName" placeholder="Label, e.g. before the 6R mirror"><button class="btn" id="dsVer">Save version</button></div>
+    ${dsVersions===null?`<p class="msg">Loading…</p>`:dsVersions.length?dsVersions.slice(0,40).map(v=>`<div class="drow"><span class="nm">${escH(v.label)} <small>${new Date(v.savedAt).toLocaleString()}</small></span><button class="btn" data-ds-restore="${v.id}">Restore</button></div>`).join(""):`<p class="msg">No saved versions yet.</p>`}
+    <h3>Compare designs</h3>${cmp||`<button class="btn" id="dsCmp">Compare all designs</button>`}
+    <h3>File</h3><div class="new"><button class="btn" id="dsExport">Export this design (.json)</button><button class="btn" id="dsImport">Import into this design…</button><input type="file" id="dsFile" accept=".json,application/json" hidden></div>
+    ${dsMsg?`<p class="msg">${escH(dsMsg)}</p>`:""}`;
+  el.querySelectorAll("[data-ds-open]").forEach(b=>b.onclick=()=>switchDesign(b.dataset.dsOpen));
+  el.querySelectorAll("[data-ds-ren]").forEach(b=>b.onclick=()=>{const d=designs.find(x=>x.id===b.dataset.dsRen),r=b.closest(".drow");
+    r.innerHTML=`<input class="in" value="${escH(d.name)}" style="flex:1"><button class="btn">Save</button>`;const i=r.querySelector("input");i.focus();
+    const go=async()=>{const v=i.value.trim();if(v&&dbRef)await putIndex(designs.map(x=>x.id===d.id?{...x,name:v}:x));$("#dsName").textContent=dsName(designId);renderDesigns();};
+    r.querySelector("button").onclick=go;i.onkeydown=e=>{if(e.key==="Enter")go();};});
+  el.querySelectorAll("[data-ds-arch]").forEach(b=>b.onclick=async()=>{if(!dbRef)return;await putIndex(designs.map(x=>x.id===b.dataset.dsArch?{...x,archived:!x.archived}:x));renderDesigns();});
+  el.querySelectorAll("[data-ds-restore]").forEach(b=>b.onclick=()=>restoreVersion(b.dataset.dsRestore));
+  $("#dsNew").onclick=()=>newDesign($("#dsNewName").value.trim());
+  $("#dsVer").onclick=()=>saveVersion($("#dsVerName").value.trim());
+  const c=$("#dsCmp");if(c)c.onclick=loadCompare;
+  $("#dsExport").onclick=async()=>{const name=`246-South-2nd-${dsName(designId).replace(/[^\w-]+/g,"-")}.json`,data=JSON.stringify({design:dsName(designId),savedAt:new Date().toISOString(),state:S},null,1);
+    const dl=window.claude&&await window.claude.use("downloads").catch(()=>null);
+    if(dl){try{await dl.save({filename:name,data});dsMsg="Exported.";}catch(e){dsMsg=e&&e.code==="declined"?"Not saved.":"Could not save here.";}}
+    else{const u=URL.createObjectURL(new Blob([data],{type:"application/json"})),a=document.createElement("a");a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),60000);dsMsg="Downloaded.";}
+    renderDesigns();};
+  $("#dsImport").onclick=()=>$("#dsFile").click();
+  $("#dsFile").onchange=async e=>{const fl=e.target.files[0];if(!fl)return;let o=null;try{const j=JSON.parse(await fl.text());o=j.state||j;}catch(err){}
+    if(!validState(o)){dsMsg="That file is not a design from this app.";renderDesigns();return;}
+    await saveVersion("Before importing "+fl.name);pushHist();ensureCore(o);ensureRules(o);syncDerived(o);ensureLightwell(o);ensureWallRefs(o);S=o;ui.sel=null;commit();dsMsg=`Imported ${fl.name} into this design. The design as it was is kept as a version.`;renderDesigns();};
+}
+$("#dsBtn").addEventListener("click",()=>{const p=$("#dsPanel"),open=p.hidden;p.hidden=!open;$("#dsBtn").setAttribute("aria-expanded",String(open));
+  if(open){dsMsg="";dsCompare=null;renderDesigns();if(dsVersions===null)loadVersions();}});
+document.addEventListener("pointerdown",e=>{const p=$("#dsPanel");if(!p.hidden&&!p.contains(e.target)&&!$("#dsBtn").contains(e.target)){p.hidden=true;$("#dsBtn").setAttribute("aria-expanded","false");}});
+$("#dsName").textContent=dsName(designId);
 
 const LOCAL=load();
 let S=ensureLightwell(syncDerived(ensureRules(ensureCore(LOCAL||seed()))));
