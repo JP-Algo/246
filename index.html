@@ -217,6 +217,8 @@ tfoot td{font-weight:600;border-bottom:0}
 .dspanel .drow{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px}
 .dspanel .drow.on{background:color-mix(in srgb,var(--sel) 12%,transparent)}
 .dspanel .drow .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dspanel .drow .nm[data-ds-open]{cursor:pointer;border-radius:4px;padding:2px 4px;margin:-2px -4px}
+.dspanel .drow .nm[data-ds-open]:hover{background:color-mix(in srgb,var(--gross) 10%,transparent);text-decoration:underline}
 .dspanel .drow small{color:var(--muted)}
 .dspanel .drow button{font-size:12px;padding:2px 8px}
 .dspanel .new{display:flex;gap:6px;margin:6px 0}
@@ -1240,7 +1242,7 @@ async function loadCompare(){
 }
 function renderDesigns(){
   const el=$("#dsPanel"),act=designs.filter(d=>!d.archived),arch=designs.filter(d=>d.archived);
-  const row=d=>`<div class="drow ${d.id===designId?"on":""}"><span class="nm">${escH(d.name)}${d.id===designId?" <small>(open)</small>":""}</span>
+  const row=d=>`<div class="drow ${d.id===designId?"on":""}"><span class="nm" ${d.id===designId?"":`data-ds-open="${d.id}" role="button" tabindex="0" title="Open this design"`}>${escH(d.name)}${d.id===designId?" <small>(open)</small>":""}</span>
       ${d.id===designId?"":`<button class="btn" data-ds-open="${d.id}">Open</button>`}
       <button class="btn" data-ds-ren="${d.id}">Rename</button>
       ${d.id==="current"?"":`<button class="btn" data-ds-arch="${d.id}">${d.archived?"Restore":"Archive"}</button>`}</div>`;
@@ -1267,7 +1269,7 @@ function renderDesigns(){
     <h3>Compare designs</h3>${cmp||`<button class="btn" id="dsCmp">Compare all designs</button>`}
     <h3>File</h3><div class="new"><button class="btn" id="dsExport">Export this design (.json)</button><button class="btn" id="dsImport">Import into this design…</button><input type="file" id="dsFile" accept=".json,application/json" hidden></div>
     ${dsMsg?`<p class="msg">${escH(dsMsg)}</p>`:""}`;
-  el.querySelectorAll("[data-ds-open]").forEach(b=>b.onclick=()=>switchDesign(b.dataset.dsOpen));
+  el.querySelectorAll("[data-ds-open]").forEach(b=>{b.onclick=()=>switchDesign(b.dataset.dsOpen);if(b.tagName!=="BUTTON")b.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();switchDesign(b.dataset.dsOpen);}};});
   el.querySelectorAll("[data-ds-ren]").forEach(b=>b.onclick=()=>{const d=designs.find(x=>x.id===b.dataset.dsRen),r=b.closest(".drow");
     r.innerHTML=`<input class="in" value="${escH(d.name)}" style="flex:1"><button class="btn">Save</button>`;const i=r.querySelector("input");i.focus();
     const go=async()=>{const v=i.value.trim();if(v&&dbRef)await putIndex(designs.map(x=>x.id===d.id?{...x,name:v}:x));$("#dsName").textContent=dsName(designId);renderDesigns();};
