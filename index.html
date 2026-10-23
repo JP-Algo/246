@@ -207,7 +207,9 @@ tfoot td{font-weight:600;border-bottom:0}
 .settings input.in{width:100%;color:var(--ink)}
 .check{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--ink)}
 .designbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px}
-.designbar .btn{padding:3px 9px;font-size:12.5px}
+.designbar{flex-wrap:nowrap;min-width:0}
+.designbar .btn{padding:3px 9px;font-size:12.5px;max-width:min(320px,60vw);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+.designbar .savestate{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;margin:0}
 .top{position:relative}
 .dspanel{position:absolute;z-index:40;top:100%;left:16px;width:min(560px,calc(100vw - 32px));max-height:min(78vh,720px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.2);padding:12px 14px;font-size:13px}
 .dspanel[hidden]{display:none}
@@ -1163,7 +1165,7 @@ function watchDesigns(){
     const L=snap.exists&&Array.isArray((snap.data()||{}).list)?snap.data().list:[];
     designs=L.length?L:[{id:"current",name:"A – current"}];
     if(!designs.some(d=>d.id==="current"))designs.unshift({id:"current",name:"A – current"});
-    $("#dsName").textContent=dsName(designId);if(!$("#dsPanel").hidden)renderDesigns();
+    $("#dsName").textContent=dsName(designId);$("#dsBtn").title="Design: "+dsName(designId)+". Switch, save as new, versions, compare";if(!$("#dsPanel").hidden)renderDesigns();
   },()=>{});
 }
 async function putIndex(list){await dbRef.doc("designs/index").set({list,updatedAt:new Date().toISOString()});designs=list;}
