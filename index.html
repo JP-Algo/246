@@ -3012,8 +3012,11 @@ function build3D(){
   const elev=elevations();
   const toShape=pts=>new THREE.Shape(pts.map(p=>new THREE.Vector2(p[0]-CX,CZ-p[1])));
   // the light well is open from floor to sky: cut it out of the slab (kept a hair inside the outline so the hole is valid)
-  const courtHole=(sh,pts,cw)=>{if(!cw)return;const xs=pts.map(q=>q[0]),ys=pts.map(q=>q[1]),e=0.03;
-    const x0=Math.max(cw.x0,Math.min(...xs)+e),x1=Math.min(cw.x1,Math.max(...xs)-e),y0=Math.max(cw.y0,Math.min(...ys)+e),y1=Math.min(cw.y1,Math.max(...ys)-e);
+  const courtHole=(sh,pts,cw)=>{if(!cw)return;const xs=pts.map(q=>q[0]),ys=pts.map(q=>q[1]),e=0.25;   // 3 in inside: outlines are not always exactly straight
+    const x0=Math.max(cw.x0,Math.min(...xs)+e),x1=Math.min(cw.x1,Math.max(...xs)-e);let y0=Math.max(cw.y0,Math.min(...ys)+e),y1=Math.min(cw.y1,Math.max(...ys)-e);
+    // step an edge inward (up to 1 ft) until its corners sit inside the outline
+    for(let k=0;k<8&&!(pointInPoly([x0,y0],pts)&&pointInPoly([x1,y0],pts));k++)y0+=0.125;
+    for(let k=0;k<8&&!(pointInPoly([x0,y1],pts)&&pointInPoly([x1,y1],pts));k++)y1-=0.125;
     const R4=[[x0,y0],[x1,y0],[x1,y1],[x0,y1]];
     if(x1-x0>0.1&&y1-y0>0.1&&R4.every(q=>pointInPoly(q,pts)))sh.holes.push(new THREE.Path(R4.map(p=>new THREE.Vector2(p[0]-CX,CZ-p[1]))));};
   S.floors.forEach((f,i)=>{
