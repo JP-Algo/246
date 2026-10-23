@@ -1123,8 +1123,12 @@ async function connectDb(){
   if(!db){dbState="none";setSaveState("Saved in this browser only","warn");return;}
   dbRef=db;docRef=db.doc("model/"+designId);dbState="live";
   watchDesigns();
+  subscribeDesign();
+}
+let unsubDoc=null;
+function subscribeDesign(){
   let first=true;
-  docRef.onSnapshot(snap=>{
+  unsubDoc=docRef.onSnapshot(snap=>{
     if(snap.metadata&&snap.metadata.hasPendingWrites)return;
     if(!snap.exists){
       if(first){first=false;
@@ -1172,7 +1176,17 @@ async function putIndex(list){await dbRef.doc("designs/index").set({list,updated
 async function switchDesign(id){
   if(saveTimer||writing)await flush();
   try{localStorage.setItem("s2nd-design",id);}catch(e){}
-  location.hash=id==="current"?"":"design="+id;location.reload();
+  if(!dbRef){designId=id;location.reload();return;}
+  if(unsubDoc){try{unsubDoc();}catch(e){}unsubDoc=null;}
+  designId=id;lastSavedJSON=null;hist.length=0;
+  const L=load();if(L){S=ensureLightwell(syncDerived(ensureRules(ensureCore(L))));}   // this browser's copy shows at once; the stored one follows
+  ui.sel=null;ui.pop=null;ui.draft=null;ui.floor=Math.min(ui.floor,S.floors.length-1);
+  docRef=dbRef.doc("model/"+id);setSaveState("Opening "+dsName(id)+"…","warn");
+  subscribeDesign();
+  $("#dsName").textContent=dsName(id);$("#dsBtn").title="Design: "+dsName(id);
+  dsVersions=null;dsCompare=null;dsMsg="";$("#dsPanel").hidden=true;$("#dsBtn").setAttribute("aria-expanded","false");
+  try{if(location.hash)history.replaceState(null,"",location.pathname+location.search);}catch(e){}
+  renderAll();
 }
 async function newDesign(name,fromState){
   if(!dbRef){dsMsg="Designs need the live connection (open the artifact in claude.ai).";renderDesigns();return;}
